@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-104 — Implementar edição e visualização de versões`.
+**Próxima tarefa pronta:** `JF-105 — Implementar redação de dados pessoais`.
 
 ## Marcos
 
@@ -235,10 +235,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: perfil completo configurável sem editar arquivos; interface responsiva, acessível e coerente com a referência visual.
   - Evidência: commit `266a44d`; Vitest cobre carregamento, abertura, preenchimento e `PUT /api/profile`; lint, Prettier, TypeScript/build e suíte backend verdes.
 
-- [ ] **JF-104 — Implementar edição e visualização de versões**
+- [x] **JF-104 — Implementar edição e visualização de versões**
   - Depende de: JF-103.
   - Teste primeiro: carregar versão atual e exibir histórico sem mutá-lo.
   - Aceite: usuário entende quando e por que a análise ficou desatualizada.
+  - Evidência: commit `34fa427`; endpoint `/api/profile/versions`, histórico visual com versão ativa e testes de imutabilidade aprovados.
 
 - [ ] **JF-105 — Implementar redação de dados pessoais**
   - Depende de: JF-101.
@@ -665,6 +666,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-101 | Concluída | Critérios tipados validam cargos, pesos, remuneração, idiomas e restrições |
 | 15/08/2026 | JF-102 | Concluída | API local cria e lê versões validadas do perfil |
 | 15/08/2026 | JF-103 | Concluída | `266a44d` — onboarding local com validação, salvamento versionado e shell editorial; 3 testes Vitest, lint, formatação, build e 26 testes backend verdes |
+| 15/08/2026 | JF-104 | Concluída | `34fa427` — histórico de versões na API e interface, com versão ativa destacada; 4 testes Vitest e 27 testes backend verdes |
 
 ## Bloqueios e decisões pendentes
 
