@@ -1,7 +1,7 @@
 """Normalized job persistence, source origins and immutable content history."""
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 from sqlalchemy import (
@@ -36,6 +36,7 @@ ExternalIdentifier = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
 ]
+JobStatus = Literal["found", "pending", "rejected", "applied", "interview", "offer", "hired"]
 
 
 class JobDraft(BaseModel):
@@ -49,6 +50,7 @@ class JobDraft(BaseModel):
     location: NonEmptyJobText | None = None
     published_at: datetime | None = None
     expires_at: datetime | None = None
+    status: JobStatus = "found"
 
     @model_validator(mode="after")
     def validate_dates(self) -> "JobDraft":
@@ -115,10 +117,9 @@ class Job(Base):
     title: Mapped[str] = mapped_column(String(240), nullable=False)
     company: Mapped[str] = mapped_column(String(240), nullable=False)
     location: Mapped[str | None] = mapped_column(String(240), nullable=True)
-    published_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="found")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -226,6 +227,7 @@ def create_job(session: Session, draft: JobDraft) -> Job:
         location=draft.location,
         published_at=draft.published_at,
         expires_at=draft.expires_at,
+        status=draft.status,
     )
     session.add(job)
     session.flush()
