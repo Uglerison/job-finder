@@ -64,7 +64,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-016 — Implementar configuração tipada`.
+**Próxima tarefa pronta:** `JF-018 — Implementar o ciclo de vida do servidor local`.
 
 ## Marcos
 
@@ -153,15 +153,17 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: `GET /api/health` validado por teste de API.
   - Evidência: Red por ausência de `job_finder.main`; Green em `tests/api/test_health.py`.
 
-- [ ] **JF-016 — Implementar configuração tipada**
+- [x] **JF-016 — Implementar configuração tipada**
   - Depende de: JF-011.
   - Teste primeiro: defaults, overrides válidos e rejeição de configuração inválida.
   - Aceite: configuração sem segredos expostos e separada por ambiente.
+  - Evidência: `Settings` valida ambiente, logs, diretório local e segredo mascarado.
 
-- [ ] **JF-017 — Configurar SQLite, ORM e migrações**
+- [x] **JF-017 — Configurar SQLite, ORM e migrações**
   - Depende de: JF-011 e JF-016.
   - Teste primeiro: criação isolada do banco e aplicação idempotente da migração inicial.
   - Aceite: sessão transacional, WAL e Alembic funcionais.
+  - Evidência: SQLite em WAL, chaves estrangeiras e revisão Alembic `0001_initial_schema` validados.
 
 - [ ] **JF-018 — Implementar o ciclo de vida do servidor local**
   - Depende de: JF-015 e JF-016.
@@ -626,6 +628,8 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-011 | Concluída | `pyproject.toml`, instalação editável e Pytest configurados |
 | 15/08/2026 | JF-015 | Concluída | TDD Red → Green para `GET /api/health` |
 | 15/08/2026 | JF-012 | Concluída | React/Vite, Vitest, lint e build configurados exclusivamente com pnpm |
+| 15/08/2026 | JF-016 | Concluída | Settings tipados, secret mascarado e variáveis `JOB_FINDER_*` validados |
+| 15/08/2026 | JF-017 | Concluída | SQLite WAL, SQLAlchemy e migração idempotente validados |
 
 ## Bloqueios e decisões pendentes
 
