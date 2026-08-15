@@ -22,6 +22,8 @@ def test_migrations_are_idempotent_and_record_current_revision(tmp_path: Path) -
 
     engine = create_database_engine(tmp_path)
     with engine.connect() as connection:
-        revision = connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
+        revision = connection.exec_driver_sql(
+            "SELECT version_num FROM alembic_version"
+        ).scalar_one()
 
     assert revision == "0001_initial_schema"

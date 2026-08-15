@@ -1,8 +1,9 @@
 """FastAPI application entry point for Job Finder."""
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncIterator, Literal
+from typing import Literal
 
 from fastapi import FastAPI
 from pydantic import BaseModel

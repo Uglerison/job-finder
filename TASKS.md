@@ -64,7 +64,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-013 — Configurar qualidade de código`.
+**Próxima tarefa pronta:** `JF-014 — Configurar CI inicial`.
 
 ## Marcos
 
@@ -139,9 +139,10 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: frontend inicia em desenvolvimento, compila assets estáticos e executa teste mínimo.
   - Evidência: React/TypeScript/Vite com pnpm, Vitest, lint e build validados.
 
-- [ ] **JF-013 — Configurar qualidade de código**
+- [x] **JF-013 — Configurar qualidade de código**
   - Depende de: JF-011 e JF-012.
   - Aceite: formatter, lint e análise de tipos reproduzíveis para backend e frontend.
+  - Evidência: Ruff, Mypy, Prettier, Oxlint e TypeScript verificados e documentados; frontend usa pnpm.
 
 - [ ] **JF-014 — Configurar CI inicial**
   - Depende de: JF-013.
@@ -640,6 +641,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-020 | Concluída | Navegador abre URL local e trava exclusiva evita servidor duplicado |
 | 15/08/2026 | JF-021 | Concluída | Logs locais rotativos com nível configurável e redação de dados sensíveis |
 | 15/08/2026 | JF-022 | Concluída | Script Windows valida health, interface, SQLite e liberação de recursos |
+| 15/08/2026 | JF-013 | Concluída | Formatter, lint e tipos reproduzíveis validados para backend e frontend |
 
 ## Bloqueios e decisões pendentes
 

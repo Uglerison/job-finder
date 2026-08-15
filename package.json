@@ -5,6 +5,8 @@
   "scripts": {
     "web:build": "pnpm --filter job-finder-web build",
     "web:dev": "pnpm --filter job-finder-web dev",
+    "web:format": "pnpm --filter job-finder-web format",
+    "web:format:check": "pnpm --filter job-finder-web format:check",
     "web:lint": "pnpm --filter job-finder-web lint",
     "web:test": "pnpm --filter job-finder-web test"
   }

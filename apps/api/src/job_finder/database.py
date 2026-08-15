@@ -1,6 +1,7 @@
 """SQLite engine, session and migration helpers for the local application."""
 
 from pathlib import Path
+from sqlite3 import Connection as SQLiteConnection
 
 from alembic import command
 from alembic.config import Config
@@ -37,13 +38,12 @@ def create_database_engine(data_dir: Path) -> Engine:
     )
 
     @event.listens_for(engine, "connect")
-    def configure_sqlite_connection(dbapi_connection: object, _connection_record: object) -> None:
-        cursor = dbapi_connection.cursor()  # type: ignore[union-attr]
-        try:
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.execute("PRAGMA journal_mode=WAL")
-        finally:
-            cursor.close()
+    def configure_sqlite_connection(
+        dbapi_connection: SQLiteConnection,
+        _connection_record: object,
+    ) -> None:
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+        dbapi_connection.execute("PRAGMA journal_mode=WAL")
 
     return engine
 

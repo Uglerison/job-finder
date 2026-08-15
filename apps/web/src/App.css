@@ -9,8 +9,7 @@
 .hero {
   align-items: end;
   background:
-    linear-gradient(135deg, rgb(23 37 84 / 94%), rgb(12 74 110 / 94%)),
-    #173f64;
+    linear-gradient(135deg, rgb(23 37 84 / 94%), rgb(12 74 110 / 94%)), #173f64;
   border-radius: 1.5rem;
   box-shadow: 0 1.25rem 3.75rem rgb(15 23 42 / 18%);
   color: #f8fafc;

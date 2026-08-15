@@ -71,9 +71,7 @@ def configure_logging(
         maxBytes=max_bytes,
         backupCount=backup_count,
     )
-    handler.setFormatter(
-        RedactingFormatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-    )
+    handler.setFormatter(RedactingFormatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     logger.addHandler(handler)
     return logger
 

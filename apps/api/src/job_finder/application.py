@@ -3,9 +3,9 @@
 import json
 import os
 import webbrowser
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 from urllib.parse import urlparse
 
 from job_finder.launcher import LOOPBACK_HOST, LocalServer, find_available_port
@@ -193,8 +193,9 @@ class ApplicationLauncher:
     def start(self) -> LaunchResult:
         """Open the existing instance or start one loopback server and open its URL."""
 
-        if self.is_running:
-            url = self._server.url
+        server = self._server
+        if server is not None and server.is_running:
+            url = server.url
             self.browser_opener(url)
             return LaunchResult(url=url, reused_existing_instance=True)
 

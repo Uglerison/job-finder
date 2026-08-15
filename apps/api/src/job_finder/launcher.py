@@ -32,10 +32,7 @@ class LocalServer:
     @property
     def is_running(self) -> bool:
         return bool(
-            self._server
-            and self._server.started
-            and self._thread
-            and self._thread.is_alive()
+            self._server and self._server.started and self._thread and self._thread.is_alive()
         )
 
     @property

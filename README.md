@@ -33,3 +33,22 @@ Com o frontend compilado, valide a fundação completa no Windows:
 pnpm --filter job-finder-web build
 .\.venv\Scripts\python.exe scripts\smoke_test.py
 ```
+
+## Qualidade de código
+
+No backend, execute as verificações com o ambiente virtual do projeto:
+
+```powershell
+.\.venv\Scripts\ruff.exe check apps/api/src tests scripts
+.\.venv\Scripts\ruff.exe format --check apps/api/src tests scripts
+.\.venv\Scripts\mypy.exe apps/api/src
+```
+
+No frontend, use `pnpm`:
+
+```powershell
+pnpm --filter job-finder-web format:check
+pnpm --filter job-finder-web lint
+pnpm --filter job-finder-web test
+pnpm --filter job-finder-web build
+```

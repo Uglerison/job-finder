@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 
 from job_finder.logging import configure_logging, log_file_path

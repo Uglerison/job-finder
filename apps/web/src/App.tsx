@@ -1,13 +1,15 @@
-import './App.css'
+import './App.css';
 
 const onboardingSteps = [
   {
-    description: 'Defina cargos, competências, localização e o que quer evitar.',
+    description:
+      'Defina cargos, competências, localização e o que quer evitar.',
     number: '01',
     title: 'Configure seu perfil',
   },
   {
-    description: 'Centralize vagas encontradas na web ou inclua um link manualmente.',
+    description:
+      'Centralize vagas encontradas na web ou inclua um link manualmente.',
     number: '02',
     title: 'Revise oportunidades',
   },
@@ -16,7 +18,7 @@ const onboardingSteps = [
     number: '03',
     title: 'Movimente o pipeline',
   },
-]
+];
 
 function App() {
   return (
@@ -25,10 +27,12 @@ function App() {
         <div className="hero-copy">
           <p className="eyebrow">JOB FINDER · LOCAL</p>
           <h1 id="page-title">Job Finder</h1>
-          <p className="lede">Sua central local para encontrar e acompanhar vagas.</p>
+          <p className="lede">
+            Sua central local para encontrar e acompanhar vagas.
+          </p>
           <p className="supporting-copy">
-            Organize oportunidades, mantenha seu histórico de candidatura e acompanhe cada
-            próxima etapa em um único lugar.
+            Organize oportunidades, mantenha seu histórico de candidatura e
+            acompanhe cada próxima etapa em um único lugar.
           </p>
           <div className="hero-actions">
             <button type="button">Configurar perfil</button>
@@ -38,7 +42,10 @@ function App() {
           </div>
         </div>
 
-        <aside className="local-status" aria-label="Status do espaço de trabalho">
+        <aside
+          className="local-status"
+          aria-label="Status do espaço de trabalho"
+        >
           <span className="status-dot" aria-hidden="true" />
           <div>
             <p>Espaço de trabalho local</p>
@@ -50,7 +57,9 @@ function App() {
       <section className="onboarding" aria-labelledby="onboarding-title">
         <div className="section-heading">
           <p className="eyebrow">PRIMEIROS PASSOS</p>
-          <h2 id="onboarding-title">Construa uma busca que faça sentido para você.</h2>
+          <h2 id="onboarding-title">
+            Construa uma busca que faça sentido para você.
+          </h2>
         </div>
 
         <ol className="step-list">
@@ -64,7 +73,7 @@ function App() {
         </ol>
       </section>
     </main>
-  )
+  );
 }
 
-export default App
+export default App;

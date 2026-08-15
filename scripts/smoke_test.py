@@ -4,8 +4,8 @@ import argparse
 import tempfile
 from pathlib import Path
 
-from job_finder.smoke import run_smoke_test
 from job_finder.settings import Settings
+from job_finder.smoke import run_smoke_test
 
 
 def main() -> int:
