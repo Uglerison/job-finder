@@ -7,8 +7,7 @@ def test_normalize_job_produces_stable_url_text_and_dates() -> None:
     normalized = normalize_job(
         RawJobData(
             canonical_url=(
-                " HTTPS://Example.com:443/jobs//backend/?utm_source=newsletter"
-                "&b=2&a=1#descricao "
+                " HTTPS://Example.com:443/jobs//backend/?utm_source=newsletter&b=2&a=1#descricao "
             ),
             title="  Backend\n Engineer  ",
             company=" Example\t Labs ",

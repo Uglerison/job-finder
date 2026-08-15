@@ -247,4 +247,86 @@ describe('App', () => {
       retention_days: 90,
     });
   });
+
+  it('carrega a caixa de entrada e adiciona uma vaga manual rapidamente', async () => {
+    const jobs = {
+      items: [
+        {
+          canonical_url: 'https://jobs.example.com/backend-1',
+          company: 'Example Labs',
+          created_at: '2026-08-15T10:00:00Z',
+          id: 1,
+          location: 'São Paulo',
+          origin_count: 1,
+          status: 'found',
+          status_label: 'ENCONTRADA',
+          title: 'Backend Engineer',
+        },
+      ],
+      page: 1,
+      page_size: 20,
+      pages: 1,
+      total: 1,
+    };
+
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/jobs' && init?.method === 'POST') {
+          return Promise.resolve({
+            json: async () => ({
+              canonical_url: 'https://jobs.example.com/data-2',
+              company: 'Data Co',
+              created_at: '2026-08-15T11:00:00Z',
+              id: 2,
+              location: null,
+              origins: [{ id: 2, source: 'manual', url: null }],
+              status: 'found',
+              status_label: 'ENCONTRADA',
+              title: 'Data Engineer',
+            }),
+            ok: true,
+          });
+        }
+        if (input === '/api/jobs') {
+          return Promise.resolve({ json: async () => jobs, ok: true });
+        }
+        if (init?.method === 'PUT') {
+          return Promise.resolve({ json: async () => null, ok: true });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Caixa de entrada de vagas' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar vaga' }));
+    fireEvent.change(screen.getByLabelText('URL canônica'), {
+      target: { value: 'https://jobs.example.com/data-2' },
+    });
+    fireEvent.change(screen.getByLabelText('Título da vaga'), {
+      target: { value: 'Data Engineer' },
+    });
+    fireEvent.change(screen.getByLabelText('Empresa'), {
+      target: { value: 'Data Co' },
+    });
+    fireEvent.change(screen.getByLabelText('Conteúdo da vaga'), {
+      target: { value: 'Descrição de Data Engineer' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar vaga' }));
+
+    expect(
+      await screen.findByText('Vaga adicionada à caixa de entrada.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Data Engineer')).toBeInTheDocument();
+    const [, options] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
+    expect(options.method).toBe('POST');
+    expect(JSON.parse(options.body as string)).toMatchObject({
+      company: 'Data Co',
+      title: 'Data Engineer',
+    });
+  });
 });

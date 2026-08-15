@@ -832,6 +832,165 @@
   scroll-margin-top: 5rem;
 }
 
+.jobs-section {
+  border-top: 1px solid var(--ink-faint);
+  display: grid;
+  gap: clamp(2.5rem, 7vw, 6rem);
+  grid-template-columns: minmax(12rem, 0.72fr) minmax(0, 1.28fr);
+  margin: 0 auto;
+  max-width: 64rem;
+  padding: clamp(4rem, 8vw, 7rem) 1.5rem;
+  scroll-margin-top: 5rem;
+}
+
+.jobs-intro {
+  max-width: 20rem;
+}
+
+.jobs-intro h2 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2rem, 3.8vw, 3rem);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+  margin: 0;
+}
+
+.jobs-intro > p:last-child {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin: 1.25rem 0 0;
+}
+
+.jobs-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.jobs-toolbar {
+  align-items: end;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.job-search-field {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.job-search-field label {
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.job-search-field input {
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-faint);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font-size: 0.86rem;
+  padding: 0.72rem 0.8rem;
+}
+
+.job-search-field input:focus {
+  border-color: var(--ink);
+  outline: 2px solid rgb(168 116 19 / 28%);
+  outline-offset: 1px;
+}
+
+.job-form {
+  background: var(--paper-sunken);
+  border: 1px solid var(--ink-faint);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 1rem;
+}
+
+.job-form textarea {
+  min-height: 8rem;
+}
+
+.job-list {
+  border-top: 1px solid var(--ink-faint);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.job-row {
+  align-items: start;
+  border-bottom: 1px solid var(--ink-faint);
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  padding: 1.25rem 0;
+}
+
+.job-row-main {
+  min-width: 0;
+}
+
+.job-status {
+  color: var(--success);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+}
+
+.job-row h3 {
+  font-size: 1rem;
+  margin: 0.45rem 0 0.35rem;
+}
+
+.job-row p {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.job-row-meta {
+  align-items: end;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  white-space: nowrap;
+}
+
+.jobs-empty,
+.jobs-feedback {
+  background: var(--paper-sunken);
+  border-left: 2px solid var(--accent);
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  margin: 0;
+  padding: 1rem;
+}
+
+.jobs-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.jobs-empty p {
+  margin: 0;
+}
+
+.jobs-feedback.is-error {
+  border-left-color: var(--brand-error, #a32a1c);
+  color: var(--brand-error, #a32a1c);
+}
+
 .preferences-intro {
   max-width: 20rem;
 }
@@ -1156,6 +1315,13 @@
     padding-left: 1rem;
     padding-right: 1rem;
   }
+
+  .jobs-section {
+    gap: 3rem;
+    grid-template-columns: 1fr;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
 }
 
 @media (max-width: 34rem) {
@@ -1180,6 +1346,15 @@
     grid-template-columns: 1fr;
   }
 
+  .job-form {
+    grid-template-columns: 1fr;
+  }
+
+  .jobs-toolbar {
+    align-items: start;
+    flex-direction: column;
+  }
+
   .form-field-wide {
     grid-column: auto;
   }
@@ -1188,5 +1363,13 @@
   .form-actions {
     align-items: start;
     flex-direction: column;
+  }
+
+  .job-row {
+    flex-direction: column;
+  }
+
+  .job-row-meta {
+    align-items: start;
   }
 }

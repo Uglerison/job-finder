@@ -45,6 +45,30 @@ type Preferences = {
   retention_days: number;
 };
 
+type JobListItem = {
+  canonical_url: string | null;
+  company: string;
+  created_at: string;
+  id: number;
+  location: string | null;
+  origin_count: number;
+  status: string;
+  status_label: string;
+  title: string;
+};
+
+type JobDetail = JobListItem & {
+  origins: { id: number; source: string; url: string | null }[];
+};
+
+type ManualJobFormState = {
+  canonicalUrl: string;
+  company: string;
+  content: string;
+  location: string;
+  title: string;
+};
+
 type ProfileFormState = {
   targetRoles: string;
   skills: string;
@@ -80,6 +104,14 @@ const defaultPreferences: Preferences = {
   locale: 'pt-BR',
   retention_days: 365,
   timezone: 'America/Sao_Paulo',
+};
+
+const defaultManualJobForm: ManualJobFormState = {
+  canonicalUrl: '',
+  company: '',
+  content: '',
+  location: '',
+  title: '',
 };
 
 const productSteps = [
@@ -237,6 +269,16 @@ function App() {
     null,
   );
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<JobListItem[]>([]);
+  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+  const [jobSearch, setJobSearch] = useState('');
+  const [isJobFormOpen, setIsJobFormOpen] = useState(false);
+  const [manualJobForm, setManualJobForm] =
+    useState<ManualJobFormState>(defaultManualJobForm);
+  const [isSavingJob, setIsSavingJob] = useState(false);
+  const [jobFormError, setJobFormError] = useState<string | null>(null);
+  const [jobMessage, setJobMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -278,6 +320,39 @@ function App() {
     };
 
     void loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadJobs = async () => {
+      try {
+        const response = await fetch('/api/jobs');
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar as vagas.');
+        }
+        const payload = (await response.json()) as {
+          items?: JobListItem[];
+        } | null;
+        if (isMounted) {
+          setJobs(Array.isArray(payload?.items) ? payload.items : []);
+        }
+      } catch {
+        if (isMounted) {
+          setJobsError('Não foi possível carregar a caixa de entrada local.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingJobs(false);
+        }
+      }
+    };
+
+    void loadJobs();
 
     return () => {
       isMounted = false;
@@ -437,6 +512,77 @@ function App() {
     }
   };
 
+  const openJobForm = () => {
+    setManualJobForm(defaultManualJobForm);
+    setJobFormError(null);
+    setJobMessage(null);
+    setIsJobFormOpen(true);
+  };
+
+  const handleManualJobSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (
+      !manualJobForm.canonicalUrl.trim() ||
+      !manualJobForm.title.trim() ||
+      !manualJobForm.company.trim() ||
+      !manualJobForm.content.trim()
+    ) {
+      setJobFormError('Preencha URL, título, empresa e conteúdo da vaga.');
+      return;
+    }
+
+    setIsSavingJob(true);
+    setJobFormError(null);
+    setJobMessage(null);
+    try {
+      const response = await fetch('/api/jobs', {
+        body: JSON.stringify({
+          canonical_url: manualJobForm.canonicalUrl.trim(),
+          company: manualJobForm.company.trim(),
+          location: manualJobForm.location.trim() || null,
+          raw_content: manualJobForm.content,
+          title: manualJobForm.title.trim(),
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error('Não foi possível salvar a vaga.');
+      }
+      const savedJob = (await response.json()) as JobDetail;
+      setJobs((currentJobs) => [
+        {
+          canonical_url: savedJob.canonical_url,
+          company: savedJob.company,
+          created_at: savedJob.created_at,
+          id: savedJob.id,
+          location: savedJob.location,
+          origin_count: savedJob.origins?.length ?? 1,
+          status: savedJob.status,
+          status_label: savedJob.status_label,
+          title: savedJob.title,
+        },
+        ...currentJobs,
+      ]);
+      setIsJobFormOpen(false);
+      setJobMessage('Vaga adicionada à caixa de entrada.');
+    } catch {
+      setJobFormError('Não foi possível salvar a vaga. Tente novamente.');
+    } finally {
+      setIsSavingJob(false);
+    }
+  };
+
+  const visibleJobs = jobs.filter((job) => {
+    const query = jobSearch.trim().toLocaleLowerCase();
+    if (!query) {
+      return true;
+    }
+    return `${job.title} ${job.company} ${job.location ?? ''}`
+      .toLocaleLowerCase()
+      .includes(query);
+  });
+
   const profileStatus = isLoadingProfile
     ? 'CARREGANDO'
     : profile
@@ -457,6 +603,7 @@ function App() {
             <a href="#fluxo">Fluxo</a>
             <a href="#perfil">Perfil</a>
             <a href="#historico">Histórico</a>
+            <a href="#vagas">Vagas</a>
             <a href="#preferencias">Preferências</a>
           </nav>
 
@@ -884,6 +1031,205 @@ function App() {
           </ol>
         </section>
       )}
+
+      <section className="jobs-section" id="vagas" aria-labelledby="jobs-title">
+        <div className="jobs-intro">
+          <p className="eyebrow">CAIXA DE ENTRADA</p>
+          <h2 id="jobs-title">Caixa de entrada de vagas</h2>
+          <p>
+            Revise oportunidades encontradas, mantenha a origem registrada e
+            escolha o próximo passo sem sair do computador.
+          </p>
+        </div>
+
+        <div className="jobs-workspace">
+          <div className="jobs-toolbar">
+            <div className="job-search-field">
+              <label htmlFor="job-search">Buscar na caixa de entrada</label>
+              <input
+                id="job-search"
+                onChange={(event) => setJobSearch(event.target.value)}
+                placeholder="Cargo, empresa ou local"
+                value={jobSearch}
+              />
+            </div>
+            <button
+              className="header-action"
+              onClick={openJobForm}
+              type="button"
+            >
+              Adicionar vaga
+            </button>
+          </div>
+
+          {isJobFormOpen && (
+            <form className="job-form" onSubmit={handleManualJobSubmit}>
+              <div className="form-field">
+                <label htmlFor="manual-job-url">URL canônica</label>
+                <input
+                  id="manual-job-url"
+                  onChange={(event) =>
+                    setManualJobForm((current) => ({
+                      ...current,
+                      canonicalUrl: event.target.value,
+                    }))
+                  }
+                  type="url"
+                  value={manualJobForm.canonicalUrl}
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="manual-job-title">Título da vaga</label>
+                <input
+                  id="manual-job-title"
+                  onChange={(event) =>
+                    setManualJobForm((current) => ({
+                      ...current,
+                      title: event.target.value,
+                    }))
+                  }
+                  value={manualJobForm.title}
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="manual-job-company">Empresa</label>
+                <input
+                  id="manual-job-company"
+                  onChange={(event) =>
+                    setManualJobForm((current) => ({
+                      ...current,
+                      company: event.target.value,
+                    }))
+                  }
+                  value={manualJobForm.company}
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="manual-job-location">Localização</label>
+                <input
+                  id="manual-job-location"
+                  onChange={(event) =>
+                    setManualJobForm((current) => ({
+                      ...current,
+                      location: event.target.value,
+                    }))
+                  }
+                  placeholder="Opcional"
+                  value={manualJobForm.location}
+                />
+              </div>
+              <div className="form-field form-field-wide">
+                <label htmlFor="manual-job-content">Conteúdo da vaga</label>
+                <textarea
+                  id="manual-job-content"
+                  onChange={(event) =>
+                    setManualJobForm((current) => ({
+                      ...current,
+                      content: event.target.value,
+                    }))
+                  }
+                  rows={5}
+                  value={manualJobForm.content}
+                />
+              </div>
+              {(jobFormError || jobMessage) && (
+                <p
+                  className={`form-message${jobFormError ? ' is-error' : ' is-success'}`}
+                  role="status"
+                >
+                  {jobFormError || jobMessage}
+                </p>
+              )}
+              <div className="form-actions form-field-wide">
+                <button
+                  className="primary-button"
+                  disabled={isSavingJob}
+                  type="submit"
+                >
+                  {isSavingJob ? 'Salvando…' : 'Salvar vaga'}
+                </button>
+                <button
+                  className="text-button text-button-plain"
+                  onClick={() => setIsJobFormOpen(false)}
+                  type="button"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
+
+          {jobMessage && !isJobFormOpen && (
+            <p className="form-message is-success" role="status">
+              {jobMessage}
+            </p>
+          )}
+
+          {isLoadingJobs && (
+            <p className="jobs-feedback" role="status">
+              Carregando vagas…
+            </p>
+          )}
+          {!isLoadingJobs && jobsError && (
+            <p className="jobs-feedback is-error" role="status">
+              {jobsError}
+            </p>
+          )}
+          {!isLoadingJobs && !jobsError && jobs.length === 0 && (
+            <div className="jobs-empty">
+              <span className="meta-label">NENHUMA VAGA SALVA</span>
+              <p>Adicione uma vaga manualmente para começar sua revisão.</p>
+              <button
+                className="text-button"
+                onClick={openJobForm}
+                type="button"
+              >
+                Adicionar primeira vaga <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          )}
+          {!isLoadingJobs &&
+            !jobsError &&
+            jobs.length > 0 &&
+            visibleJobs.length === 0 && (
+              <p className="jobs-feedback" role="status">
+                Nenhuma vaga corresponde à busca.
+              </p>
+            )}
+          {!isLoadingJobs && !jobsError && visibleJobs.length > 0 && (
+            <ul className="job-list">
+              {visibleJobs.map((job) => (
+                <li className="job-row" key={job.id}>
+                  <div className="job-row-main">
+                    <span className="job-status">{job.status_label}</span>
+                    <h3>{job.title}</h3>
+                    <p>
+                      {job.company}
+                      {job.location ? ` · ${job.location}` : ''}
+                    </p>
+                  </div>
+                  <div className="job-row-meta">
+                    <span className="mono-note">
+                      {job.origin_count} origem
+                      {job.origin_count === 1 ? '' : 'ns'}
+                    </span>
+                    {job.canonical_url && (
+                      <a
+                        className="card-link"
+                        href={job.canonical_url}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        Abrir origem <span aria-hidden="true">↗</span>
+                      </a>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
 
       <section
         className="preferences-section"
