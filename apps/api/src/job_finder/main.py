@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from job_finder import __version__
 from job_finder.database import create_database_engine, create_session_factory, run_migrations
 from job_finder.frontend import frontend_dist_path, mount_frontend
-from job_finder.logging import configure_logging
+from job_finder.logging import close_logging, configure_logging
 from job_finder.settings import Settings, get_settings
 
 
@@ -28,16 +28,20 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     settings: Settings = application.state.settings
     logger = configure_logging(settings)
     logger.info("Starting local Job Finder service.")
-    run_migrations(settings.data_dir)
-    engine = create_database_engine(settings.data_dir)
-    application.state.database_engine = engine
-    application.state.session_factory = create_session_factory(engine)
-
+    engine = None
     try:
+        run_migrations(settings.data_dir)
+        engine = create_database_engine(settings.data_dir)
+        application.state.database_engine = engine
+        application.state.session_factory = create_session_factory(engine)
         yield
     finally:
-        logger.info("Stopping local Job Finder service.")
-        engine.dispose()
+        try:
+            logger.info("Stopping local Job Finder service.")
+            if engine is not None:
+                engine.dispose()
+        finally:
+            close_logging(logger)
 
 
 def create_app(

@@ -36,6 +36,7 @@ def test_local_server_starts_on_loopback_migrates_and_stops(tmp_path: Path) -> N
     log_content = log_file_path(tmp_path).read_text(encoding="utf-8")
     assert "Starting local Job Finder service." in log_content
     assert "Stopping local Job Finder service." in log_content
+    log_file_path(tmp_path).replace(log_file_path(tmp_path).with_suffix(".closed"))
 
 
 def test_local_server_serves_frontend_and_api_from_one_url(tmp_path: Path) -> None:

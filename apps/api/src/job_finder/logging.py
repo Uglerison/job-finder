@@ -76,3 +76,11 @@ def configure_logging(
     )
     logger.addHandler(handler)
     return logger
+
+
+def close_logging(logger: logging.Logger) -> None:
+    """Flush and close this logger's file handles, which is required on Windows."""
+
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+        handler.close()

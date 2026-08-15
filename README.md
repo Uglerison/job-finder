@@ -24,3 +24,12 @@ pnpm install
 pnpm --filter job-finder-web test
 pnpm --filter job-finder-web build
 ```
+
+## Smoke test local
+
+Com o frontend compilado, valide a fundação completa no Windows:
+
+```powershell
+pnpm --filter job-finder-web build
+.\.venv\Scripts\python.exe scripts\smoke_test.py
+```
