@@ -64,7 +64,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-101 — Implementar validação dos critérios do perfil`.
+**Próxima tarefa pronta:** `JF-102 — Implementar API do perfil`.
 
 ## Marcos
 
@@ -204,10 +204,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: schema e migração preservam histórico.
   - Evidência: migração `0002_profile_versions` e testes cobrem criação, versão ativa e bloqueio de atualização histórica.
 
-- [ ] **JF-101 — Implementar validação dos critérios do perfil**
+- [x] **JF-101 — Implementar validação dos critérios do perfil**
   - Depende de: JF-100.
   - Teste primeiro: cargos, pesos, salário, idiomas e restrições válidos/inválidos.
   - Aceite: erros de domínio claros e pesos consistentes.
+  - Evidência: schemas Pydantic rejeitam critérios inválidos e exigem pesos totalizando 100%.
 
 - [ ] **JF-102 — Implementar API do perfil**
   - Depende de: JF-100 e JF-101.
@@ -646,6 +647,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-013 | Concluída | Formatter, lint e tipos reproduzíveis validados para backend e frontend |
 | 15/08/2026 | JF-014 | Concluída | Workflow Windows valida testes, qualidade, tipos e build sem segredos |
 | 15/08/2026 | JF-100 | Concluída | Perfil versionado em SQLite com histórico imutável e consulta da versão ativa |
+| 15/08/2026 | JF-101 | Concluída | Critérios tipados validam cargos, pesos, remuneração, idiomas e restrições |
 
 ## Bloqueios e decisões pendentes
 
