@@ -1,4 +1,58 @@
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+
 import './App.css';
+
+type WorkModel = 'remote' | 'hybrid' | 'on_site';
+type LanguageLevel = 'basic' | 'intermediate' | 'professional' | 'native';
+
+type ProfileCriteria = {
+  target_roles: string[];
+  skills: string[];
+  languages: { code: string; minimum_level: LanguageLevel }[];
+  salary_expectation: {
+    currency: string;
+    minimum_monthly: number;
+    maximum_monthly: number;
+  } | null;
+  weights: Record<string, number>;
+  restrictions: {
+    work_models: WorkModel[];
+    locations: string[];
+    excluded_keywords: string[];
+  };
+};
+
+type ProfileResponse = {
+  criteria: ProfileCriteria;
+  profile_id: number;
+  version_number: number;
+};
+
+type ProfileFormState = {
+  targetRoles: string;
+  skills: string;
+  workModels: WorkModel[];
+  locations: string;
+  excludedKeywords: string;
+  languageCode: string;
+  languageLevel: LanguageLevel;
+  currency: string;
+  minimumMonthly: string;
+  maximumMonthly: string;
+};
+
+const defaultFormState: ProfileFormState = {
+  currency: 'BRL',
+  excludedKeywords: '',
+  languageCode: 'en',
+  languageLevel: 'professional',
+  locations: '',
+  maximumMonthly: '',
+  minimumMonthly: '',
+  skills: '',
+  targetRoles: '',
+  workModels: ['remote'],
+};
 
 const productSteps = [
   {
@@ -21,7 +75,197 @@ const productSteps = [
   },
 ];
 
+function splitValues(value: string): string[] {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function formFromCriteria(criteria: ProfileCriteria): ProfileFormState {
+  const salary = criteria.salary_expectation;
+  const language = criteria.languages[0];
+
+  return {
+    currency: salary?.currency ?? 'BRL',
+    excludedKeywords: criteria.restrictions.excluded_keywords.join(', '),
+    languageCode: language?.code ?? 'en',
+    languageLevel: language?.minimum_level ?? 'professional',
+    locations: criteria.restrictions.locations.join(', '),
+    maximumMonthly: salary?.maximum_monthly.toString() ?? '',
+    minimumMonthly: salary?.minimum_monthly.toString() ?? '',
+    skills: criteria.skills.join(', '),
+    targetRoles: criteria.target_roles.join(', '),
+    workModels: criteria.restrictions.work_models,
+  };
+}
+
+function payloadFromForm(form: ProfileFormState): ProfileCriteria {
+  const hasSalary = form.minimumMonthly !== '' || form.maximumMonthly !== '';
+
+  return {
+    languages: [
+      {
+        code: form.languageCode.trim().toLowerCase() || 'en',
+        minimum_level: form.languageLevel,
+      },
+    ],
+    restrictions: {
+      excluded_keywords: splitValues(form.excludedKeywords),
+      locations: splitValues(form.locations),
+      work_models: form.workModels,
+    },
+    salary_expectation: hasSalary
+      ? {
+          currency: form.currency,
+          maximum_monthly: Number(form.maximumMonthly),
+          minimum_monthly: Number(form.minimumMonthly),
+        }
+      : null,
+    skills: splitValues(form.skills),
+    target_roles: splitValues(form.targetRoles),
+    weights: { experience: 35, location: 25, skills: 40 },
+  };
+}
+
+function validateForm(form: ProfileFormState): string | null {
+  if (splitValues(form.targetRoles).length === 0) {
+    return 'Informe ao menos um cargo desejado.';
+  }
+
+  if (form.workModels.length === 0) {
+    return 'Selecione ao menos uma modalidade de trabalho.';
+  }
+
+  const hasMinimum = form.minimumMonthly !== '';
+  const hasMaximum = form.maximumMonthly !== '';
+  if (hasMinimum !== hasMaximum) {
+    return 'Preencha os dois valores da pretensão mensal ou deixe ambos vazios.';
+  }
+
+  if (
+    hasMinimum &&
+    hasMaximum &&
+    Number(form.minimumMonthly) > Number(form.maximumMonthly)
+  ) {
+    return 'A pretensão mínima não pode ser maior que a máxima.';
+  }
+
+  return null;
+}
+
 function App() {
+  const [formState, setFormState] =
+    useState<ProfileFormState>(defaultFormState);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [profile, setProfile] = useState<ProfileResponse | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch('/api/profile')
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar o perfil.');
+        }
+        return (await response.json()) as ProfileResponse | null;
+      })
+      .then((currentProfile) => {
+        if (!isMounted || !currentProfile) {
+          return;
+        }
+
+        setProfile(currentProfile);
+        setFormState(formFromCriteria(currentProfile.criteria));
+      })
+      .catch(() => {
+        if (isMounted) {
+          setLoadError('Não foi possível carregar o perfil local.');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingProfile(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const openProfileForm = () => {
+    setFormError(null);
+    setSaveMessage(null);
+    setIsFormOpen(true);
+  };
+
+  const handleFormChange = (
+    field: keyof ProfileFormState,
+    event: ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
+  ) => {
+    setFormState((current) => ({ ...current, [field]: event.target.value }));
+    setFormError(null);
+    setSaveMessage(null);
+  };
+
+  const toggleWorkModel = (workModel: WorkModel) => {
+    setFormState((current) => ({
+      ...current,
+      workModels: current.workModels.includes(workModel)
+        ? current.workModels.filter((item) => item !== workModel)
+        : [...current.workModels, workModel],
+    }));
+    setFormError(null);
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const validationMessage = validateForm(formState);
+    if (validationMessage) {
+      setFormError(validationMessage);
+      return;
+    }
+
+    setIsSaving(true);
+    setFormError(null);
+    setSaveMessage(null);
+
+    try {
+      const response = await fetch('/api/profile', {
+        body: JSON.stringify(payloadFromForm(formState)),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT',
+      });
+
+      if (!response.ok) {
+        throw new Error('Não foi possível salvar o perfil.');
+      }
+
+      const savedProfile = (await response.json()) as ProfileResponse;
+      setProfile(savedProfile);
+      setFormState(formFromCriteria(savedProfile.criteria));
+      setSaveMessage('Perfil salvo localmente.');
+    } catch {
+      setFormError('Não foi possível salvar o perfil. Tente novamente.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const profileStatus = isLoadingProfile
+    ? 'CARREGANDO'
+    : profile
+      ? 'CONFIGURADO'
+      : 'PRONTO';
+
   return (
     <main className="paper-app">
       <header className="site-header" role="banner">
@@ -39,7 +283,11 @@ function App() {
 
           <div className="header-meta">
             <span className="meta-label">LOCAL · PRIVADO</span>
-            <button className="header-action" type="button">
+            <button
+              className="header-action"
+              onClick={openProfileForm}
+              type="button"
+            >
               Abrir perfil
             </button>
           </div>
@@ -66,7 +314,11 @@ function App() {
             processo que você consegue acompanhar.
           </p>
           <div className="hero-actions">
-            <button className="primary-button" type="button">
+            <button
+              className="primary-button"
+              onClick={openProfileForm}
+              type="button"
+            >
               Configurar meu perfil
             </button>
             <a className="text-button" href="#como-funciona">
@@ -86,31 +338,223 @@ function App() {
         >
           <div className="card-topline">
             <span className="meta-label">01 · SEU ESPAÇO DE BUSCA</span>
-            <span className="card-status">PRONTO</span>
+            <span className="card-status">{profileStatus}</span>
           </div>
           <div className="card-body">
             <p className="card-kicker">PRIMEIRO PASSO</p>
-            <h2 id="workspace-title">Seu perfil ainda não foi configurado.</h2>
+            <h2 id="workspace-title">
+              {profile
+                ? 'Seu perfil está pronto para buscar oportunidades.'
+                : 'Seu perfil ainda não foi configurado.'}
+            </h2>
             <p>
-              Comece dizendo que tipo de oportunidade faz sentido para você. O
-              restante do espaço se adapta a essas escolhas.
+              {profile
+                ? `Versão ${profile.version_number} está salva neste computador.`
+                : 'Comece dizendo que tipo de oportunidade faz sentido para você. O restante do espaço se adapta a essas escolhas.'}
             </p>
-            <div className="progress-line" aria-label="Etapa 1 de 3">
-              <span className="progress-fill" />
+            <div
+              className="progress-line"
+              aria-label={profile ? 'Perfil configurado' : 'Etapa 1 de 3'}
+            >
+              <span
+                className={`progress-fill${profile ? ' profile-ready' : ''}`}
+              />
             </div>
             <div className="progress-caption">
               <span>Perfil</span>
-              <span>1 de 3 etapas</span>
+              <span>{profile ? 'configurado' : '1 de 3 etapas'}</span>
             </div>
           </div>
           <div className="card-footer">
             <span className="mono-note">SEM CONTA · SEM NUVEM</span>
-            <span className="arrow-icon" aria-hidden="true">
-              →
-            </span>
+            <button
+              className="card-link"
+              onClick={openProfileForm}
+              type="button"
+            >
+              {profile ? 'Editar' : 'Começar'} <span aria-hidden="true">→</span>
+            </button>
           </div>
         </aside>
       </section>
+
+      {isFormOpen && (
+        <section
+          className="profile-form-section"
+          aria-labelledby="profile-form-title"
+        >
+          <div className="profile-form-intro">
+            <p className="eyebrow">CONFIGURAÇÃO DO PERFIL</p>
+            <h2 id="profile-form-title">Configure seu perfil</h2>
+            <p>
+              Esses critérios orientam a busca e ficam somente no banco local do
+              Job Finder.
+            </p>
+          </div>
+
+          <form className="profile-form" onSubmit={handleSubmit}>
+            <div className="form-field form-field-wide">
+              <label htmlFor="target-roles">Cargos desejados</label>
+              <input
+                id="target-roles"
+                onChange={(event) => handleFormChange('targetRoles', event)}
+                placeholder="Ex.: Backend Engineer, Python Developer"
+                value={formState.targetRoles}
+              />
+              <span>Separe mais de um cargo por vírgula.</span>
+            </div>
+
+            <div className="form-field form-field-wide">
+              <label htmlFor="skills">Competências</label>
+              <textarea
+                id="skills"
+                onChange={(event) => handleFormChange('skills', event)}
+                placeholder="Ex.: Python, FastAPI, SQL"
+                rows={3}
+                value={formState.skills}
+              />
+              <span>Use palavras-chave que aparecem nas vagas.</span>
+            </div>
+
+            <fieldset className="form-field form-field-wide">
+              <legend>Modalidades de trabalho</legend>
+              <div className="checkbox-grid">
+                {(
+                  [
+                    ['remote', 'Remoto'],
+                    ['hybrid', 'Híbrido'],
+                    ['on_site', 'Presencial'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <label className="checkbox-label" key={value}>
+                    <input
+                      checked={formState.workModels.includes(value)}
+                      onChange={() => toggleWorkModel(value)}
+                      type="checkbox"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <div className="form-field">
+              <label htmlFor="locations">Localizações preferidas</label>
+              <input
+                id="locations"
+                onChange={(event) => handleFormChange('locations', event)}
+                placeholder="Ex.: Brasil, São Paulo"
+                value={formState.locations}
+              />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="excluded-keywords">Palavras a evitar</label>
+              <input
+                id="excluded-keywords"
+                onChange={(event) =>
+                  handleFormChange('excludedKeywords', event)
+                }
+                placeholder="Ex.: estágio, presencial"
+                value={formState.excludedKeywords}
+              />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="language-code">Idioma principal</label>
+              <input
+                id="language-code"
+                maxLength={5}
+                onChange={(event) => handleFormChange('languageCode', event)}
+                placeholder="Ex.: en"
+                value={formState.languageCode}
+              />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="language-level">Nível mínimo</label>
+              <select
+                id="language-level"
+                onChange={(event) => handleFormChange('languageLevel', event)}
+                value={formState.languageLevel}
+              >
+                <option value="basic">Básico</option>
+                <option value="intermediate">Intermediário</option>
+                <option value="professional">Profissional</option>
+                <option value="native">Nativo</option>
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="minimum-monthly">Pretensão mínima mensal</label>
+              <input
+                id="minimum-monthly"
+                min="0"
+                onChange={(event) => handleFormChange('minimumMonthly', event)}
+                placeholder="Opcional"
+                type="number"
+                value={formState.minimumMonthly}
+              />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="maximum-monthly">Pretensão máxima mensal</label>
+              <input
+                id="maximum-monthly"
+                min="0"
+                onChange={(event) => handleFormChange('maximumMonthly', event)}
+                placeholder="Opcional"
+                type="number"
+                value={formState.maximumMonthly}
+              />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="currency">Moeda</label>
+              <select
+                id="currency"
+                onChange={(event) => handleFormChange('currency', event)}
+                value={formState.currency}
+              >
+                <option value="BRL">BRL · Real</option>
+                <option value="USD">USD · Dólar</option>
+                <option value="EUR">EUR · Euro</option>
+              </select>
+            </div>
+
+            <div className="weight-note form-field-wide">
+              <span className="meta-label">PESOS INICIAIS DA ANÁLISE</span>
+              <span>Competências 40% · Experiência 35% · Localização 25%</span>
+            </div>
+
+            {(formError || loadError || saveMessage) && (
+              <p
+                className={`form-message${formError || loadError ? ' is-error' : ' is-success'}`}
+                role="status"
+              >
+                {formError || loadError || saveMessage}
+              </p>
+            )}
+
+            <div className="form-actions form-field-wide">
+              <button
+                className="primary-button"
+                disabled={isSaving}
+                type="submit"
+              >
+                {isSaving ? 'Salvando…' : 'Salvar perfil'}
+              </button>
+              <button
+                className="text-button text-button-plain"
+                onClick={() => setIsFormOpen(false)}
+                type="button"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
 
       <section
         className="process-section"
@@ -147,7 +591,11 @@ function App() {
             Sua próxima oportunidade começa com contexto.
           </h2>
         </div>
-        <button className="inverse-button" type="button">
+        <button
+          className="inverse-button"
+          onClick={openProfileForm}
+          type="button"
+        >
           Começar agora <span aria-hidden="true">↗</span>
         </button>
       </section>
