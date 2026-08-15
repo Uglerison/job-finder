@@ -86,3 +86,38 @@ async def test_process_events_api_rejects_naive_datetime(application) -> None:
         )
 
     assert response.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_agenda_api_filters_events_by_period_and_status(application) -> None:
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        application_id = await _create_application(client)
+        await client.post(
+            f"/api/applications/{application_id}/events",
+            json={
+                "kind": "interview",
+                "title": "Entrevista no período",
+                "starts_at": "2026-08-15T10:00:00-03:00",
+                "ends_at": "2026-08-15T11:00:00-03:00",
+            },
+        )
+        await client.post(
+            f"/api/applications/{application_id}/events",
+            json={
+                "kind": "deadline",
+                "title": "Prazo futuro",
+                "starts_at": "2026-09-15T10:00:00-03:00",
+            },
+        )
+        filtered = await client.get(
+            "/api/events",
+            params={
+                "from": "2026-08-01T00:00:00-03:00",
+                "to": "2026-08-31T23:59:59-03:00",
+                "status": "scheduled",
+            },
+        )
+
+    assert filtered.status_code == 200
+    assert [item["title"] for item in filtered.json()] == ["Entrevista no período"]

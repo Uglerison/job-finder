@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-213 — Implementar agenda de processo seletivo`.
+**Próxima tarefa pronta:** `JF-214 — Implementar motivos de encerramento`.
 
 ## Marcos
 
@@ -339,10 +339,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: eventos persistem com data, participantes, link e notas.
   - Evidência: migração `0009_process_events`, modelo de entrevistas/desafios/prazos com timezone, detecção de sobreposição e helper de vencimento; API de criação/listagem; 61 testes backend verdes.
 
-- [ ] **JF-213 — Implementar agenda de processo seletivo**
+- [x] **JF-213 — Implementar agenda de processo seletivo**
   - Depende de: JF-212.
   - Teste primeiro: próximos eventos, vencidos e filtros por período.
   - Aceite: agenda disponível na API e interface.
+  - Evidência: `GET /api/events` filtra por período/status com validação de timezone; agenda editorial separa próximos e vencidos; 11 testes Vitest, 62 testes backend, lint, tipos e builds verdes.
 
 - [ ] **JF-214 — Implementar motivos de encerramento**
   - Depende de: JF-209.
@@ -699,6 +700,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-210 | Concluída | API transacional para criar, consultar, avançar e corrigir candidaturas; conflitos retornam `409` |
 | 15/08/2026 | JF-211 | Concluída | Quadro visual responsivo com ações acessíveis e rollback de transição rejeitada; 10 testes Vitest e build frontend verdes |
 | 15/08/2026 | JF-212 | Concluída | Eventos de entrevista, desafio e prazo com timezone, conflito e vencimento auditáveis; migração `0009_process_events` e 61 testes backend verdes |
+| 15/08/2026 | JF-213 | Concluída | Agenda API com filtros por período/status e interface de próximos/vencidos; 11 testes Vitest e 62 testes backend verdes |
 
 ## Bloqueios e decisões pendentes
 

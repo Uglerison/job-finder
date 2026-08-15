@@ -1,11 +1,12 @@
 """HTTP API for interviews, challenges and application deadlines."""
 
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from job_finder.applications import get_application
@@ -56,6 +57,9 @@ class ProcessEventResponse(BaseModel):
     status: str
 
 
+AgendaStatus = Literal["scheduled", "completed", "cancelled"]
+
+
 def get_session(request: Request) -> Iterator[Session]:
     session_factory: sessionmaker[Session] = request.app.state.session_factory
     with session_factory() as session:
@@ -63,6 +67,40 @@ def get_session(request: Request) -> Iterator[Session]:
 
 
 SessionDependency = Annotated[Session, Depends(get_session)]
+
+
+@router.get("/events", response_model=list[ProcessEventResponse])
+def list_agenda_events(
+    session: SessionDependency,
+    from_at: Annotated[datetime | None, Query(alias="from")] = None,
+    to_at: Annotated[datetime | None, Query(alias="to")] = None,
+    status_filter: Annotated[AgendaStatus | None, Query(alias="status")] = None,
+) -> list[ProcessEventResponse]:
+    """Return events overlapping an optional timezone-aware period."""
+
+    try:
+        start_bound = _bound_datetime(from_at)
+        end_bound = _bound_datetime(to_at)
+    except EventTimeError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    if start_bound is not None and end_bound is not None and end_bound < start_bound:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Agenda end must be after its start.",
+        )
+
+    statement = select(ProcessEvent).order_by(ProcessEvent.starts_at, ProcessEvent.id)
+    if status_filter:
+        statement = statement.where(ProcessEvent.status == status_filter)
+    events = list(session.scalars(statement))
+    return [
+        _event_response(event)
+        for event in events
+        if _event_overlaps_period(event, start_bound, end_bound)
+    ]
 
 
 @router.get(
@@ -136,3 +174,24 @@ def _event_response(event: ProcessEvent) -> ProcessEventResponse:
         notes=event.notes,
         status=event.status,
     )
+
+
+def _bound_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise EventTimeError("Agenda bounds must include a timezone.")
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _event_overlaps_period(
+    event: ProcessEvent,
+    start_bound: datetime | None,
+    end_bound: datetime | None,
+) -> bool:
+    event_end = event.ends_at or event.starts_at
+    if start_bound is not None and event_end < start_bound:
+        return False
+    if end_bound is not None and event.starts_at > end_bound:
+        return False
+    return True

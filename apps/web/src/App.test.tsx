@@ -544,4 +544,55 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText('ENCONTRADA').length).toBeGreaterThanOrEqual(1);
   });
+
+  it('exibe a agenda com próximos eventos e prazos vencidos', async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (input === '/api/events') {
+        return Promise.resolve({
+          json: async () => [
+            {
+              application_id: 7,
+              ends_at: '2099-08-15T12:00:00Z',
+              id: 1,
+              kind: 'interview',
+              link: 'https://meet.example.com/room',
+              notes: null,
+              participants: ['ana@example.com'],
+              starts_at: '2099-08-15T11:00:00Z',
+              status: 'scheduled',
+              timezone_name: 'UTC',
+              title: 'Entrevista técnica',
+            },
+            {
+              application_id: 7,
+              ends_at: null,
+              id: 2,
+              kind: 'deadline',
+              link: null,
+              notes: 'Enviar exercício',
+              participants: [],
+              starts_at: '2020-08-01T11:00:00Z',
+              status: 'scheduled',
+              timezone_name: 'UTC',
+              title: 'Prazo do desafio',
+            },
+          ],
+          ok: true,
+        });
+      }
+      return Promise.resolve({ json: async () => null, ok: true });
+    });
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Agenda do processo seletivo',
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Entrevista técnica')).toBeInTheDocument();
+    expect(screen.getByText('Prazo do desafio')).toBeInTheDocument();
+    expect(screen.getByText('PRÓXIMO')).toBeInTheDocument();
+    expect(screen.getByText('VENCIDO')).toBeInTheDocument();
+  });
 });

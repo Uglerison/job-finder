@@ -99,6 +99,32 @@ type ApplicationResponse = {
   updated_at: string;
 };
 
+type AgendaEvent = {
+  application_id: number;
+  ends_at: string | null;
+  id: number;
+  kind: 'interview' | 'challenge' | 'deadline';
+  link: string | null;
+  notes: string | null;
+  participants: string[];
+  starts_at: string;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  timezone_name: string;
+  title: string;
+};
+
+function formatAgendaDate(value: string, timezoneName: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'data indisponível';
+  }
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: timezoneName === 'UTC' ? 'UTC' : undefined,
+  }).format(date);
+}
+
 const pipelineStages: { label: string; value: ApplicationStatus }[] = [
   { label: 'ENCONTRADA', value: 'found' },
   { label: 'EM ESPERA', value: 'pending' },
@@ -349,6 +375,9 @@ function App() {
   const [pipelineTargets, setPipelineTargets] = useState<
     Record<number, ApplicationStatus>
   >({});
+  const [agendaEvents, setAgendaEvents] = useState<AgendaEvent[]>([]);
+  const [isLoadingAgenda, setIsLoadingAgenda] = useState(true);
+  const [agendaError, setAgendaError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -462,6 +491,37 @@ function App() {
       isMounted = false;
     };
   }, [isLoadingJobs, jobs]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAgenda = async () => {
+      try {
+        const response = await fetch('/api/events');
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar a agenda.');
+        }
+        const payload = (await response.json()) as AgendaEvent[] | null;
+        if (isMounted) {
+          setAgendaEvents(Array.isArray(payload) ? payload : []);
+        }
+      } catch {
+        if (isMounted) {
+          setAgendaError('Não foi possível carregar a agenda local.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingAgenda(false);
+        }
+      }
+    };
+
+    void loadAgenda();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -797,6 +857,17 @@ function App() {
     );
     return application ? [{ application, job }] : [];
   });
+  const now = new Date();
+  const agendaUpcoming = agendaEvents.filter(
+    (event) =>
+      event.status === 'scheduled' &&
+      new Date(event.ends_at ?? event.starts_at).getTime() >= now.getTime(),
+  );
+  const agendaOverdue = agendaEvents.filter(
+    (event) =>
+      event.status === 'scheduled' &&
+      new Date(event.ends_at ?? event.starts_at).getTime() < now.getTime(),
+  );
 
   const profileStatus = isLoadingProfile
     ? 'CARREGANDO'
@@ -819,6 +890,7 @@ function App() {
             <a href="#perfil">Perfil</a>
             <a href="#historico">Histórico</a>
             <a href="#vagas">Vagas</a>
+            <a href="#agenda">Agenda</a>
             <a href="#preferencias">Preferências</a>
           </nav>
 
@@ -1246,6 +1318,108 @@ function App() {
           </ol>
         </section>
       )}
+
+      <section
+        className="agenda-section"
+        id="agenda"
+        aria-labelledby="agenda-title"
+      >
+        <div className="agenda-intro">
+          <p className="eyebrow">PRÓXIMOS PASSOS</p>
+          <h2 id="agenda-title">Agenda do processo seletivo</h2>
+          <p>
+            Entrevistas, desafios e prazos ficam agrupados por período para você
+            saber o que exige atenção agora.
+          </p>
+        </div>
+
+        <div className="agenda-workspace">
+          {isLoadingAgenda && (
+            <p className="agenda-feedback" role="status">
+              Carregando agenda…
+            </p>
+          )}
+          {!isLoadingAgenda && agendaError && (
+            <p className="agenda-feedback is-error" role="status">
+              {agendaError}
+            </p>
+          )}
+          {!isLoadingAgenda && !agendaError && agendaEvents.length === 0 && (
+            <div className="agenda-empty">
+              <span className="meta-label">AGENDA LIVRE</span>
+              <p>
+                Registre uma entrevista, desafio ou prazo para acompanhar aqui.
+              </p>
+            </div>
+          )}
+          {!isLoadingAgenda && !agendaError && agendaEvents.length > 0 && (
+            <div className="agenda-groups">
+              <div className="agenda-group">
+                <div className="agenda-group-heading">
+                  <h3>Próximos</h3>
+                  <span>{agendaUpcoming.length}</span>
+                </div>
+                {agendaUpcoming.length === 0 ? (
+                  <p className="agenda-group-empty">Nenhum evento próximo.</p>
+                ) : (
+                  <ul className="agenda-list">
+                    {agendaUpcoming.map((event) => (
+                      <li className="agenda-item" key={event.id}>
+                        <div>
+                          <span className="agenda-status is-upcoming">
+                            PRÓXIMO
+                          </span>
+                          <h4>{event.title}</h4>
+                          <p>
+                            {event.kind} · candidatura #{event.application_id}
+                          </p>
+                        </div>
+                        <time dateTime={event.starts_at}>
+                          {formatAgendaDate(
+                            event.starts_at,
+                            event.timezone_name,
+                          )}
+                        </time>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="agenda-group">
+                <div className="agenda-group-heading">
+                  <h3>Vencidos</h3>
+                  <span>{agendaOverdue.length}</span>
+                </div>
+                {agendaOverdue.length === 0 ? (
+                  <p className="agenda-group-empty">Nenhum prazo vencido.</p>
+                ) : (
+                  <ul className="agenda-list">
+                    {agendaOverdue.map((event) => (
+                      <li className="agenda-item is-overdue" key={event.id}>
+                        <div>
+                          <span className="agenda-status is-overdue">
+                            VENCIDO
+                          </span>
+                          <h4>{event.title}</h4>
+                          <p>
+                            {event.kind} · candidatura #{event.application_id}
+                          </p>
+                        </div>
+                        <time dateTime={event.starts_at}>
+                          {formatAgendaDate(
+                            event.starts_at,
+                            event.timezone_name,
+                          )}
+                        </time>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
 
       <section
         className="pipeline-section"
