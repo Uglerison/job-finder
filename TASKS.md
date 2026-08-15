@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-200 — Modelar vaga e suas origens`.
+**Próxima tarefa pronta:** `JF-201 — Implementar normalização determinística`.
 
 ## Marcos
 
@@ -261,10 +261,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 
 ## E3 — Vagas e candidaturas
 
-- [ ] **JF-200 — Modelar vaga e suas origens**
+- [x] **JF-200 — Modelar vaga e suas origens**
   - Depende de: JF-017.
   - Teste primeiro: vaga normalizada com múltiplas origens e conteúdo versionado.
   - Aceite: schema e migração suportam URL canônica, conteúdo bruto e validade.
+  - Evidência: migração `0004_jobs`, modelos `Job`/`JobOrigin`/`JobContentVersion`, histórico imutável e 3 testes unitários novos.
 
 - [ ] **JF-201 — Implementar normalização determinística**
   - Depende de: JF-200.
@@ -673,6 +674,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-105 | Concluída | `1708bec` — redação de e-mail, telefone, endereço e identificadores com prévia segura; 1 teste unitário, 1 teste API e 6 testes frontend |
 | 15/08/2026 | JF-106 | Concluída | `1708bec` — filtros de país, regime, contrato, salário e palavras bloqueadas com razões rastreáveis; 2 testes unitários e 1 teste API |
 | 15/08/2026 | JF-107 | Concluída | `1708bec` — preferências de locale, moeda, fuso e retenção persistidas na migração `0003_preferences` e painel local |
+| 15/08/2026 | JF-200 | Concluída | Migração `0004_jobs`, vaga normalizada com múltiplas origens, conteúdo bruto versionado com validade e 39 testes backend verdes |
 
 ## Bloqueios e decisões pendentes
 
