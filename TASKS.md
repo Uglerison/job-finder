@@ -28,6 +28,18 @@ Toda tarefa que altera comportamento seguirá **Red → Green → Refactor**:
 
 Tarefas puramente documentais, configuração mecânica e protótipos descartáveis podem não ter teste automatizado, mas precisam de validação objetiva. Código de protótipo só entra no produto depois de refeito com TDD.
 
+## Diretriz visual registrada
+
+A interface seguirá a linguagem editorial do [Prepara AI](https://sepreparai.com.br/):
+
+- fundo papel claro (`#f8f8f4`), superfícies brancas e azul-tinta profundo (`#042440`);
+- tipografia serifada de destaque para mensagens principais, sans-serif para leitura e monoespaçada para rótulos operacionais;
+- navegação compacta, largura de leitura controlada, divisórias finas e cartões planos;
+- acento dourado discreto para estados de atenção, sem gradientes ou sombras pesadas;
+- responsividade, foco visível e conteúdo funcional mesmo sem baixar fontes ou imagens externas.
+
+O objetivo é reproduzir a hierarquia, o ritmo e o contraste da referência sem copiar ativos proprietários. A validação visual deve permanecer offline-friendly.
+
 ## Definition of Ready
 
 Uma tarefa está pronta para começar quando:
@@ -216,10 +228,12 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: contratos tipados para leitura e atualização.
   - Evidência: rotas `/api/profile` retornam estado vazio, criam versões imutáveis e rejeitam critérios inválidos.
 
-- [ ] **JF-103 — Criar onboarding do perfil**
+- [ ] 🔄 **JF-103 — Criar onboarding do perfil e aplicar a identidade visual**
   - Depende de: JF-012 e JF-102.
   - Teste primeiro: fluxo obrigatório, validações e salvamento bem-sucedido.
-  - Aceite: perfil completo configurável sem editar arquivos.
+  - Diretriz visual: usar a composição editorial registrada acima na tela inicial e no onboarding.
+  - Aceite: perfil completo configurável sem editar arquivos; interface responsiva, acessível e coerente com a referência visual.
+  - Progresso: shell editorial e primeira composição visual em implementação; formulário persistente pendente.
 
 - [ ] **JF-104 — Implementar edição e visualização de versões**
   - Depende de: JF-103.
@@ -650,6 +664,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-100 | Concluída | Perfil versionado em SQLite com histórico imutável e consulta da versão ativa |
 | 15/08/2026 | JF-101 | Concluída | Critérios tipados validam cargos, pesos, remuneração, idiomas e restrições |
 | 15/08/2026 | JF-102 | Concluída | API local cria e lê versões validadas do perfil |
+| 15/08/2026 | JF-103 | Em andamento | Shell editorial alinhado à referência Prepara AI; 2 testes Vitest, lint, formatação e build verdes; formulário persistente pendente |
 
 ## Bloqueios e decisões pendentes
 
