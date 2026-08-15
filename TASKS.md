@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-216 — Implementar lixeira recuperável`.
+**Próxima tarefa pronta:** `E3 — validação integrada e handoff para E4`.
 
 ## Marcos
 
@@ -357,10 +357,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: exportação abre corretamente e não contém a chave da API.
   - Evidência: endpoints `jobs/applications.(csv|json)`, filtro de status, UTF-8 com BOM e neutralização de células iniciadas por `=+-@`; teste de exportação verde sem segredos.
 
-- [ ] **JF-216 — Implementar lixeira recuperável**
+- [x] **JF-216 — Implementar lixeira recuperável**
   - Depende de: JF-200 e JF-208.
   - Teste primeiro: arquivar, restaurar e expirar após retenção.
   - Aceite: exclusão definitiva exige confirmação e respeita vínculos.
+  - Evidência: migração `0011_recoverable_trash`, soft-delete com retenção das preferências, restauração, purge de expirados e `confirm=true` para remoção definitiva; candidaturas vinculadas bloqueiam a remoção; 68 testes backend verdes.
 
 ## E4 — Busca e fontes
 
@@ -705,6 +706,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-213 | Concluída | Agenda API com filtros por período/status e interface de próximos/vencidos; 11 testes Vitest e 62 testes backend verdes |
 | 15/08/2026 | JF-214 | Concluída | Motivos de encerramento obrigatórios quando aplicável e auditados nos eventos sem apagar histórico; 64 testes backend verdes |
 | 15/08/2026 | JF-215 | Concluída | Exportação CSV/JSON filtrável, codificação Excel-friendly e neutralização de fórmulas; 65 testes backend verdes |
+| 15/08/2026 | JF-216 | Concluída | Lixeira com soft-delete, restauração, expiração por retenção e proteção de candidaturas vinculadas; migração `0011_recoverable_trash` e 68 testes backend verdes |
 
 ## Bloqueios e decisões pendentes
 

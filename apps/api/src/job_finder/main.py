@@ -22,6 +22,7 @@ from job_finder.privacy_api import router as privacy_router
 from job_finder.process_events_api import router as process_events_router
 from job_finder.profile_api import router as profile_router
 from job_finder.settings import Settings, get_settings
+from job_finder.trash_api import router as trash_router
 
 
 class HealthResponse(BaseModel):
@@ -77,6 +78,7 @@ def create_app(
     application.include_router(applications_router)
     application.include_router(process_events_router)
     application.include_router(export_router)
+    application.include_router(trash_router)
 
     @application.get("/api/health", response_model=HealthResponse)
     def health() -> HealthResponse:

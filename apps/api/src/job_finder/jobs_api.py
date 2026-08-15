@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.sql.elements import ColumnElement
 
 from job_finder.job_import import (
     FetchedDocument,
@@ -101,6 +102,8 @@ class JobResponse(BaseModel):
     status_label: str
     created_at: datetime
     updated_at: datetime
+    deleted_at: datetime | None
+    purge_after: datetime | None
     origins: list[JobOriginResponse]
     content_versions: list[JobContentVersionResponse]
     notes: list[dict[str, object]]
@@ -119,6 +122,8 @@ class JobListItem(BaseModel):
     status_label: str
     origin_count: int
     created_at: datetime
+    deleted_at: datetime | None
+    purge_after: datetime | None
 
 
 class JobListResponse(BaseModel):
@@ -150,10 +155,13 @@ def list_jobs(
     status_filter: str | None = Query(default=None, alias="status"),
     q: str | None = Query(default=None, min_length=1, max_length=120),
     order: Literal["newest", "oldest", "title"] = "newest",
+    include_deleted: bool = Query(default=False),
 ) -> JobListResponse:
     """List jobs with bounded pagination, optional status/search filters and stable order."""
 
-    conditions = []
+    conditions: list[ColumnElement[bool]] = []
+    if not include_deleted:
+        conditions.append(Job.deleted_at.is_(None))
     if status_filter:
         conditions.append(Job.status == status_filter)
     if q:
@@ -320,6 +328,8 @@ def _job_response(session: Session, job: Job) -> JobResponse:
         status_label=_status_label(job.status),
         created_at=job.created_at,
         updated_at=job.updated_at,
+        deleted_at=job.deleted_at,
+        purge_after=job.purge_after,
         origins=[_origin_response(origin) for origin in origins],
         content_versions=[_content_response(version) for version in content_versions],
         notes=[
@@ -346,6 +356,8 @@ def _job_list_item(job: Job, origin_count: int) -> JobListItem:
         status_label=_status_label(job.status),
         origin_count=origin_count,
         created_at=job.created_at,
+        deleted_at=job.deleted_at,
+        purge_after=job.purge_after,
     )
 
 
