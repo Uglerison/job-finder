@@ -69,14 +69,14 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E0 — Governança e decisões | JF-001–JF-009 | Em andamento | Escopo operacional fechado |
 | E1 — Fundação local | JF-010–JF-022 | Concluído | Aplicação local abre e persiste dados |
 | E2 — Perfil | JF-100–JF-107 | Pendente | Perfil editável e versionado |
-| E3 — Vagas e candidaturas | JF-200–JF-216 | Pendente | Fluxo manual completo |
+| E3 — Vagas e candidaturas | JF-200–JF-216 | Em andamento | Fluxo manual completo |
 | E4 — Busca e fontes | JF-300–JF-313 | Pendente | Vagas coletadas e deduplicadas |
 | E5 — GPT-5.6 Luna | JF-400–JF-412 | Pendente | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Pendente | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-208 — Modelar candidatura e eventos de fase`.
+**Próxima tarefa pronta:** `JF-211 — Criar quadro visual do pipeline`.
 
 ## Marcos
 
@@ -309,20 +309,23 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: notas e tags disponíveis na API e interface.
   - Evidência: migração `0007_job_metadata`, notas editáveis, tags idempotentes e removíveis, detalhe inclui metadados; 8 testes de API focados verdes.
 
-- [ ] **JF-208 — Modelar candidatura e eventos de fase**
+- [x] **JF-208 — Modelar candidatura e eventos de fase**
   - Depende de: JF-017 e JF-200.
   - Teste primeiro: candidatura única por vaga, estado atual e eventos imutáveis.
   - Aceite: migração preserva histórico completo.
+  - Evidência: migração `0008_applications`, unicidade por vaga, evento inicial e bloqueio de alteração/remoção do histórico; teste unitário verde.
 
-- [ ] **JF-209 — Implementar máquina de estados do pipeline**
+- [x] **JF-209 — Implementar máquina de estados do pipeline**
   - Depende de: JF-208.
   - Teste primeiro: todas as transições permitidas, proibidas e correções auditáveis.
   - Aceite: backend rejeita transição inválida independentemente da UI.
+  - Evidência: mapa explícito de transições, terminais e correções marcadas como evento `correction`; testes unitários verdes.
 
-- [ ] **JF-210 — Implementar API de candidaturas e fases**
+- [x] **JF-210 — Implementar API de candidaturas e fases**
   - Depende de: JF-209.
   - Teste primeiro: criar candidatura, avançar, corrigir e consultar histórico.
   - Aceite: operações transacionais com erros de domínio claros.
+  - Evidência: `POST/GET /api/jobs/{id}/application`, `GET /api/applications/{id}` e transição transacional com `409` para conflito; testes de API verdes.
 
 - [ ] **JF-211 — Criar quadro visual do pipeline**
   - Depende de: JF-210.
@@ -689,6 +692,9 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-205 | Concluída | Caixa de entrada visual com busca, estados de UI e inclusão manual rápida integrada a `POST /api/jobs` |
 | 15/08/2026 | JF-206 | Concluída | Detalhe sob demanda com origem, histórico de conteúdo e proteção contra execução de HTML externo |
 | 15/08/2026 | JF-207 | Concluída | Notas editáveis e tags reutilizáveis disponíveis por API e no contrato de detalhe da vaga |
+| 15/08/2026 | JF-208 | Concluída | Migração `0008_applications`, candidatura única por vaga e eventos de fase imutáveis; 57 testes backend verdes |
+| 15/08/2026 | JF-209 | Concluída | Máquina de estados com transições permitidas, terminais e correções auditáveis; testes unitários verdes |
+| 15/08/2026 | JF-210 | Concluída | API transacional para criar, consultar, avançar e corrigir candidaturas; conflitos retornam `409` |
 
 ## Bloqueios e decisões pendentes
 
