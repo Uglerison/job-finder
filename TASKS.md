@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-215 — Implementar exportação CSV/JSON`.
+**Próxima tarefa pronta:** `JF-216 — Implementar lixeira recuperável`.
 
 ## Marcos
 
@@ -351,10 +351,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: dados alimentam relatórios sem apagar histórico.
   - Evidência: migração `0010_closure_reasons`, motivos obrigatórios para `rejected/withdrawn/expired`, fechamento persistido e motivo copiado para o evento imutável; 64 testes backend verdes.
 
-- [ ] **JF-215 — Implementar exportação CSV/JSON**
+- [x] **JF-215 — Implementar exportação CSV/JSON**
   - Depende de: JF-204 e JF-210.
   - Teste primeiro: codificação, campos, filtros e neutralização de fórmulas em CSV.
   - Aceite: exportação abre corretamente e não contém a chave da API.
+  - Evidência: endpoints `jobs/applications.(csv|json)`, filtro de status, UTF-8 com BOM e neutralização de células iniciadas por `=+-@`; teste de exportação verde sem segredos.
 
 - [ ] **JF-216 — Implementar lixeira recuperável**
   - Depende de: JF-200 e JF-208.
@@ -703,6 +704,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-212 | Concluída | Eventos de entrevista, desafio e prazo com timezone, conflito e vencimento auditáveis; migração `0009_process_events` e 61 testes backend verdes |
 | 15/08/2026 | JF-213 | Concluída | Agenda API com filtros por período/status e interface de próximos/vencidos; 11 testes Vitest e 62 testes backend verdes |
 | 15/08/2026 | JF-214 | Concluída | Motivos de encerramento obrigatórios quando aplicável e auditados nos eventos sem apagar histórico; 64 testes backend verdes |
+| 15/08/2026 | JF-215 | Concluída | Exportação CSV/JSON filtrável, codificação Excel-friendly e neutralização de fórmulas; 65 testes backend verdes |
 
 ## Bloqueios e decisões pendentes
 
