@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-105 — Implementar redação de dados pessoais`.
+**Próxima tarefa pronta:** `JF-200 — Modelar vaga e suas origens`.
 
 ## Marcos
 
@@ -241,20 +241,23 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: usuário entende quando e por que a análise ficou desatualizada.
   - Evidência: commit `34fa427`; endpoint `/api/profile/versions`, histórico visual com versão ativa e testes de imutabilidade aprovados.
 
-- [ ] **JF-105 — Implementar redação de dados pessoais**
+- [x] **JF-105 — Implementar redação de dados pessoais**
   - Depende de: JF-101.
   - Teste primeiro: e-mail, telefone, endereço e identificadores em fixtures.
   - Aceite: prévia mostra exatamente o texto que poderá ser enviado à IA.
+  - Evidência: commit `1708bec`; redação determinística, endpoint `/api/privacy/redact`, prévia na UI e contagem por categoria testados.
 
-- [ ] **JF-106 — Implementar filtros obrigatórios determinísticos**
+- [x] **JF-106 — Implementar filtros obrigatórios determinísticos**
   - Depende de: JF-101.
   - Teste primeiro: país, regime, contrato, salário e palavras bloqueadas.
   - Aceite: cada exclusão inclui motivo rastreável.
+  - Evidência: commit `1708bec`; critérios suportam país/contrato e endpoint `/api/filters/evaluate` retorna todas as razões em ordem estável.
 
-- [ ] **JF-107 — Implementar preferências gerais**
+- [x] **JF-107 — Implementar preferências gerais**
   - Depende de: JF-017.
   - Teste primeiro: locale, moeda, fuso, retenção e defaults.
   - Aceite: preferências persistem e são aplicadas na API/UI.
+  - Evidência: commit `1708bec`; migração `0003_preferences`, API `/api/preferences`, defaults locais e painel de preferências testados.
 
 ## E3 — Vagas e candidaturas
 
@@ -667,6 +670,9 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-102 | Concluída | API local cria e lê versões validadas do perfil |
 | 15/08/2026 | JF-103 | Concluída | `266a44d` — onboarding local com validação, salvamento versionado e shell editorial; 3 testes Vitest, lint, formatação, build e 26 testes backend verdes |
 | 15/08/2026 | JF-104 | Concluída | `34fa427` — histórico de versões na API e interface, com versão ativa destacada; 4 testes Vitest e 27 testes backend verdes |
+| 15/08/2026 | JF-105 | Concluída | `1708bec` — redação de e-mail, telefone, endereço e identificadores com prévia segura; 1 teste unitário, 1 teste API e 6 testes frontend |
+| 15/08/2026 | JF-106 | Concluída | `1708bec` — filtros de país, regime, contrato, salário e palavras bloqueadas com razões rastreáveis; 2 testes unitários e 1 teste API |
+| 15/08/2026 | JF-107 | Concluída | `1708bec` — preferências de locale, moeda, fuso e retenção persistidas na migração `0003_preferences` e painel local |
 
 ## Bloqueios e decisões pendentes
 
