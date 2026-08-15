@@ -108,6 +108,13 @@ def get_active_profile_version(session: Session, profile_id: int) -> ProfileVers
     return session.scalar(statement)
 
 
+def get_current_profile_version(session: Session) -> ProfileVersion | None:
+    """Return the newest version across the local application's single active profile."""
+
+    statement = select(ProfileVersion).order_by(ProfileVersion.id.desc()).limit(1)
+    return session.scalar(statement)
+
+
 def get_profile_versions(session: Session, profile_id: int) -> list[ProfileVersion]:
     """Return a profile's complete immutable history in creation order."""
 

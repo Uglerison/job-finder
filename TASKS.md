@@ -64,7 +64,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-102 — Implementar API do perfil`.
+**Próxima tarefa pronta:** `JF-103 — Criar onboarding do perfil`.
 
 ## Marcos
 
@@ -210,10 +210,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: erros de domínio claros e pesos consistentes.
   - Evidência: schemas Pydantic rejeitam critérios inválidos e exigem pesos totalizando 100%.
 
-- [ ] **JF-102 — Implementar API do perfil**
+- [x] **JF-102 — Implementar API do perfil**
   - Depende de: JF-100 e JF-101.
   - Teste primeiro: `GET` vazio, `PUT` válido, atualização versionada e payload inválido.
   - Aceite: contratos tipados para leitura e atualização.
+  - Evidência: rotas `/api/profile` retornam estado vazio, criam versões imutáveis e rejeitam critérios inválidos.
 
 - [ ] **JF-103 — Criar onboarding do perfil**
   - Depende de: JF-012 e JF-102.
@@ -648,6 +649,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-014 | Concluída | Workflow Windows valida testes, qualidade, tipos e build sem segredos |
 | 15/08/2026 | JF-100 | Concluída | Perfil versionado em SQLite com histórico imutável e consulta da versão ativa |
 | 15/08/2026 | JF-101 | Concluída | Critérios tipados validam cargos, pesos, remuneração, idiomas e restrições |
+| 15/08/2026 | JF-102 | Concluída | API local cria e lê versões validadas do perfil |
 
 ## Bloqueios e decisões pendentes
 

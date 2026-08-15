@@ -12,6 +12,7 @@ from job_finder import __version__
 from job_finder.database import create_database_engine, create_session_factory, run_migrations
 from job_finder.frontend import frontend_dist_path, mount_frontend
 from job_finder.logging import close_logging, configure_logging
+from job_finder.profile_api import router as profile_router
 from job_finder.settings import Settings, get_settings
 
 
@@ -59,6 +60,7 @@ def create_app(
         openapi_url="/api/openapi.json",
     )
     application.state.settings = settings or get_settings()
+    application.include_router(profile_router)
 
     @application.get("/api/health", response_model=HealthResponse)
     def health() -> HealthResponse:
