@@ -1,7 +1,7 @@
 # Job Finder — planejamento do produto e implementação
 
 > Documento inicial de produto e arquitetura  
-> Versão: 1.0 — 15/08/2026  
+> Versão: 1.1 — 15/08/2026
 > Execução-alvo: Windows, local, com abertura automática no navegador
 
 ## 1. Visão do produto
@@ -461,7 +461,27 @@ Estimativas abaixo consideram uma pessoa desenvolvedora em dedicação principal
 
 ## 14. Estratégia de testes
 
-### 14.1 Testes automatizados
+### 14.1 Desenvolvimento orientado a testes (TDD)
+
+O projeto adotará **TDD como prática obrigatória** para comportamentos novos, correções de defeitos e regras de negócio. Antes de implementar uma funcionalidade, será criado ou ajustado um teste automatizado que descreva o resultado esperado.
+
+O ciclo de trabalho será sempre:
+
+1. **Red:** escrever um teste pequeno e específico que falha pelo motivo esperado;
+2. **Green:** implementar o mínimo necessário para fazê-lo passar;
+3. **Refactor:** melhorar o design mantendo todos os testes verdes.
+
+Regras de execução:
+
+- cada história do backlog deverá explicitar cenários verificáveis antes do desenvolvimento;
+- regras de pontuação, deduplicação, transição de fases, agregação de métricas e limites de custo exigem testes unitários antes da implementação;
+- endpoints, adaptadores de fontes e contratos de IA exigem testes de integração ou de contrato antes de serem considerados concluídos;
+- correções de bugs começam por um teste de regressão que reproduza a falha;
+- protótipos exploratórios podem ser descartáveis, mas qualquer código promovido ao produto deverá ser refeito seguindo TDD;
+- o pipeline de CI bloqueará mudanças quando a suíte relevante falhar;
+- revisões verificarão a qualidade dos cenários e o comportamento coberto, não apenas o percentual de cobertura.
+
+### 14.2 Testes automatizados
 
 - unitários: normalização, filtros, pontuação, transições e métricas;
 - contratos: respostas dos adaptadores e schemas da IA;
@@ -470,7 +490,7 @@ Estimativas abaixo consideram uma pessoa desenvolvedora em dedicação principal
 - ponta a ponta: onboarding, triagem, candidatura, entrevista e dashboard;
 - empacotamento: inicialização, migração, porta ocupada, navegador e encerramento.
 
-### 14.2 Avaliação da IA
+### 14.3 Avaliação da IA
 
 - conjunto de vagas rotuladas manualmente;
 - métricas de extração por campo;
@@ -499,6 +519,7 @@ O MVP estará pronto quando:
 - orçamento e uso da OpenAI estiverem visíveis e limitáveis;
 - nenhuma chave ou dado pessoal sensível aparecer em logs ou no repositório;
 - testes críticos e smoke test do pacote Windows estiverem aprovados;
+- cada comportamento novo e cada correção relevante tiverem sido desenvolvidos com ciclo TDD e a suíte correspondente estiver verde;
 - a documentação explicar instalação, configuração, backup e solução de problemas.
 
 ## 16. Riscos e mitigação
