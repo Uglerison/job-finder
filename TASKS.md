@@ -64,7 +64,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-021 — Implementar logs locais seguros`.
+**Próxima tarefa pronta:** `JF-022 — Criar smoke test da fundação Windows`.
 
 ## Marcos
 
@@ -183,10 +183,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: executar duas vezes não cria dois servidores.
   - Evidência: trava exclusiva armazena URL loopback, reusa a instância e é liberada no shutdown.
 
-- [ ] **JF-021 — Implementar logs locais seguros**
+- [x] **JF-021 — Implementar logs locais seguros**
   - Depende de: JF-016.
   - Teste primeiro: rotação, níveis e redação de padrões sensíveis.
   - Aceite: logs em `%LOCALAPPDATA%\JobFinder` sem chaves ou dados pessoais.
+  - Evidência: handler rotativo local redige segredos, e-mail e telefone; lifecycle registra início e fim.
 
 - [ ] **JF-022 — Criar smoke test da fundação Windows**
   - Depende de: JF-017 a JF-021.
@@ -636,6 +637,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-018 | Concluída | Servidor loopback com startup, migração, health e shutdown validados |
 | 15/08/2026 | JF-019 | Concluída | Frontend Vite compilado, assets e fallback SPA entregues na mesma origem da API |
 | 15/08/2026 | JF-020 | Concluída | Navegador abre URL local e trava exclusiva evita servidor duplicado |
+| 15/08/2026 | JF-021 | Concluída | Logs locais rotativos com nível configurável e redação de dados sensíveis |
 
 ## Bloqueios e decisões pendentes
 
