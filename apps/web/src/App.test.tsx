@@ -155,4 +155,96 @@ describe('App', () => {
     expect(screen.getByText('Versão 1')).toBeInTheDocument();
     expect(screen.getByText('Ativa')).toBeInTheDocument();
   });
+
+  it('mostra a prévia exata do texto redigido antes da IA', async () => {
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/privacy/redact') {
+          return Promise.resolve({
+            json: async () => ({
+              redacted_text: 'Contato: [E-MAIL REMOVIDO].',
+              replacements: [
+                { count: 1, kind: 'email', token: '[E-MAIL REMOVIDO]' },
+              ],
+            }),
+            ok: true,
+          });
+        }
+        if (init?.method === 'PUT') {
+          return Promise.resolve({ json: async () => null, ok: true });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+
+    render(<App />);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Configurar meu perfil' }),
+    );
+    fireEvent.change(screen.getByLabelText('Texto para análise da IA'), {
+      target: { value: 'Contato: ana@example.com.' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Gerar prévia segura' }),
+    );
+
+    expect(
+      await screen.findByText('Contato: [E-MAIL REMOVIDO].'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('1 e-mail removido')).toBeInTheDocument();
+  });
+
+  it('carrega e persiste preferências gerais aplicadas à interface', async () => {
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/preferences' && init?.method === 'PUT') {
+          return Promise.resolve({
+            json: async () => ({
+              currency: 'USD',
+              locale: 'en-US',
+              retention_days: 90,
+              timezone: 'America/New_York',
+            }),
+            ok: true,
+          });
+        }
+        if (input === '/api/preferences') {
+          return Promise.resolve({
+            json: async () => ({
+              currency: 'BRL',
+              locale: 'pt-BR',
+              retention_days: 365,
+              timezone: 'America/Sao_Paulo',
+            }),
+            ok: true,
+          });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+
+    render(<App />);
+    expect(
+      await screen.findByRole('heading', { name: 'Preferências gerais' }),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Idioma da interface'), {
+      target: { value: 'en-US' },
+    });
+    fireEvent.change(screen.getByLabelText('Retenção local (dias)'), {
+      target: { value: '90' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Salvar preferências' }),
+    );
+
+    expect(
+      await screen.findByText('Preferências salvas localmente.'),
+    ).toBeInTheDocument();
+    const [, options] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
+    expect(options.method).toBe('PUT');
+    expect(JSON.parse(options.body as string)).toMatchObject({
+      locale: 'en-US',
+      retention_days: 90,
+    });
+  });
 });

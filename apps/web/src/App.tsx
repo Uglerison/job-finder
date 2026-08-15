@@ -3,6 +3,8 @@ import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import './App.css';
 
 type WorkModel = 'remote' | 'hybrid' | 'on_site';
+type ContractType =
+  'full_time' | 'part_time' | 'contract' | 'temporary' | 'internship';
 type LanguageLevel = 'basic' | 'intermediate' | 'professional' | 'native';
 
 type ProfileCriteria = {
@@ -16,6 +18,8 @@ type ProfileCriteria = {
   } | null;
   weights: Record<string, number>;
   restrictions: {
+    countries: string[];
+    contract_types: ContractType[];
     work_models: WorkModel[];
     locations: string[];
     excluded_keywords: string[];
@@ -29,10 +33,24 @@ type ProfileResponse = {
   version_number: number;
 };
 
+type RedactionPreview = {
+  redacted_text: string;
+  replacements: { count: number; kind: string; token: string }[];
+};
+
+type Preferences = {
+  locale: 'pt-BR' | 'en-US';
+  currency: string;
+  timezone: string;
+  retention_days: number;
+};
+
 type ProfileFormState = {
   targetRoles: string;
   skills: string;
   workModels: WorkModel[];
+  countries: string;
+  contractTypes: ContractType[];
   locations: string;
   excludedKeywords: string;
   languageCode: string;
@@ -43,6 +61,8 @@ type ProfileFormState = {
 };
 
 const defaultFormState: ProfileFormState = {
+  contractTypes: [],
+  countries: '',
   currency: 'BRL',
   excludedKeywords: '',
   languageCode: 'en',
@@ -53,6 +73,13 @@ const defaultFormState: ProfileFormState = {
   skills: '',
   targetRoles: '',
   workModels: ['remote'],
+};
+
+const defaultPreferences: Preferences = {
+  currency: 'BRL',
+  locale: 'pt-BR',
+  retention_days: 365,
+  timezone: 'America/Sao_Paulo',
 };
 
 const productSteps = [
@@ -88,6 +115,8 @@ function formFromCriteria(criteria: ProfileCriteria): ProfileFormState {
   const language = criteria.languages[0];
 
   return {
+    contractTypes: criteria.restrictions.contract_types ?? [],
+    countries: criteria.restrictions.countries?.join(', ') ?? '',
     currency: salary?.currency ?? 'BRL',
     excludedKeywords: criteria.restrictions.excluded_keywords.join(', '),
     languageCode: language?.code ?? 'en',
@@ -112,6 +141,8 @@ function payloadFromForm(form: ProfileFormState): ProfileCriteria {
       },
     ],
     restrictions: {
+      contract_types: form.contractTypes,
+      countries: splitValues(form.countries),
       excluded_keywords: splitValues(form.excludedKeywords),
       locations: splitValues(form.locations),
       work_models: form.workModels,
@@ -172,6 +203,17 @@ function formatVersionDate(value?: string): string {
   }).format(date);
 }
 
+function replacementLabel(kind: string): string {
+  return (
+    {
+      address: 'endereço',
+      email: 'e-mail',
+      identifier: 'identificador',
+      phone: 'telefone',
+    }[kind] ?? kind
+  );
+}
+
 function App() {
   const [formState, setFormState] =
     useState<ProfileFormState>(defaultFormState);
@@ -183,6 +225,18 @@ function App() {
   const [formError, setFormError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [previewText, setPreviewText] = useState('');
+  const [redactionPreview, setRedactionPreview] =
+    useState<RedactionPreview | null>(null);
+  const [redactionError, setRedactionError] = useState<string | null>(null);
+  const [isRedacting, setIsRedacting] = useState(false);
+  const [preferences, setPreferences] =
+    useState<Preferences>(defaultPreferences);
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+  const [preferencesMessage, setPreferencesMessage] = useState<string | null>(
+    null,
+  );
+  const [preferencesError, setPreferencesError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -224,6 +278,40 @@ function App() {
     };
 
     void loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch('/api/preferences')
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar as preferências.');
+        }
+        return (await response.json()) as Preferences | null;
+      })
+      .then((savedPreferences) => {
+        if (
+          isMounted &&
+          savedPreferences?.locale &&
+          savedPreferences.currency &&
+          savedPreferences.timezone &&
+          savedPreferences.retention_days
+        ) {
+          setPreferences(savedPreferences);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setPreferencesError(
+            'Não foi possível carregar as preferências locais.',
+          );
+        }
+      });
 
     return () => {
       isMounted = false;
@@ -299,6 +387,56 @@ function App() {
     }
   };
 
+  const handleRedactionPreview = async () => {
+    if (!previewText.trim()) {
+      setRedactionError('Cole um texto para gerar a prévia segura.');
+      return;
+    }
+
+    setIsRedacting(true);
+    setRedactionError(null);
+    try {
+      const response = await fetch('/api/privacy/redact', {
+        body: JSON.stringify({ text: previewText }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error('Não foi possível gerar a prévia.');
+      }
+      setRedactionPreview((await response.json()) as RedactionPreview);
+    } catch {
+      setRedactionError('Não foi possível gerar a prévia segura.');
+    } finally {
+      setIsRedacting(false);
+    }
+  };
+
+  const handlePreferencesSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSavingPreferences(true);
+    setPreferencesError(null);
+    setPreferencesMessage(null);
+
+    try {
+      const response = await fetch('/api/preferences', {
+        body: JSON.stringify(preferences),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT',
+      });
+      if (!response.ok) {
+        throw new Error('Não foi possível salvar as preferências.');
+      }
+      const savedPreferences = (await response.json()) as Preferences;
+      setPreferences(savedPreferences);
+      setPreferencesMessage('Preferências salvas localmente.');
+    } catch {
+      setPreferencesError('Não foi possível salvar as preferências.');
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  };
+
   const profileStatus = isLoadingProfile
     ? 'CARREGANDO'
     : profile
@@ -319,6 +457,7 @@ function App() {
             <a href="#fluxo">Fluxo</a>
             <a href="#perfil">Perfil</a>
             <a href="#historico">Histórico</a>
+            <a href="#preferencias">Preferências</a>
           </nav>
 
           <div className="header-meta">
@@ -479,6 +618,52 @@ function App() {
             </fieldset>
 
             <div className="form-field">
+              <label htmlFor="countries">Países permitidos</label>
+              <input
+                id="countries"
+                onChange={(event) => handleFormChange('countries', event)}
+                placeholder="Ex.: Brasil, Portugal"
+                value={formState.countries}
+              />
+              <span>Filtro obrigatório; deixe vazio para aceitar todos.</span>
+            </div>
+
+            <fieldset className="form-field">
+              <legend>Tipos de contrato</legend>
+              <div className="checkbox-grid">
+                {(
+                  [
+                    ['full_time', 'Tempo integral'],
+                    ['part_time', 'Meio período'],
+                    ['contract', 'Contrato'],
+                    ['temporary', 'Temporário'],
+                    ['internship', 'Estágio'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <label className="checkbox-label" key={value}>
+                    <input
+                      checked={formState.contractTypes.includes(value)}
+                      onChange={() => {
+                        setFormState((current) => ({
+                          ...current,
+                          contractTypes: current.contractTypes.includes(value)
+                            ? current.contractTypes.filter(
+                                (item) => item !== value,
+                              )
+                            : [...current.contractTypes, value],
+                        }));
+                        setFormError(null);
+                      }}
+                      type="checkbox"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <span>Vazio significa aceitar qualquer tipo.</span>
+            </fieldset>
+
+            <div className="form-field">
               <label htmlFor="locations">Localizações preferidas</label>
               <input
                 id="locations"
@@ -567,6 +752,60 @@ function App() {
               <span>Competências 40% · Experiência 35% · Localização 25%</span>
             </div>
 
+            <div className="redaction-preview form-field-wide">
+              <div className="redaction-heading">
+                <div>
+                  <label htmlFor="ai-preview-input">
+                    Texto para análise da IA
+                  </label>
+                  <span>
+                    Veja exatamente o que poderá ser enviado depois da redação.
+                  </span>
+                </div>
+                <button
+                  className="header-action"
+                  disabled={isRedacting}
+                  onClick={handleRedactionPreview}
+                  type="button"
+                >
+                  {isRedacting ? 'Redigindo…' : 'Gerar prévia segura'}
+                </button>
+              </div>
+              <textarea
+                id="ai-preview-input"
+                onChange={(event) => {
+                  setPreviewText(event.target.value);
+                  setRedactionPreview(null);
+                  setRedactionError(null);
+                }}
+                placeholder="Cole aqui um trecho de currículo ou descrição de vaga..."
+                rows={4}
+                value={previewText}
+              />
+              {redactionError && (
+                <p className="form-message is-error" role="status">
+                  {redactionError}
+                </p>
+              )}
+              {redactionPreview && (
+                <div className="redaction-result">
+                  <span className="meta-label">PRÉVIA SEGURA PARA A IA</span>
+                  <output aria-label="Prévia segura para a IA">
+                    {redactionPreview.redacted_text}
+                  </output>
+                  <div className="redaction-counts">
+                    {redactionPreview.replacements.map((replacement) => (
+                      <span key={replacement.kind}>
+                        {replacement.count} {replacementLabel(replacement.kind)}{' '}
+                        removido
+                        {replacement.count > 1 ? 's' : ''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {(formError || loadError || saveMessage) && (
               <p
                 className={`form-message${formError || loadError ? ' is-error' : ' is-success'}`}
@@ -645,6 +884,117 @@ function App() {
           </ol>
         </section>
       )}
+
+      <section
+        className="preferences-section"
+        id="preferencias"
+        aria-labelledby="preferences-title"
+      >
+        <div className="preferences-intro">
+          <p className="eyebrow">PREFERÊNCIAS LOCAIS</p>
+          <h2 id="preferences-title">Preferências gerais</h2>
+          <p>
+            Elas orientam idioma, moeda, datas e retenção sem enviar dados para
+            a nuvem.
+          </p>
+        </div>
+
+        <form className="preferences-form" onSubmit={handlePreferencesSubmit}>
+          <div className="form-field">
+            <label htmlFor="preference-locale">Idioma da interface</label>
+            <select
+              id="preference-locale"
+              onChange={(event) => {
+                setPreferences((current) => ({
+                  ...current,
+                  locale: event.target.value as Preferences['locale'],
+                }));
+                setPreferencesMessage(null);
+              }}
+              value={preferences.locale}
+            >
+              <option value="pt-BR">Português (Brasil)</option>
+              <option value="en-US">English (United States)</option>
+            </select>
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="preference-currency">Moeda padrão</label>
+            <select
+              id="preference-currency"
+              onChange={(event) => {
+                setPreferences((current) => ({
+                  ...current,
+                  currency: event.target.value,
+                }));
+                setPreferencesMessage(null);
+              }}
+              value={preferences.currency}
+            >
+              <option value="BRL">BRL · Real</option>
+              <option value="USD">USD · Dólar</option>
+              <option value="EUR">EUR · Euro</option>
+            </select>
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="preference-timezone">Fuso horário</label>
+            <select
+              id="preference-timezone"
+              onChange={(event) => {
+                setPreferences((current) => ({
+                  ...current,
+                  timezone: event.target.value,
+                }));
+                setPreferencesMessage(null);
+              }}
+              value={preferences.timezone}
+            >
+              <option value="America/Sao_Paulo">America/Sao_Paulo</option>
+              <option value="America/New_York">America/New_York</option>
+              <option value="Europe/Lisbon">Europe/Lisbon</option>
+              <option value="UTC">UTC</option>
+            </select>
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="preference-retention">Retenção local (dias)</label>
+            <input
+              id="preference-retention"
+              max="3650"
+              min="30"
+              onChange={(event) => {
+                setPreferences((current) => ({
+                  ...current,
+                  retention_days: Number(event.target.value),
+                }));
+                setPreferencesMessage(null);
+              }}
+              type="number"
+              value={preferences.retention_days}
+            />
+          </div>
+
+          {(preferencesError || preferencesMessage) && (
+            <p
+              className={`form-message${preferencesError ? ' is-error' : ' is-success'}`}
+              role="status"
+            >
+              {preferencesError || preferencesMessage}
+            </p>
+          )}
+
+          <div className="form-actions form-field-wide">
+            <button
+              className="primary-button"
+              disabled={isSavingPreferences}
+              type="submit"
+            >
+              {isSavingPreferences ? 'Salvando…' : 'Salvar preferências'}
+            </button>
+          </div>
+        </form>
+      </section>
 
       <section
         className="process-section"

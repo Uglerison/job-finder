@@ -10,8 +10,11 @@ from pydantic import BaseModel
 
 from job_finder import __version__
 from job_finder.database import create_database_engine, create_session_factory, run_migrations
+from job_finder.filters_api import router as filters_router
 from job_finder.frontend import frontend_dist_path, mount_frontend
 from job_finder.logging import close_logging, configure_logging
+from job_finder.preferences_api import router as preferences_router
+from job_finder.privacy_api import router as privacy_router
 from job_finder.profile_api import router as profile_router
 from job_finder.settings import Settings, get_settings
 
@@ -61,6 +64,9 @@ def create_app(
     )
     application.state.settings = settings or get_settings()
     application.include_router(profile_router)
+    application.include_router(preferences_router)
+    application.include_router(filters_router)
+    application.include_router(privacy_router)
 
     @application.get("/api/health", response_model=HealthResponse)
     def health() -> HealthResponse:

@@ -21,6 +21,7 @@ LanguageCode = Annotated[
 ]
 Percentage = Annotated[int, Field(ge=0, le=100)]
 WorkModel = Literal["remote", "hybrid", "on_site"]
+ContractType = Literal["full_time", "part_time", "contract", "temporary", "internship"]
 LanguageLevel = Literal["basic", "intermediate", "professional", "native"]
 
 
@@ -57,7 +58,9 @@ class SearchRestrictions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     work_models: list[WorkModel] = Field(min_length=1, max_length=3)
+    countries: list[NonEmptyText] = Field(default_factory=list, max_length=20)
     locations: list[NonEmptyText] = Field(default_factory=list, max_length=20)
+    contract_types: list[ContractType] = Field(default_factory=list, max_length=5)
     excluded_keywords: list[NonEmptyText] = Field(default_factory=list, max_length=50)
 
 
