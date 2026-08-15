@@ -64,7 +64,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-020 — Abrir o navegador e impedir instância duplicada`.
+**Próxima tarefa pronta:** `JF-021 — Implementar logs locais seguros`.
 
 ## Marcos
 
@@ -177,10 +177,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: uma única URL local entrega API e interface.
   - Evidência: testes de API e loopback validam raiz, fallback SPA, assets e `/api/health`.
 
-- [ ] **JF-020 — Abrir o navegador e impedir instância duplicada**
+- [x] **JF-020 — Abrir o navegador e impedir instância duplicada**
   - Depende de: JF-018 e JF-019.
   - Teste primeiro: trava de instância, reuso da URL e liberação após encerramento.
   - Aceite: executar duas vezes não cria dois servidores.
+  - Evidência: trava exclusiva armazena URL loopback, reusa a instância e é liberada no shutdown.
 
 - [ ] **JF-021 — Implementar logs locais seguros**
   - Depende de: JF-016.
@@ -634,6 +635,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-017 | Concluída | SQLite WAL, SQLAlchemy e migração idempotente validados |
 | 15/08/2026 | JF-018 | Concluída | Servidor loopback com startup, migração, health e shutdown validados |
 | 15/08/2026 | JF-019 | Concluída | Frontend Vite compilado, assets e fallback SPA entregues na mesma origem da API |
+| 15/08/2026 | JF-020 | Concluída | Navegador abre URL local e trava exclusiva evita servidor duplicado |
 
 ## Bloqueios e decisões pendentes
 
