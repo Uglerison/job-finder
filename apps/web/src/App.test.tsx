@@ -322,7 +322,9 @@ describe('App', () => {
       await screen.findByText('Vaga adicionada à caixa de entrada.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Data Engineer')).toBeInTheDocument();
-    const [, options] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
+    const [, options] = fetchMock.mock.calls.find(
+      ([input, init]) => input === '/api/jobs' && init?.method === 'POST',
+    ) as [string, RequestInit];
     expect(options.method).toBe('POST');
     expect(JSON.parse(options.body as string)).toMatchObject({
       company: 'Data Co',
@@ -408,5 +410,138 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(document.querySelector('.job-detail-content script')).toBeNull();
     expect(screen.getByText('manual')).toBeInTheDocument();
+  });
+
+  it('exibe o pipeline e move uma candidatura por teclado', async () => {
+    const job = {
+      canonical_url: 'https://jobs.example.com/backend-1',
+      company: 'Example Labs',
+      created_at: '2026-08-15T10:00:00Z',
+      id: 1,
+      location: 'São Paulo',
+      origin_count: 1,
+      status: 'found',
+      status_label: 'ENCONTRADA',
+      title: 'Backend Engineer',
+    };
+    const application = {
+      created_at: '2026-08-15T10:05:00Z',
+      current_status: 'found',
+      events: [],
+      id: 7,
+      job_id: 1,
+      updated_at: '2026-08-15T10:05:00Z',
+    };
+
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/jobs') {
+          return Promise.resolve({
+            json: async () => ({ items: [job] }),
+            ok: true,
+          });
+        }
+        if (input === '/api/jobs/1/application') {
+          return Promise.resolve({ json: async () => application, ok: true });
+        }
+        if (input === '/api/applications/7/transition') {
+          return Promise.resolve({
+            json: async () => ({
+              ...application,
+              current_status: 'applied',
+              updated_at: '2026-08-15T10:06:00Z',
+            }),
+            ok: true,
+          });
+        }
+        if (init?.method === 'PUT') {
+          return Promise.resolve({ json: async () => null, ok: true });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Pipeline de candidaturas' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
+    fireEvent.change(
+      await screen.findByLabelText('Próxima fase para Backend Engineer'),
+      { target: { value: 'applied' } },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mover candidatura' }));
+
+    await waitFor(() =>
+      expect(screen.getAllByText('APLICADA').length).toBeGreaterThanOrEqual(1),
+    );
+    const transitionCall = fetchMock.mock.calls.find(
+      ([input]) => input === '/api/applications/7/transition',
+    );
+    expect(transitionCall).toBeDefined();
+    expect(JSON.parse(transitionCall?.[1]?.body as string)).toMatchObject({
+      to_status: 'applied',
+    });
+  });
+
+  it('reverte a movimentação otimista quando a transição é rejeitada', async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (input === '/api/jobs') {
+        return Promise.resolve({
+          json: async () => ({
+            items: [
+              {
+                canonical_url: null,
+                company: 'Example Labs',
+                created_at: '2026-08-15T10:00:00Z',
+                id: 1,
+                location: null,
+                origin_count: 1,
+                status: 'found',
+                status_label: 'ENCONTRADA',
+                title: 'Backend Engineer',
+              },
+            ],
+          }),
+          ok: true,
+        });
+      }
+      if (input === '/api/jobs/1/application') {
+        return Promise.resolve({
+          json: async () => ({
+            created_at: '2026-08-15T10:05:00Z',
+            current_status: 'found',
+            events: [],
+            id: 7,
+            job_id: 1,
+            updated_at: '2026-08-15T10:05:00Z',
+          }),
+          ok: true,
+        });
+      }
+      if (input === '/api/applications/7/transition') {
+        return Promise.resolve({
+          json: async () => ({ detail: 'Transição não permitida.' }),
+          ok: false,
+        });
+      }
+      return Promise.resolve({ json: async () => null, ok: true });
+    });
+
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Pipeline de candidaturas' });
+    fireEvent.change(
+      await screen.findByLabelText('Próxima fase para Backend Engineer'),
+      { target: { value: 'interview' } },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mover candidatura' }));
+
+    expect(
+      await screen.findByText(
+        'Não foi possível mover Backend Engineer. A fase foi restaurada.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('ENCONTRADA').length).toBeGreaterThanOrEqual(1);
   });
 });

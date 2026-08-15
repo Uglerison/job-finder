@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-211 — Criar quadro visual do pipeline`.
+**Próxima tarefa pronta:** `JF-212 — Modelar entrevistas, desafios e prazos`.
 
 ## Marcos
 
@@ -327,10 +327,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: operações transacionais com erros de domínio claros.
   - Evidência: `POST/GET /api/jobs/{id}/application`, `GET /api/applications/{id}` e transição transacional com `409` para conflito; testes de API verdes.
 
-- [ ] **JF-211 — Criar quadro visual do pipeline**
+- [x] **JF-211 — Criar quadro visual do pipeline**
   - Depende de: JF-210.
   - Teste primeiro: mover por ação acessível, erro de transição e atualização otimista revertida.
   - Aceite: pipeline utilizável com mouse e teclado.
+  - Evidência: quadro editorial responsivo, carregamento por vaga, select e ação acessíveis, rollback otimista em `409`; 10 testes Vitest, lint, Prettier, TypeScript e build verdes.
 
 - [ ] **JF-212 — Modelar entrevistas, desafios e prazos**
   - Depende de: JF-208 e JF-107.
@@ -695,6 +696,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-208 | Concluída | Migração `0008_applications`, candidatura única por vaga e eventos de fase imutáveis; 57 testes backend verdes |
 | 15/08/2026 | JF-209 | Concluída | Máquina de estados com transições permitidas, terminais e correções auditáveis; testes unitários verdes |
 | 15/08/2026 | JF-210 | Concluída | API transacional para criar, consultar, avançar e corrigir candidaturas; conflitos retornam `409` |
+| 15/08/2026 | JF-211 | Concluída | Quadro visual responsivo com ações acessíveis e rollback de transição rejeitada; 10 testes Vitest e build frontend verdes |
 
 ## Bloqueios e decisões pendentes
 

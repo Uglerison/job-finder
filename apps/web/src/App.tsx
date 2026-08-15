@@ -69,6 +69,54 @@ type JobDetail = JobListItem & {
   origins: { id: number; source: string; url: string | null }[];
 };
 
+type ApplicationStatus =
+  | 'found'
+  | 'pending'
+  | 'applied'
+  | 'interview'
+  | 'offer'
+  | 'hired'
+  | 'rejected'
+  | 'withdrawn'
+  | 'expired';
+
+type ApplicationEvent = {
+  from_status: string | null;
+  id: number;
+  kind: string;
+  note: string | null;
+  occurred_at: string;
+  sequence_number: number;
+  to_status: string;
+};
+
+type ApplicationResponse = {
+  created_at: string;
+  current_status: ApplicationStatus;
+  events: ApplicationEvent[];
+  id: number;
+  job_id: number;
+  updated_at: string;
+};
+
+const pipelineStages: { label: string; value: ApplicationStatus }[] = [
+  { label: 'ENCONTRADA', value: 'found' },
+  { label: 'EM ESPERA', value: 'pending' },
+  { label: 'APLICADA', value: 'applied' },
+  { label: 'ENTREVISTA', value: 'interview' },
+  { label: 'OFERTA', value: 'offer' },
+  { label: 'CONTRATADO', value: 'hired' },
+  { label: 'NÃO APROVADO', value: 'rejected' },
+  { label: 'DESISTIU', value: 'withdrawn' },
+  { label: 'EXPIRADA', value: 'expired' },
+];
+
+function pipelineStatusLabel(status: ApplicationStatus): string {
+  return (
+    pipelineStages.find((stage) => stage.value === status)?.label ?? status
+  );
+}
+
 type ManualJobFormState = {
   canonicalUrl: string;
   company: string;
@@ -290,6 +338,17 @@ function App() {
   const [selectedJob, setSelectedJob] = useState<JobDetail | null>(null);
   const [isLoadingJobDetail, setIsLoadingJobDetail] = useState(false);
   const [jobDetailError, setJobDetailError] = useState<string | null>(null);
+  const [applications, setApplications] = useState<
+    Record<number, ApplicationResponse>
+  >({});
+  const [isLoadingApplications, setIsLoadingApplications] = useState(true);
+  const [applicationsError, setApplicationsError] = useState<string | null>(
+    null,
+  );
+  const [pipelineActionId, setPipelineActionId] = useState<number | null>(null);
+  const [pipelineTargets, setPipelineTargets] = useState<
+    Record<number, ApplicationStatus>
+  >({});
 
   useEffect(() => {
     let isMounted = true;
@@ -336,6 +395,73 @@ function App() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (isLoadingJobs) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const loadApplications = async () => {
+      setIsLoadingApplications(true);
+      setApplicationsError(null);
+
+      if (jobs.length === 0) {
+        if (isMounted) {
+          setApplications({});
+          setPipelineTargets({});
+          setIsLoadingApplications(false);
+        }
+        return;
+      }
+
+      try {
+        const loaded = await Promise.all(
+          jobs.map(async (job) => {
+            const response = await fetch(`/api/jobs/${job.id}/application`);
+            if (!response.ok) {
+              return null;
+            }
+            const payload =
+              (await response.json()) as ApplicationResponse | null;
+            return payload?.id ? payload : null;
+          }),
+        );
+        if (!isMounted) {
+          return;
+        }
+        const nextApplications: Record<number, ApplicationResponse> = {};
+        const nextTargets: Record<number, ApplicationStatus> = {};
+        loaded.forEach((application) => {
+          if (application) {
+            nextApplications[application.id] = application;
+            nextTargets[application.id] = application.current_status;
+          }
+        });
+        setApplications(nextApplications);
+        setPipelineTargets(nextTargets);
+      } catch {
+        if (isMounted) {
+          setApplicationsError(
+            'Não foi possível carregar o pipeline local de candidaturas.',
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingApplications(false);
+        }
+      }
+    };
+
+    void loadApplications();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoadingJobs, jobs]);
 
   useEffect(() => {
     let isMounted = true;
@@ -600,6 +726,61 @@ function App() {
     }
   };
 
+  const moveApplication = async (
+    application: ApplicationResponse,
+    job: JobListItem,
+  ) => {
+    const targetStatus = pipelineTargets[application.id];
+    if (!targetStatus || targetStatus === application.current_status) {
+      return;
+    }
+
+    const previousStatus = application.current_status;
+    setApplications((current) => ({
+      ...current,
+      [application.id]: { ...application, current_status: targetStatus },
+    }));
+    setPipelineActionId(application.id);
+    setApplicationsError(null);
+
+    try {
+      const response = await fetch(
+        `/api/applications/${application.id}/transition`,
+        {
+          body: JSON.stringify({ to_status: targetStatus }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        },
+      );
+      if (!response.ok) {
+        throw new Error('Transição rejeitada.');
+      }
+      const savedApplication = (await response.json()) as ApplicationResponse;
+      setApplications((current) => ({
+        ...current,
+        [application.id]: savedApplication,
+      }));
+      setPipelineTargets((current) => ({
+        ...current,
+        [application.id]: savedApplication.current_status,
+      }));
+    } catch {
+      setApplications((current) => ({
+        ...current,
+        [application.id]: { ...application, current_status: previousStatus },
+      }));
+      setPipelineTargets((current) => ({
+        ...current,
+        [application.id]: previousStatus,
+      }));
+      setApplicationsError(
+        `Não foi possível mover ${job.title}. A fase foi restaurada.`,
+      );
+    } finally {
+      setPipelineActionId(null);
+    }
+  };
+
   const visibleJobs = jobs.filter((job) => {
     const query = jobSearch.trim().toLocaleLowerCase();
     if (!query) {
@@ -608,6 +789,13 @@ function App() {
     return `${job.title} ${job.company} ${job.location ?? ''}`
       .toLocaleLowerCase()
       .includes(query);
+  });
+
+  const pipelineEntries = jobs.flatMap((job) => {
+    const application = Object.values(applications).find(
+      (candidate) => candidate.job_id === job.id,
+    );
+    return application ? [{ application, job }] : [];
   });
 
   const profileStatus = isLoadingProfile
@@ -1059,6 +1247,113 @@ function App() {
         </section>
       )}
 
+      <section
+        className="pipeline-section"
+        id="pipeline"
+        aria-labelledby="pipeline-title"
+      >
+        <div className="pipeline-intro">
+          <p className="eyebrow">ACOMPANHAMENTO</p>
+          <h2 id="pipeline-title">Pipeline de candidaturas</h2>
+          <p>
+            Cada movimento fica registrado no histórico local. Use o teclado
+            para escolher a próxima fase e confirmar a mudança.
+          </p>
+        </div>
+
+        <div className="pipeline-workspace">
+          {isLoadingApplications && (
+            <p className="pipeline-feedback" role="status">
+              Carregando candidaturas…
+            </p>
+          )}
+          {!isLoadingApplications && applicationsError && (
+            <p className="pipeline-feedback is-error" role="status">
+              {applicationsError}
+            </p>
+          )}
+          {!isLoadingApplications &&
+            !applicationsError &&
+            pipelineEntries.length === 0 && (
+              <div className="pipeline-empty">
+                <span className="meta-label">NENHUMA CANDIDATURA</span>
+                <p>
+                  Crie uma candidatura a partir de uma vaga para acompanhar as
+                  fases neste quadro.
+                </p>
+              </div>
+            )}
+          {!isLoadingApplications && pipelineEntries.length > 0 && (
+            <div className="pipeline-board">
+              {pipelineStages.map((stage) => {
+                const stageEntries = pipelineEntries.filter(
+                  ({ application }) =>
+                    application.current_status === stage.value,
+                );
+                return (
+                  <section
+                    className="pipeline-column"
+                    key={stage.value}
+                    aria-labelledby={`pipeline-${stage.value}`}
+                  >
+                    <div className="pipeline-column-heading">
+                      <h3 id={`pipeline-${stage.value}`}>{stage.label}</h3>
+                      <span>{stageEntries.length}</span>
+                    </div>
+                    <ul className="pipeline-card-list">
+                      {stageEntries.map(({ application, job }) => (
+                        <li className="pipeline-card" key={application.id}>
+                          <span className="job-status">
+                            {pipelineStatusLabel(application.current_status)}
+                          </span>
+                          <h4>{job.title}</h4>
+                          <p>{job.company}</p>
+                          <label htmlFor={`pipeline-target-${application.id}`}>
+                            Próxima fase para {job.title}
+                          </label>
+                          <select
+                            id={`pipeline-target-${application.id}`}
+                            onChange={(event) =>
+                              setPipelineTargets((current) => ({
+                                ...current,
+                                [application.id]: event.target
+                                  .value as ApplicationStatus,
+                              }))
+                            }
+                            value={
+                              pipelineTargets[application.id] ??
+                              application.current_status
+                            }
+                          >
+                            {pipelineStages.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            className="card-link pipeline-move-button"
+                            disabled={pipelineActionId === application.id}
+                            onClick={() =>
+                              void moveApplication(application, job)
+                            }
+                            type="button"
+                          >
+                            {pipelineActionId === application.id
+                              ? 'Movendo…'
+                              : 'Mover candidatura'}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
       <section className="jobs-section" id="vagas" aria-labelledby="jobs-title">
         <div className="jobs-intro">
           <p className="eyebrow">CAIXA DE ENTRADA</p>
@@ -1138,11 +1433,16 @@ function App() {
                   <span className="meta-label">CONTEÚDO VERSIONADO</span>
                   <ol className="job-content-history">
                     {[...selectedJob.content_versions]
-                      .sort((left, right) => right.version_number - left.version_number)
+                      .sort(
+                        (left, right) =>
+                          right.version_number - left.version_number,
+                      )
                       .map((version) => (
                         <li key={version.id}>
                           <span>Versão {version.version_number}</span>
-                          <pre className="job-detail-content">{version.raw_content}</pre>
+                          <pre className="job-detail-content">
+                            {version.raw_content}
+                          </pre>
                         </li>
                       ))}
                   </ol>
