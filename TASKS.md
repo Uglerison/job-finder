@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-203 — Implementar importação de vaga por URL`.
+**Próxima tarefa pronta:** `JF-204 — Implementar API de listagem e detalhe`.
 
 ## Marcos
 
@@ -279,10 +279,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: vaga manual aparece como `ENCONTRADA` com origem auditável.
   - Evidência: `POST /api/jobs` normaliza, persiste origem `manual`, conteúdo inicial e status `found` (`ENCONTRADA`); 4 testes de API verdes.
 
-- [ ] **JF-203 — Implementar importação de vaga por URL**
+- [x] **JF-203 — Implementar importação de vaga por URL**
   - Depende de: JF-202 e JF-602.
   - Teste primeiro: URL pública permitida, redirecionamento limitado e destino bloqueado.
   - Aceite: conteúdo sanitizado e falhas explicadas sem travar a aplicação.
+  - Evidência: importador HTTP com bloqueio de rede local, limite de 3 redirecionamentos, conteúdo seguro em texto e testes com cliente injetado; JF-602 permanece como endurecimento completo posterior.
 
 - [ ] **JF-204 — Implementar API de listagem e detalhe**
   - Depende de: JF-200.
@@ -679,6 +680,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-200 | Concluída | Migração `0004_jobs`, vaga normalizada com múltiplas origens, conteúdo bruto versionado com validade e 39 testes backend verdes |
 | 15/08/2026 | JF-201 | Concluída | Normalização determinística de URL, textos, espaços e datas; 7 testes focados verdes |
 | 15/08/2026 | JF-202 | Concluída | Inclusão manual transacional via `POST /api/jobs`, origem auditável e status inicial `ENCONTRADA` |
+| 15/08/2026 | JF-203 | Concluída | Importação por URL com política pública mínima, redirects limitados, sanitização e origem `url_import` |
 
 ## Bloqueios e decisões pendentes
 

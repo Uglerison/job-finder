@@ -9,10 +9,18 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+from job_finder.job_import import (
+    FetchedDocument,
+    JobImportError,
+    extract_document_fields,
+    fetch_public_document,
+    validate_public_url,
+)
 from job_finder.jobs import (
     Job,
     JobContentDraft,
     JobContentVersion,
+    JobDraft,
     JobOrigin,
     JobOriginDraft,
     add_job_content_version,
@@ -46,6 +54,19 @@ class ManualJobRequest(BaseModel):
         if normalized is None:
             raise ValueError("canonical_url must use an http or https scheme")
         return normalized
+
+
+class URLImportRequest(BaseModel):
+    """A public URL that can be safely fetched into the local inbox."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    url: str = Field(min_length=1, max_length=2048)
+
+    @field_validator("url")
+    @classmethod
+    def url_must_be_public_http(cls, value: str) -> str:
+        return validate_public_url(value)
 
 
 class JobOriginResponse(BaseModel):
@@ -112,17 +133,7 @@ def create_manual_job(
     now = datetime.now(timezone.utc)
 
     try:
-        job = create_job(session, normalized)
-        origin = add_job_origin(
-            session,
-            job.id,
-            JobOriginDraft(source="manual", url=normalized.canonical_url),
-        )
-        add_job_content_version(
-            session,
-            origin.id,
-            _content_draft(payload.raw_content, now),
-        )
+        job = _persist_job(session, normalized, "manual", payload.raw_content, now)
         session.commit()
     except IntegrityError as error:
         session.rollback()
@@ -133,6 +144,66 @@ def create_manual_job(
 
     session.refresh(job)
     return _job_response(session, job)
+
+
+@router.post("/jobs/import", response_model=JobResponse, status_code=status.HTTP_201_CREATED)
+async def import_job_from_url(
+    payload: URLImportRequest,
+    session: SessionDependency,
+) -> JobResponse:
+    """Fetch, sanitize and persist a public listing without executing its markup."""
+
+    try:
+        document: FetchedDocument = await fetch_public_document(payload.url)
+        final_url = validate_public_url(document.url)
+        title, company, safe_content = extract_document_fields(
+            FetchedDocument(
+                url=final_url,
+                content_type=document.content_type,
+                body=document.body,
+            ),
+        )
+        normalized = normalize_job(
+            RawJobData(
+                canonical_url=final_url,
+                title=title,
+                company=company,
+            ),
+        )
+        now = datetime.now(timezone.utc)
+        job = _persist_job(session, normalized, "url_import", safe_content, now)
+        session.commit()
+    except JobImportError as error:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
+    except ValueError as error:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except IntegrityError as error:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Já existe uma vaga com esta URL canônica.",
+        ) from error
+
+    session.refresh(job)
+    return _job_response(session, job)
+
+
+def _persist_job(
+    session: Session,
+    draft: JobDraft,
+    source: str,
+    raw_content: str,
+    now: datetime,
+) -> Job:
+    job = create_job(session, draft)
+    origin = add_job_origin(session, job.id, JobOriginDraft(source=source, url=draft.canonical_url))
+    add_job_content_version(session, origin.id, _content_draft(raw_content, now))
+    return job
 
 
 def _content_draft(raw_content: str, now: datetime) -> JobContentDraft:
