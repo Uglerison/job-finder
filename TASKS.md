@@ -64,7 +64,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-100 — Modelar perfil e versões`.
+**Próxima tarefa pronta:** `JF-101 — Implementar validação dos critérios do perfil`.
 
 ## Marcos
 
@@ -198,10 +198,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 
 ## E2 — Perfil
 
-- [ ] **JF-100 — Modelar perfil e versões**
+- [x] **JF-100 — Modelar perfil e versões**
   - Depende de: JF-017.
   - Teste primeiro: criação, nova versão, consulta da versão ativa e imutabilidade histórica.
   - Aceite: schema e migração preservam histórico.
+  - Evidência: migração `0002_profile_versions` e testes cobrem criação, versão ativa e bloqueio de atualização histórica.
 
 - [ ] **JF-101 — Implementar validação dos critérios do perfil**
   - Depende de: JF-100.
@@ -644,6 +645,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-022 | Concluída | Script Windows valida health, interface, SQLite e liberação de recursos |
 | 15/08/2026 | JF-013 | Concluída | Formatter, lint e tipos reproduzíveis validados para backend e frontend |
 | 15/08/2026 | JF-014 | Concluída | Workflow Windows valida testes, qualidade, tipos e build sem segredos |
+| 15/08/2026 | JF-100 | Concluída | Perfil versionado em SQLite com histórico imutável e consulta da versão ativa |
 
 ## Bloqueios e decisões pendentes
 

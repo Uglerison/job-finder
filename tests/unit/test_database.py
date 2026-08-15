@@ -26,4 +26,4 @@ def test_migrations_are_idempotent_and_record_current_revision(tmp_path: Path) -
             "SELECT version_num FROM alembic_version"
         ).scalar_one()
 
-    assert revision == "0001_initial_schema"
+    assert revision == "0002_profile_versions"
