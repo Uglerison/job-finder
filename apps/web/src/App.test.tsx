@@ -595,4 +595,64 @@ describe('App', () => {
     expect(screen.getByText('PRÓXIMO')).toBeInTheDocument();
     expect(screen.getByText('VENCIDO')).toBeInTheDocument();
   });
+
+  it('lista a lixeira e restaura uma vaga sem perder o controle local', async () => {
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/trash') {
+          return Promise.resolve({
+            json: async () => [
+              {
+                company: 'Example Labs',
+                deleted_at: '2026-08-15T10:00:00Z',
+                id: 3,
+                purge_after: '2027-08-15T10:00:00Z',
+                status: 'found',
+                title: 'Data Engineer',
+              },
+            ],
+            ok: true,
+          });
+        }
+        if (input === '/api/jobs/3/restore' && init?.method === 'POST') {
+          return Promise.resolve({
+            json: async () => ({
+              company: 'Example Labs',
+              deleted_at: null,
+              id: 3,
+              purge_after: null,
+              status: 'found',
+              title: 'Data Engineer',
+            }),
+            ok: true,
+          });
+        }
+        if (input === '/api/jobs') {
+          return Promise.resolve({
+            json: async () => ({ items: [] }),
+            ok: true,
+          });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Lixeira recuperável' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Data Engineer')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Restaurar vaga' }));
+
+    await waitFor(() =>
+      expect(screen.queryByText('Data Engineer')).not.toBeInTheDocument(),
+    );
+    expect(
+      fetchMock.mock.calls.some(
+        ([input, init]) =>
+          input === '/api/jobs/3/restore' && init?.method === 'POST',
+      ),
+    ).toBe(true);
+  });
 });

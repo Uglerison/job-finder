@@ -69,6 +69,15 @@ type JobDetail = JobListItem & {
   origins: { id: number; source: string; url: string | null }[];
 };
 
+type TrashJob = {
+  company: string;
+  deleted_at: string;
+  id: number;
+  purge_after: string;
+  status: string;
+  title: string;
+};
+
 type ApplicationStatus =
   | 'found'
   | 'pending'
@@ -378,6 +387,9 @@ function App() {
   const [agendaEvents, setAgendaEvents] = useState<AgendaEvent[]>([]);
   const [isLoadingAgenda, setIsLoadingAgenda] = useState(true);
   const [agendaError, setAgendaError] = useState<string | null>(null);
+  const [trashJobs, setTrashJobs] = useState<TrashJob[]>([]);
+  const [isLoadingTrash, setIsLoadingTrash] = useState(true);
+  const [trashError, setTrashError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -419,6 +431,37 @@ function App() {
     };
 
     void loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadTrash = async () => {
+      try {
+        const response = await fetch('/api/trash');
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar a lixeira.');
+        }
+        const payload = (await response.json()) as TrashJob[] | null;
+        if (isMounted) {
+          setTrashJobs(Array.isArray(payload) ? payload : []);
+        }
+      } catch {
+        if (isMounted) {
+          setTrashError('Não foi possível carregar a lixeira local.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingTrash(false);
+        }
+      }
+    };
+
+    void loadTrash();
 
     return () => {
       isMounted = false;
@@ -786,6 +829,49 @@ function App() {
     }
   };
 
+  const refreshJobs = async () => {
+    const response = await fetch('/api/jobs');
+    if (!response.ok) {
+      throw new Error('Não foi possível atualizar a caixa de entrada.');
+    }
+    const payload = (await response.json()) as { items?: JobListItem[] } | null;
+    setJobs(Array.isArray(payload?.items) ? payload.items : []);
+  };
+
+  const restoreTrashJob = async (jobId: number) => {
+    setTrashError(null);
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/restore`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error('Não foi possível restaurar a vaga.');
+      }
+      setTrashJobs((current) => current.filter((job) => job.id !== jobId));
+      await refreshJobs();
+    } catch {
+      setTrashError('Não foi possível restaurar a vaga. Tente novamente.');
+    }
+  };
+
+  const permanentlyDeleteTrashJob = async (jobId: number) => {
+    if (!window.confirm('Excluir definitivamente esta vaga e seu histórico?')) {
+      return;
+    }
+    setTrashError(null);
+    try {
+      const response = await fetch(`/api/jobs/${jobId}?confirm=true`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error('Não foi possível excluir a vaga.');
+      }
+      setTrashJobs((current) => current.filter((job) => job.id !== jobId));
+    } catch {
+      setTrashError('Não foi possível excluir a vaga definitivamente.');
+    }
+  };
+
   const moveApplication = async (
     application: ApplicationResponse,
     job: JobListItem,
@@ -891,6 +977,7 @@ function App() {
             <a href="#historico">Histórico</a>
             <a href="#vagas">Vagas</a>
             <a href="#agenda">Agenda</a>
+            <a href="#lixeira">Lixeira</a>
             <a href="#preferencias">Preferências</a>
           </nav>
 
@@ -1417,6 +1504,75 @@ function App() {
                 )}
               </div>
             </div>
+          )}
+        </div>
+      </section>
+
+      <section
+        className="trash-section"
+        id="lixeira"
+        aria-labelledby="trash-title"
+      >
+        <div className="trash-intro">
+          <p className="eyebrow">RETENÇÃO LOCAL</p>
+          <h2 id="trash-title">Lixeira recuperável</h2>
+          <p>
+            Vagas removidas ficam disponíveis até a data de retenção. Restaurar
+            mantém o histórico; excluir definitivamente exige confirmação.
+          </p>
+        </div>
+
+        <div className="trash-workspace">
+          {isLoadingTrash && (
+            <p className="trash-feedback" role="status">
+              Carregando lixeira…
+            </p>
+          )}
+          {!isLoadingTrash && trashError && (
+            <p className="trash-feedback is-error" role="status">
+              {trashError}
+            </p>
+          )}
+          {!isLoadingTrash && !trashError && trashJobs.length === 0 && (
+            <div className="trash-empty">
+              <span className="meta-label">LIXEIRA VAZIA</span>
+              <p>
+                Vagas removidas aparecerão aqui enquanto puderem ser
+                restauradas.
+              </p>
+            </div>
+          )}
+          {!isLoadingTrash && trashJobs.length > 0 && (
+            <ul className="trash-list">
+              {trashJobs.map((job) => (
+                <li className="trash-item" key={job.id}>
+                  <div>
+                    <span className="job-status">REMOVIDA</span>
+                    <h3>{job.title}</h3>
+                    <p>{job.company}</p>
+                    <span className="mono-note">
+                      Expira em {formatVersionDate(job.purge_after)}
+                    </span>
+                  </div>
+                  <div className="trash-actions">
+                    <button
+                      className="card-link"
+                      onClick={() => void restoreTrashJob(job.id)}
+                      type="button"
+                    >
+                      Restaurar vaga
+                    </button>
+                    <button
+                      className="text-button text-button-plain danger-button"
+                      onClick={() => void permanentlyDeleteTrashJob(job.id)}
+                      type="button"
+                    >
+                      Excluir definitivamente
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </section>

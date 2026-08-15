@@ -361,7 +361,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Depende de: JF-200 e JF-208.
   - Teste primeiro: arquivar, restaurar e expirar após retenção.
   - Aceite: exclusão definitiva exige confirmação e respeita vínculos.
-  - Evidência: migração `0011_recoverable_trash`, soft-delete com retenção das preferências, restauração, purge de expirados e `confirm=true` para remoção definitiva; candidaturas vinculadas bloqueiam a remoção; 68 testes backend verdes.
+  - Evidência: migração `0011_recoverable_trash`, soft-delete com retenção das preferências, restauração, purge de expirados e `confirm=true` para remoção definitiva; candidaturas vinculadas bloqueiam a remoção; lixeira visual com restauração e confirmação no navegador; 68 testes backend e 12 testes Vitest verdes.
 
 ## E4 — Busca e fontes
 
@@ -706,7 +706,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-213 | Concluída | Agenda API com filtros por período/status e interface de próximos/vencidos; 11 testes Vitest e 62 testes backend verdes |
 | 15/08/2026 | JF-214 | Concluída | Motivos de encerramento obrigatórios quando aplicável e auditados nos eventos sem apagar histórico; 64 testes backend verdes |
 | 15/08/2026 | JF-215 | Concluída | Exportação CSV/JSON filtrável, codificação Excel-friendly e neutralização de fórmulas; 65 testes backend verdes |
-| 15/08/2026 | JF-216 | Concluída | Lixeira com soft-delete, restauração, expiração por retenção e proteção de candidaturas vinculadas; migração `0011_recoverable_trash` e 68 testes backend verdes |
+| 15/08/2026 | JF-216 | Concluída | Lixeira com soft-delete, restauração, expiração por retenção e proteção de candidaturas vinculadas; migração `0011_recoverable_trash`, UI de restauração/confirmação, 68 testes backend e 12 Vitest verdes |
 
 ## Bloqueios e decisões pendentes
 

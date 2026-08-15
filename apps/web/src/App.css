@@ -965,6 +965,103 @@
   color: var(--brand-error, #a32a1c);
 }
 
+.trash-section {
+  border-top: 1px solid var(--ink-faint);
+  display: grid;
+  gap: clamp(2.5rem, 7vw, 6rem);
+  grid-template-columns: minmax(12rem, 0.72fr) minmax(0, 1.28fr);
+  margin: 0 auto;
+  max-width: 64rem;
+  padding: clamp(4rem, 8vw, 7rem) 1.5rem;
+  scroll-margin-top: 5rem;
+}
+
+.trash-intro {
+  max-width: 20rem;
+}
+
+.trash-intro h2 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2rem, 3.8vw, 3rem);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+  margin: 0;
+}
+
+.trash-intro > p:last-child {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin: 1.25rem 0 0;
+}
+
+.trash-workspace {
+  min-width: 0;
+}
+
+.trash-list {
+  border-top: 1px solid var(--ink-faint);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.trash-item {
+  align-items: center;
+  border-bottom: 1px solid var(--ink-faint);
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  padding: 1.1rem 0;
+}
+
+.trash-item h3 {
+  font-size: 0.95rem;
+  margin: 0.4rem 0 0.25rem;
+}
+
+.trash-item p {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  margin: 0 0 0.45rem;
+}
+
+.trash-actions {
+  align-items: end;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  white-space: nowrap;
+}
+
+.danger-button {
+  color: var(--brand-error, #a32a1c);
+}
+
+.trash-empty,
+.trash-feedback {
+  background: var(--paper-sunken);
+  border-left: 2px solid var(--ink-faint);
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  padding: 0.8rem;
+}
+
+.trash-empty p {
+  margin: 0.7rem 0 0;
+}
+
+.trash-feedback {
+  margin: 0;
+}
+
+.trash-feedback.is-error {
+  border-left-color: var(--brand-error, #a32a1c);
+  color: var(--brand-error, #a32a1c);
+}
+
 .pipeline-section {
   border-top: 1px solid var(--ink-faint);
   display: grid;
@@ -1709,6 +1806,13 @@
     padding-right: 1rem;
   }
 
+  .trash-section {
+    gap: 3rem;
+    grid-template-columns: 1fr;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
   .pipeline-section {
     gap: 3rem;
     grid-template-columns: 1fr;
@@ -1775,6 +1879,15 @@
 
   .job-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .trash-item {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .trash-actions {
+    align-items: start;
   }
 
   .pipeline-board {
