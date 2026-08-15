@@ -55,7 +55,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | Épico | Faixa | Estado | Marco de saída |
 |---|---|---|---|
 | E0 — Governança e decisões | JF-001–JF-009 | Em andamento | Escopo operacional fechado |
-| E1 — Fundação local | JF-010–JF-022 | Em andamento | Aplicação local abre e persiste dados |
+| E1 — Fundação local | JF-010–JF-022 | Concluído | Aplicação local abre e persiste dados |
 | E2 — Perfil | JF-100–JF-107 | Pendente | Perfil editável e versionado |
 | E3 — Vagas e candidaturas | JF-200–JF-216 | Pendente | Fluxo manual completo |
 | E4 — Busca e fontes | JF-300–JF-313 | Pendente | Vagas coletadas e deduplicadas |
@@ -64,7 +64,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-014 — Configurar CI inicial`.
+**Próxima tarefa pronta:** `JF-100 — Modelar perfil e versões`.
 
 ## Marcos
 
@@ -144,9 +144,10 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: formatter, lint e análise de tipos reproduzíveis para backend e frontend.
   - Evidência: Ruff, Mypy, Prettier, Oxlint e TypeScript verificados e documentados; frontend usa pnpm.
 
-- [ ] **JF-014 — Configurar CI inicial**
+- [x] **JF-014 — Configurar CI inicial**
   - Depende de: JF-013.
   - Aceite: workflow executa testes, lint, tipos e build sem segredos.
+  - Evidência: workflow Windows separa backend e frontend, com instalação pnpm congelada e verificações locais equivalentes validadas.
 
 - [x] **JF-015 — Implementar endpoint de saúde com TDD**
   - Depende de: JF-011.
@@ -642,6 +643,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-021 | Concluída | Logs locais rotativos com nível configurável e redação de dados sensíveis |
 | 15/08/2026 | JF-022 | Concluída | Script Windows valida health, interface, SQLite e liberação de recursos |
 | 15/08/2026 | JF-013 | Concluída | Formatter, lint e tipos reproduzíveis validados para backend e frontend |
+| 15/08/2026 | JF-014 | Concluída | Workflow Windows valida testes, qualidade, tipos e build sem segredos |
 
 ## Bloqueios e decisões pendentes
 
