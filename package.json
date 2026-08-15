@@ -1,0 +1,11 @@
+{
+  "name": "job-finder-workspace",
+  "private": true,
+  "packageManager": "pnpm@11.14.0",
+  "scripts": {
+    "web:build": "pnpm --filter job-finder-web build",
+    "web:dev": "pnpm --filter job-finder-web dev",
+    "web:lint": "pnpm --filter job-finder-web lint",
+    "web:test": "pnpm --filter job-finder-web test"
+  }
+}

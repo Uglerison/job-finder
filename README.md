@@ -14,3 +14,13 @@ py -3.10 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 .\.venv\Scripts\python.exe -m pytest
 ```
+
+## Desenvolvimento do frontend
+
+Use somente pnpm:
+
+```powershell
+pnpm install
+pnpm --filter job-finder-web test
+pnpm --filter job-finder-web build
+```

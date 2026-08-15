@@ -64,7 +64,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próximas tarefas prontas:** `JF-012 — Configurar React, TypeScript e Vite` e `JF-016 — Implementar configuração tipada`.
+**Próxima tarefa pronta:** `JF-016 — Implementar configuração tipada`.
 
 ## Marcos
 
@@ -134,9 +134,10 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: `pyproject.toml`, ambiente reproduzível, pacote importável e comando de testes funcional.
   - Evidência: Python 3.10, instalação editável e Pytest validados.
 
-- [ ] **JF-012 — Configurar React, TypeScript e Vite**
+- [x] **JF-012 — Configurar React, TypeScript e Vite**
   - Depende de: JF-010.
   - Aceite: frontend inicia em desenvolvimento, compila assets estáticos e executa teste mínimo.
+  - Evidência: React/TypeScript/Vite com pnpm, Vitest, lint e build validados.
 
 - [ ] **JF-013 — Configurar qualidade de código**
   - Depende de: JF-011 e JF-012.
@@ -624,6 +625,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-010 | Concluída | Estrutura inicial criada e artefatos locais ignorados |
 | 15/08/2026 | JF-011 | Concluída | `pyproject.toml`, instalação editável e Pytest configurados |
 | 15/08/2026 | JF-015 | Concluída | TDD Red → Green para `GET /api/health` |
+| 15/08/2026 | JF-012 | Concluída | React/Vite, Vitest, lint e build configurados exclusivamente com pnpm |
 
 ## Bloqueios e decisões pendentes
 
