@@ -14,6 +14,7 @@ from job_finder.filters_api import router as filters_router
 from job_finder.frontend import frontend_dist_path, mount_frontend
 from job_finder.jobs_api import router as jobs_router
 from job_finder.logging import close_logging, configure_logging
+from job_finder.metadata_api import router as metadata_router
 from job_finder.preferences_api import router as preferences_router
 from job_finder.privacy_api import router as privacy_router
 from job_finder.profile_api import router as profile_router
@@ -69,6 +70,7 @@ def create_app(
     application.include_router(filters_router)
     application.include_router(privacy_router)
     application.include_router(jobs_router)
+    application.include_router(metadata_router)
 
     @application.get("/api/health", response_model=HealthResponse)
     def health() -> HealthResponse:

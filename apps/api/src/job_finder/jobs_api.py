@@ -17,6 +17,7 @@ from job_finder.job_import import (
     fetch_public_document,
     validate_public_url,
 )
+from job_finder.job_metadata import get_job_notes, get_job_tags
 from job_finder.jobs import (
     Job,
     JobContentDraft,
@@ -102,6 +103,8 @@ class JobResponse(BaseModel):
     updated_at: datetime
     origins: list[JobOriginResponse]
     content_versions: list[JobContentVersionResponse]
+    notes: list[dict[str, object]]
+    tags: list[str]
 
 
 class JobListItem(BaseModel):
@@ -319,6 +322,16 @@ def _job_response(session: Session, job: Job) -> JobResponse:
         updated_at=job.updated_at,
         origins=[_origin_response(origin) for origin in origins],
         content_versions=[_content_response(version) for version in content_versions],
+        notes=[
+            {
+                "body": note.body,
+                "created_at": note.created_at,
+                "id": note.id,
+                "updated_at": note.updated_at,
+            }
+            for note in get_job_notes(session, job.id)
+        ],
+        tags=get_job_tags(session, job.id),
     )
 
 

@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-207 — Implementar notas e tags`.
+**Próxima tarefa pronta:** `JF-208 — Modelar candidatura e eventos de fase`.
 
 ## Marcos
 
@@ -303,10 +303,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: nenhum HTML externo executável é renderizado.
   - Evidência: detalhe sob demanda com origem, conteúdo versionado e renderização em texto puro; 8 testes Vitest verdes.
 
-- [ ] **JF-207 — Implementar notas e tags**
+- [x] **JF-207 — Implementar notas e tags**
   - Depende de: JF-200.
   - Teste primeiro: criar, editar, filtrar e remover vínculo sem perder a vaga.
   - Aceite: notas e tags disponíveis na API e interface.
+  - Evidência: migração `0007_job_metadata`, notas editáveis, tags idempotentes e removíveis, detalhe inclui metadados; 8 testes de API focados verdes.
 
 - [ ] **JF-208 — Modelar candidatura e eventos de fase**
   - Depende de: JF-017 e JF-200.
@@ -687,6 +688,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-204 | Concluída | Listagem paginada com filtros/ordenação e detalhe com origens, conteúdo e 404 explícito |
 | 15/08/2026 | JF-205 | Concluída | Caixa de entrada visual com busca, estados de UI e inclusão manual rápida integrada a `POST /api/jobs` |
 | 15/08/2026 | JF-206 | Concluída | Detalhe sob demanda com origem, histórico de conteúdo e proteção contra execução de HTML externo |
+| 15/08/2026 | JF-207 | Concluída | Notas editáveis e tags reutilizáveis disponíveis por API e no contrato de detalhe da vaga |
 
 ## Bloqueios e decisões pendentes
 
