@@ -64,7 +64,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-019 — Servir o frontend compilado pelo backend`.
+**Próxima tarefa pronta:** `JF-020 — Abrir o navegador e impedir instância duplicada`.
 
 ## Marcos
 
@@ -171,10 +171,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: servidor escuta apenas em `127.0.0.1` e encerra sem corromper estado.
   - Evidência: teste de loopback valida porta livre, migração no startup, health e shutdown.
 
-- [ ] **JF-019 — Servir o frontend compilado pelo backend**
+- [x] **JF-019 — Servir o frontend compilado pelo backend**
   - Depende de: JF-012 e JF-018.
   - Teste primeiro: rota raiz e fallback de SPA retornam assets corretos.
   - Aceite: uma única URL local entrega API e interface.
+  - Evidência: testes de API e loopback validam raiz, fallback SPA, assets e `/api/health`.
 
 - [ ] **JF-020 — Abrir o navegador e impedir instância duplicada**
   - Depende de: JF-018 e JF-019.
@@ -632,6 +633,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-016 | Concluída | Settings tipados, secret mascarado e variáveis `JOB_FINDER_*` validados |
 | 15/08/2026 | JF-017 | Concluída | SQLite WAL, SQLAlchemy e migração idempotente validados |
 | 15/08/2026 | JF-018 | Concluída | Servidor loopback com startup, migração, health e shutdown validados |
+| 15/08/2026 | JF-019 | Concluída | Frontend Vite compilado, assets e fallback SPA entregues na mesma origem da API |
 
 ## Bloqueios e decisões pendentes
 

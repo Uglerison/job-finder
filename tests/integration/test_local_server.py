@@ -32,3 +32,31 @@ def test_local_server_starts_on_loopback_migrates_and_stops(tmp_path: Path) -> N
         server.stop()
 
     assert not server.is_running
+
+
+def test_local_server_serves_frontend_and_api_from_one_url(tmp_path: Path) -> None:
+    frontend_dist = tmp_path / "frontend-dist"
+    frontend_dist.mkdir()
+    (frontend_dist / "index.html").write_text("<main>Job Finder</main>", encoding="utf-8")
+
+    settings = Settings(data_dir=tmp_path / "data", environment="test")
+    server = LocalServer(
+        create_app(settings, frontend_dist_dir=frontend_dist),
+        startup_timeout_seconds=5,
+    )
+
+    try:
+        server.start()
+
+        with urlopen(f"{server.url}/", timeout=2) as response:
+            root = response.read().decode()
+        with urlopen(f"{server.url}/pipeline", timeout=2) as response:
+            pipeline = response.read().decode()
+        with urlopen(f"{server.url}/api/health", timeout=2) as response:
+            health = json.loads(response.read())
+    finally:
+        server.stop()
+
+    assert root == "<main>Job Finder</main>"
+    assert pipeline == "<main>Job Finder</main>"
+    assert health == {"status": "ok", "version": "0.1.0"}
