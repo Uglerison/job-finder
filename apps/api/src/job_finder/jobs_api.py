@@ -2,10 +2,11 @@
 
 from collections.abc import Iterator
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -26,6 +27,7 @@ from job_finder.jobs import (
     add_job_content_version,
     add_job_origin,
     create_job,
+    get_job,
     get_job_content_versions,
     get_job_origins,
 )
@@ -102,6 +104,30 @@ class JobResponse(BaseModel):
     content_versions: list[JobContentVersionResponse]
 
 
+class JobListItem(BaseModel):
+    """Compact row returned by the inbox without loading content history."""
+
+    id: int
+    canonical_url: str | None
+    title: str
+    company: str
+    location: str | None
+    status: str
+    status_label: str
+    origin_count: int
+    created_at: datetime
+
+
+class JobListResponse(BaseModel):
+    """Stable paginated contract for the local job inbox."""
+
+    items: list[JobListItem]
+    page: int
+    page_size: int
+    total: int
+    pages: int
+
+
 def get_session(request: Request) -> Iterator[Session]:
     """Provide one transaction-capable local session per request."""
 
@@ -111,6 +137,65 @@ def get_session(request: Request) -> Iterator[Session]:
 
 
 SessionDependency = Annotated[Session, Depends(get_session)]
+
+
+@router.get("/jobs", response_model=JobListResponse)
+def list_jobs(
+    session: SessionDependency,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    status_filter: str | None = Query(default=None, alias="status"),
+    q: str | None = Query(default=None, min_length=1, max_length=120),
+    order: Literal["newest", "oldest", "title"] = "newest",
+) -> JobListResponse:
+    """List jobs with bounded pagination, optional status/search filters and stable order."""
+
+    conditions = []
+    if status_filter:
+        conditions.append(Job.status == status_filter)
+    if q:
+        search = f"%{q.strip()}%"
+        conditions.append(
+            or_(
+                Job.title.ilike(search),
+                Job.company.ilike(search),
+                Job.location.ilike(search),
+            )
+        )
+
+    total = session.scalar(select(func.count(Job.id)).where(*conditions)) or 0
+    statement = (
+        select(Job, func.count(JobOrigin.id).label("origin_count"))
+        .outerjoin(JobOrigin, JobOrigin.job_id == Job.id)
+        .where(*conditions)
+        .group_by(Job.id)
+    )
+    if order == "title":
+        statement = statement.order_by(Job.title.asc(), Job.id.desc())
+    elif order == "oldest":
+        statement = statement.order_by(Job.created_at.asc(), Job.id.asc())
+    else:
+        statement = statement.order_by(Job.created_at.desc(), Job.id.desc())
+
+    rows = session.execute(statement.offset((page - 1) * page_size).limit(page_size)).all()
+    pages = (total + page_size - 1) // page_size
+    return JobListResponse(
+        items=[_job_list_item(job, origin_count) for job, origin_count in rows],
+        page=page,
+        page_size=page_size,
+        total=total,
+        pages=pages,
+    )
+
+
+@router.get("/jobs/{job_id}", response_model=JobResponse)
+def read_job(job_id: int, session: SessionDependency) -> JobResponse:
+    """Return one job with its origins and complete immutable content history."""
+
+    job = get_job(session, job_id)
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vaga não encontrada.")
+    return _job_response(session, job)
 
 
 @router.post("/jobs", response_model=JobResponse, status_code=status.HTTP_201_CREATED)
@@ -234,6 +319,20 @@ def _job_response(session: Session, job: Job) -> JobResponse:
         updated_at=job.updated_at,
         origins=[_origin_response(origin) for origin in origins],
         content_versions=[_content_response(version) for version in content_versions],
+    )
+
+
+def _job_list_item(job: Job, origin_count: int) -> JobListItem:
+    return JobListItem(
+        id=job.id,
+        canonical_url=job.canonical_url,
+        title=job.title,
+        company=job.company,
+        location=job.location,
+        status=job.status,
+        status_label=_status_label(job.status),
+        origin_count=origin_count,
+        created_at=job.created_at,
     )
 
 

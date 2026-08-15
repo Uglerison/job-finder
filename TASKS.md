@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-204 — Implementar API de listagem e detalhe`.
+**Próxima tarefa pronta:** `JF-205 — Criar caixa de entrada de vagas`.
 
 ## Marcos
 
@@ -285,10 +285,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: conteúdo sanitizado e falhas explicadas sem travar a aplicação.
   - Evidência: importador HTTP com bloqueio de rede local, limite de 3 redirecionamentos, conteúdo seguro em texto e testes com cliente injetado; JF-602 permanece como endurecimento completo posterior.
 
-- [ ] **JF-204 — Implementar API de listagem e detalhe**
+- [x] **JF-204 — Implementar API de listagem e detalhe**
   - Depende de: JF-200.
   - Teste primeiro: paginação, filtros, ordenação, ausência e detalhe.
   - Aceite: contratos estáveis e consultas sem N+1 relevante.
+  - Evidência: `GET /api/jobs` com paginação, busca, status e ordenação; `GET /api/jobs/{id}` com detalhe e 404 explícito; 2 testes de API verdes.
 
 - [ ] **JF-205 — Criar caixa de entrada de vagas**
   - Depende de: JF-012 e JF-204.
@@ -681,6 +682,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-201 | Concluída | Normalização determinística de URL, textos, espaços e datas; 7 testes focados verdes |
 | 15/08/2026 | JF-202 | Concluída | Inclusão manual transacional via `POST /api/jobs`, origem auditável e status inicial `ENCONTRADA` |
 | 15/08/2026 | JF-203 | Concluída | Importação por URL com política pública mínima, redirects limitados, sanitização e origem `url_import` |
+| 15/08/2026 | JF-204 | Concluída | Listagem paginada com filtros/ordenação e detalhe com origens, conteúdo e 404 explícito |
 
 ## Bloqueios e decisões pendentes
 
