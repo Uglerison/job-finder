@@ -329,4 +329,84 @@ describe('App', () => {
       title: 'Data Engineer',
     });
   });
+
+  it('abre o detalhe seguro sem executar HTML externo', async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (input === '/api/jobs') {
+        return Promise.resolve({
+          json: async () => ({
+            items: [
+              {
+                canonical_url: 'https://jobs.example.com/backend-1',
+                company: 'Example Labs',
+                created_at: '2026-08-15T10:00:00Z',
+                id: 1,
+                location: 'São Paulo',
+                origin_count: 1,
+                status: 'found',
+                status_label: 'ENCONTRADA',
+                title: 'Backend Engineer',
+              },
+            ],
+            page: 1,
+            page_size: 20,
+            pages: 1,
+            total: 1,
+          }),
+          ok: true,
+        });
+      }
+      if (input === '/api/jobs/1') {
+        return Promise.resolve({
+          json: async () => ({
+            canonical_url: 'https://jobs.example.com/backend-1',
+            company: 'Example Labs',
+            content_versions: [
+              {
+                captured_at: '2026-08-15T10:00:00Z',
+                content_type: 'text/plain',
+                id: 1,
+                raw_content: '<script>alert(1)</script> Python e FastAPI',
+                valid_from: '2026-08-15T10:00:00Z',
+                valid_until: null,
+                version_number: 1,
+              },
+            ],
+            created_at: '2026-08-15T10:00:00Z',
+            expires_at: null,
+            id: 1,
+            location: 'São Paulo',
+            origins: [
+              {
+                external_id: null,
+                id: 1,
+                source: 'manual',
+                url: 'https://jobs.example.com/backend-1',
+              },
+            ],
+            published_at: null,
+            status: 'found',
+            status_label: 'ENCONTRADA',
+            title: 'Backend Engineer',
+            updated_at: '2026-08-15T10:00:00Z',
+          }),
+          ok: true,
+        });
+      }
+      return Promise.resolve({ json: async () => null, ok: true });
+    });
+
+    render(<App />);
+    await screen.findByText('Backend Engineer');
+    fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Detalhe da vaga' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('<script>alert(1)</script> Python e FastAPI'),
+    ).toBeInTheDocument();
+    expect(document.querySelector('.job-detail-content script')).toBeNull();
+    expect(screen.getByText('manual')).toBeInTheDocument();
+  });
 });

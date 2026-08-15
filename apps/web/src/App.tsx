@@ -58,6 +58,14 @@ type JobListItem = {
 };
 
 type JobDetail = JobListItem & {
+  content_versions: {
+    content_type: string;
+    id: number;
+    raw_content: string;
+    valid_from: string;
+    valid_until: string | null;
+    version_number: number;
+  }[];
   origins: { id: number; source: string; url: string | null }[];
 };
 
@@ -279,6 +287,9 @@ function App() {
   const [isSavingJob, setIsSavingJob] = useState(false);
   const [jobFormError, setJobFormError] = useState<string | null>(null);
   const [jobMessage, setJobMessage] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<JobDetail | null>(null);
+  const [isLoadingJobDetail, setIsLoadingJobDetail] = useState(false);
+  const [jobDetailError, setJobDetailError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -570,6 +581,22 @@ function App() {
       setJobFormError('Não foi possível salvar a vaga. Tente novamente.');
     } finally {
       setIsSavingJob(false);
+    }
+  };
+
+  const openJobDetail = async (jobId: number) => {
+    setIsLoadingJobDetail(true);
+    setJobDetailError(null);
+    try {
+      const response = await fetch(`/api/jobs/${jobId}`);
+      if (!response.ok) {
+        throw new Error('Não foi possível carregar o detalhe.');
+      }
+      setSelectedJob((await response.json()) as JobDetail);
+    } catch {
+      setJobDetailError('Não foi possível carregar o detalhe da vaga.');
+    } finally {
+      setIsLoadingJobDetail(false);
     }
   };
 
@@ -1062,6 +1089,68 @@ function App() {
             </button>
           </div>
 
+          {isLoadingJobDetail && (
+            <p className="jobs-feedback" role="status">
+              Carregando detalhe…
+            </p>
+          )}
+          {jobDetailError && (
+            <p className="jobs-feedback is-error" role="status">
+              {jobDetailError}
+            </p>
+          )}
+          {selectedJob && !isLoadingJobDetail && (
+            <article className="job-detail" aria-labelledby="job-detail-title">
+              <div className="job-detail-topline">
+                <span className="meta-label">DETALHE DA VAGA</span>
+                <button
+                  className="text-button text-button-plain"
+                  onClick={() => setSelectedJob(null)}
+                  type="button"
+                >
+                  Fechar detalhe
+                </button>
+              </div>
+              <span className="job-status">{selectedJob.status_label}</span>
+              <h3 id="job-detail-title">Detalhe da vaga</h3>
+              <h4>{selectedJob.title}</h4>
+              <p className="job-detail-company">
+                {selectedJob.company}
+                {selectedJob.location ? ` · ${selectedJob.location}` : ''}
+              </p>
+              <div className="job-detail-grid">
+                <div>
+                  <span className="meta-label">ORIGENS</span>
+                  <ul className="job-origin-list">
+                    {selectedJob.origins.map((origin) => (
+                      <li key={origin.id}>
+                        <span>{origin.source}</span>
+                        {origin.url && (
+                          <a href={origin.url} rel="noreferrer" target="_blank">
+                            Abrir URL
+                          </a>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <span className="meta-label">CONTEÚDO VERSIONADO</span>
+                  <ol className="job-content-history">
+                    {[...selectedJob.content_versions]
+                      .sort((left, right) => right.version_number - left.version_number)
+                      .map((version) => (
+                        <li key={version.id}>
+                          <span>Versão {version.version_number}</span>
+                          <pre className="job-detail-content">{version.raw_content}</pre>
+                        </li>
+                      ))}
+                  </ol>
+                </div>
+              </div>
+            </article>
+          )}
+
           {isJobFormOpen && (
             <form className="job-form" onSubmit={handleManualJobSubmit}>
               <div className="form-field">
@@ -1223,6 +1312,13 @@ function App() {
                         Abrir origem <span aria-hidden="true">↗</span>
                       </a>
                     )}
+                    <button
+                      className="card-link"
+                      onClick={() => void openJobDetail(job.id)}
+                      type="button"
+                    >
+                      Ver detalhes
+                    </button>
                   </div>
                 </li>
               ))}

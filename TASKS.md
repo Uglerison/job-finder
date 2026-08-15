@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-206 — Criar tela de detalhe da vaga`.
+**Próxima tarefa pronta:** `JF-207 — Implementar notas e tags`.
 
 ## Marcos
 
@@ -297,10 +297,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: vagas novas podem ser revisadas e filtradas.
   - Evidência: caixa de entrada editorial com busca local, estados de carregamento/erro/vazio, inclusão manual rápida e 7 testes Vitest; pnpm lint, format e build verdes.
 
-- [ ] **JF-206 — Criar tela de detalhe da vaga**
+- [x] **JF-206 — Criar tela de detalhe da vaga**
   - Depende de: JF-204 e JF-205.
   - Teste primeiro: descrição segura, origem, metadados e histórico.
   - Aceite: nenhum HTML externo executável é renderizado.
+  - Evidência: detalhe sob demanda com origem, conteúdo versionado e renderização em texto puro; 8 testes Vitest verdes.
 
 - [ ] **JF-207 — Implementar notas e tags**
   - Depende de: JF-200.
@@ -685,6 +686,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-203 | Concluída | Importação por URL com política pública mínima, redirects limitados, sanitização e origem `url_import` |
 | 15/08/2026 | JF-204 | Concluída | Listagem paginada com filtros/ordenação e detalhe com origens, conteúdo e 404 explícito |
 | 15/08/2026 | JF-205 | Concluída | Caixa de entrada visual com busca, estados de UI e inclusão manual rápida integrada a `POST /api/jobs` |
+| 15/08/2026 | JF-206 | Concluída | Detalhe sob demanda com origem, histórico de conteúdo e proteção contra execução de HTML externo |
 
 ## Bloqueios e decisões pendentes
 
