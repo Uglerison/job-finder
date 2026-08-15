@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-214 — Implementar motivos de encerramento`.
+**Próxima tarefa pronta:** `JF-215 — Implementar exportação CSV/JSON`.
 
 ## Marcos
 
@@ -345,10 +345,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: agenda disponível na API e interface.
   - Evidência: `GET /api/events` filtra por período/status com validação de timezone; agenda editorial separa próximos e vencidos; 11 testes Vitest, 62 testes backend, lint, tipos e builds verdes.
 
-- [ ] **JF-214 — Implementar motivos de encerramento**
+- [x] **JF-214 — Implementar motivos de encerramento**
   - Depende de: JF-209.
   - Teste primeiro: reprovação, desistência, expiração e motivo opcional/obrigatório.
   - Aceite: dados alimentam relatórios sem apagar histórico.
+  - Evidência: migração `0010_closure_reasons`, motivos obrigatórios para `rejected/withdrawn/expired`, fechamento persistido e motivo copiado para o evento imutável; 64 testes backend verdes.
 
 - [ ] **JF-215 — Implementar exportação CSV/JSON**
   - Depende de: JF-204 e JF-210.
@@ -701,6 +702,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-211 | Concluída | Quadro visual responsivo com ações acessíveis e rollback de transição rejeitada; 10 testes Vitest e build frontend verdes |
 | 15/08/2026 | JF-212 | Concluída | Eventos de entrevista, desafio e prazo com timezone, conflito e vencimento auditáveis; migração `0009_process_events` e 61 testes backend verdes |
 | 15/08/2026 | JF-213 | Concluída | Agenda API com filtros por período/status e interface de próximos/vencidos; 11 testes Vitest e 62 testes backend verdes |
+| 15/08/2026 | JF-214 | Concluída | Motivos de encerramento obrigatórios quando aplicável e auditados nos eventos sem apagar histórico; 64 testes backend verdes |
 
 ## Bloqueios e decisões pendentes
 

@@ -78,3 +78,24 @@ async def test_application_api_rejects_invalid_transition(application) -> None:
         )
 
     assert response.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_application_api_requires_and_persists_closure_reason(application) -> None:
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        job_id = await _create_job(client)
+        created = await client.post(f"/api/jobs/{job_id}/application")
+        missing_reason = await client.post(
+            f"/api/applications/{created.json()['id']}/transition",
+            json={"to_status": "rejected"},
+        )
+        closed = await client.post(
+            f"/api/applications/{created.json()['id']}/transition",
+            json={"to_status": "rejected", "closure_reason": "not_fit"},
+        )
+
+    assert missing_reason.status_code == 409
+    assert closed.status_code == 200
+    assert closed.json()["closing_reason"] == "not_fit"
+    assert closed.json()["events"][-1]["closure_reason"] == "not_fit"

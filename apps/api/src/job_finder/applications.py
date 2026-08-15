@@ -1,6 +1,6 @@
 """Application aggregate with an immutable event history."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 from sqlalchemy import (
@@ -31,6 +31,7 @@ ApplicationStatus = Literal[
     "expired",
 ]
 ApplicationEventKind = Literal["initial", "transition", "correction"]
+ClosingReason = Literal["not_fit", "no_response", "role_closed", "candidate_withdrew", "other"]
 
 
 class Application(Base):
@@ -50,6 +51,8 @@ class Application(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+    closing_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ApplicationEvent(Base):
@@ -65,6 +68,7 @@ class ApplicationEvent(Base):
     from_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     to_status: Mapped[str] = mapped_column(String(32), nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    closure_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -139,6 +143,7 @@ def append_application_event(
     kind: ApplicationEventKind,
     to_status: ApplicationStatus,
     note: str | None = None,
+    closure_reason: ClosingReason | None = None,
 ) -> ApplicationEvent:
     """Append a state fact and update the aggregate's current status transactionally."""
 
@@ -154,8 +159,11 @@ def append_application_event(
         from_status=application.current_status,
         to_status=to_status,
         note=note,
+        closure_reason=closure_reason,
     )
     application.current_status = to_status
+    application.closing_reason = closure_reason
+    application.closed_at = datetime.now(timezone.utc) if closure_reason else None
     session.add(event_record)
     session.flush()
     return event_record
