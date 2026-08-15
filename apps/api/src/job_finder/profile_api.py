@@ -15,6 +15,7 @@ from job_finder.profiles import (
     create_profile_version,
     get_active_profile_version,
     get_current_profile_version,
+    get_profile_versions,
 )
 
 router = APIRouter(prefix="/api", tags=["profile"])
@@ -46,6 +47,18 @@ def read_profile(session: SessionDependency) -> ProfileVersionResponse | None:
 
     profile_version = get_current_profile_version(session)
     return _profile_response(profile_version) if profile_version is not None else None
+
+
+@router.get("/profile/versions", response_model=list[ProfileVersionResponse])
+def read_profile_versions(session: SessionDependency) -> list[ProfileVersionResponse]:
+    """Read every immutable version of the local profile in creation order."""
+
+    current_version = get_current_profile_version(session)
+    if current_version is None:
+        return []
+
+    versions = get_profile_versions(session, current_version.profile_id)
+    return [_profile_response(version) for version in versions]
 
 
 @router.put("/profile", response_model=ProfileVersionResponse)

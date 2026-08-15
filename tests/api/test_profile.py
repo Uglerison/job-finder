@@ -68,6 +68,30 @@ async def test_profile_api_reads_empty_creates_and_versions_updates(
 
 
 @pytest.mark.anyio
+async def test_profile_api_lists_immutable_history_without_mutating_current_version(
+    application,
+    valid_profile_payload: dict[str, object],
+) -> None:
+    transport = ASGITransport(app=application)
+
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        first_response = await client.put("/api/profile", json=valid_profile_payload)
+        valid_profile_payload["target_roles"] = ["Staff Backend Engineer"]
+        second_response = await client.put("/api/profile", json=valid_profile_payload)
+        history_response = await client.get("/api/profile/versions")
+        current_response = await client.get("/api/profile")
+
+    history = history_response.json()
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert history_response.status_code == 200
+    assert [version["version_number"] for version in history] == [1, 2]
+    assert history[0]["criteria"]["target_roles"] == ["Backend Engineer"]
+    assert history[1]["criteria"]["target_roles"] == ["Staff Backend Engineer"]
+    assert current_response.json()["version_number"] == 2
+
+
+@pytest.mark.anyio
 async def test_profile_api_rejects_invalid_criteria(
     application,
     valid_profile_payload: dict[str, object],

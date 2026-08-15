@@ -728,6 +728,99 @@
   width: 100%;
 }
 
+.history-section {
+  border-top: 1px solid var(--ink-faint);
+  display: grid;
+  gap: clamp(2.5rem, 7vw, 6rem);
+  grid-template-columns: minmax(12rem, 0.72fr) minmax(0, 1.28fr);
+  margin: 0 auto;
+  max-width: 64rem;
+  padding: clamp(4rem, 8vw, 7rem) 1.5rem;
+  scroll-margin-top: 5rem;
+}
+
+.history-intro {
+  max-width: 20rem;
+}
+
+.history-intro h2 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2rem, 3.8vw, 3rem);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+  margin: 0;
+}
+
+.history-intro > p:last-child {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin: 1.25rem 0 0;
+}
+
+.history-list {
+  border-top: 1px solid var(--ink-faint);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-row {
+  align-items: start;
+  border-bottom: 1px solid var(--ink-faint);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 7rem minmax(0, 1fr) auto;
+  padding: 1.2rem 0;
+}
+
+.history-row.is-active {
+  border-left: 2px solid var(--accent);
+  padding-left: 0.8rem;
+}
+
+.history-version {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.history-version > span,
+.history-version > strong,
+.history-row > time {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.63rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.history-version > span {
+  color: var(--ink-soft);
+}
+
+.history-version > strong {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.history-content h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.35rem;
+}
+
+.history-content p {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.history-row > time {
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
 .card-link {
   background: transparent;
   border: 0;
@@ -926,6 +1019,13 @@
 }
 
 @media (max-width: 48rem) {
+  .history-section {
+    gap: 3rem;
+    grid-template-columns: 1fr;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
   .profile-form-section {
     gap: 3rem;
     grid-template-columns: 1fr;
@@ -935,6 +1035,14 @@
 }
 
 @media (max-width: 34rem) {
+  .history-row {
+    grid-template-columns: 5rem minmax(0, 1fr);
+  }
+
+  .history-row > time {
+    grid-column: 2;
+  }
+
   .profile-form {
     grid-template-columns: 1fr;
   }

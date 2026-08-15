@@ -88,4 +88,71 @@ describe('App', () => {
       restrictions: { work_models: ['remote'] },
     });
   });
+
+  it('exibe o histórico imutável e destaca a versão ativa', async () => {
+    const history = [
+      {
+        created_at: '2026-08-01T10:00:00Z',
+        criteria: {
+          languages: [{ code: 'en', minimum_level: 'professional' }],
+          restrictions: {
+            excluded_keywords: [],
+            locations: [],
+            work_models: ['remote'],
+          },
+          salary_expectation: null,
+          skills: ['Python'],
+          target_roles: ['Backend Engineer'],
+          weights: { experience: 35, location: 25, skills: 40 },
+        },
+        profile_id: 1,
+        version_number: 1,
+      },
+      {
+        created_at: '2026-08-15T10:00:00Z',
+        criteria: {
+          languages: [{ code: 'en', minimum_level: 'professional' }],
+          restrictions: {
+            excluded_keywords: [],
+            locations: ['São Paulo'],
+            work_models: ['hybrid'],
+          },
+          salary_expectation: null,
+          skills: ['Python', 'FastAPI'],
+          target_roles: ['Staff Backend Engineer'],
+          weights: { experience: 35, location: 25, skills: 40 },
+        },
+        profile_id: 1,
+        version_number: 2,
+      },
+    ];
+
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'PUT') {
+          return Promise.resolve({ json: async () => history[1], ok: true });
+        }
+        if (input === '/api/profile/versions') {
+          return Promise.resolve({ json: async () => history, ok: true });
+        }
+        return Promise.resolve({ json: async () => history[1], ok: true });
+      },
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Cada versão preserva o contexto da busca.',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Backend Engineer' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Staff Backend Engineer' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Versão 1')).toBeInTheDocument();
+    expect(screen.getByText('Ativa')).toBeInTheDocument();
+  });
 });

@@ -24,6 +24,7 @@ type ProfileCriteria = {
 
 type ProfileResponse = {
   criteria: ProfileCriteria;
+  created_at?: string;
   profile_id: number;
   version_number: number;
 };
@@ -154,6 +155,23 @@ function validateForm(form: ProfileFormState): string | null {
   return null;
 }
 
+function formatVersionDate(value?: string): string {
+  if (!value) {
+    return 'agora';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'data indisponível';
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
 function App() {
   const [formState, setFormState] =
     useState<ProfileFormState>(defaultFormState);
@@ -161,6 +179,7 @@ function App() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
+  const [profileHistory, setProfileHistory] = useState<ProfileResponse[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -168,31 +187,43 @@ function App() {
   useEffect(() => {
     let isMounted = true;
 
-    fetch('/api/profile')
-      .then(async (response) => {
-        if (!response.ok) {
+    const loadProfile = async () => {
+      try {
+        const [profileResponse, historyResponse] = await Promise.all([
+          fetch('/api/profile'),
+          fetch('/api/profile/versions'),
+        ]);
+
+        if (!profileResponse.ok || !historyResponse.ok) {
           throw new Error('Não foi possível carregar o perfil.');
         }
-        return (await response.json()) as ProfileResponse | null;
-      })
-      .then((currentProfile) => {
-        if (!isMounted || !currentProfile) {
+
+        const [currentProfile, history] = (await Promise.all([
+          profileResponse.json(),
+          historyResponse.json(),
+        ])) as [ProfileResponse | null, ProfileResponse[]];
+
+        if (!isMounted) {
           return;
         }
 
-        setProfile(currentProfile);
-        setFormState(formFromCriteria(currentProfile.criteria));
-      })
-      .catch(() => {
+        if (currentProfile) {
+          setProfile(currentProfile);
+          setFormState(formFromCriteria(currentProfile.criteria));
+        }
+        setProfileHistory(Array.isArray(history) ? history : []);
+      } catch {
         if (isMounted) {
           setLoadError('Não foi possível carregar o perfil local.');
         }
-      })
-      .finally(() => {
+      } finally {
         if (isMounted) {
           setIsLoadingProfile(false);
         }
-      });
+      }
+    };
+
+    void loadProfile();
 
     return () => {
       isMounted = false;
@@ -252,6 +283,14 @@ function App() {
       const savedProfile = (await response.json()) as ProfileResponse;
       setProfile(savedProfile);
       setFormState(formFromCriteria(savedProfile.criteria));
+      setProfileHistory((currentHistory) => {
+        const withoutSavedVersion = currentHistory.filter(
+          (version) => version.version_number !== savedProfile.version_number,
+        );
+        return [...withoutSavedVersion, savedProfile].sort(
+          (left, right) => left.version_number - right.version_number,
+        );
+      });
       setSaveMessage('Perfil salvo localmente.');
     } catch {
       setFormError('Não foi possível salvar o perfil. Tente novamente.');
@@ -279,6 +318,7 @@ function App() {
             <a href="#como-funciona">Como funciona</a>
             <a href="#fluxo">Fluxo</a>
             <a href="#perfil">Perfil</a>
+            <a href="#historico">Histórico</a>
           </nav>
 
           <div className="header-meta">
@@ -553,6 +593,56 @@ function App() {
               </button>
             </div>
           </form>
+        </section>
+      )}
+
+      {profile && profileHistory.length > 0 && (
+        <section
+          className="history-section"
+          id="historico"
+          aria-labelledby="history-title"
+        >
+          <div className="history-intro">
+            <p className="eyebrow">HISTÓRICO DO PERFIL</p>
+            <h2 id="history-title">
+              Cada versão preserva o contexto da busca.
+            </h2>
+            <p>
+              Editar o perfil cria uma nova versão. As anteriores continuam
+              disponíveis para entender quando seus critérios mudaram.
+            </p>
+          </div>
+
+          <ol className="history-list">
+            {[...profileHistory]
+              .sort((left, right) => right.version_number - left.version_number)
+              .map((version) => {
+                const isActive =
+                  version.version_number === profile.version_number;
+                return (
+                  <li
+                    className={`history-row${isActive ? ' is-active' : ''}`}
+                    key={version.version_number}
+                  >
+                    <div className="history-version">
+                      <span>Versão {version.version_number}</span>
+                      {isActive && <strong>Ativa</strong>}
+                    </div>
+                    <div className="history-content">
+                      <h3>{version.criteria.target_roles.join(' · ')}</h3>
+                      <p>
+                        {version.criteria.skills.length > 0
+                          ? version.criteria.skills.join(', ')
+                          : 'Sem competências adicionais'}
+                      </p>
+                    </div>
+                    <time dateTime={version.created_at}>
+                      {formatVersionDate(version.created_at)}
+                    </time>
+                  </li>
+                );
+              })}
+          </ol>
         </section>
       )}
 
