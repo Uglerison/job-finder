@@ -1,8 +1,12 @@
+import httpx
 import pytest
 
 from job_finder.job_import import (
+    MAX_REDIRECTS,
     FetchedDocument,
+    JobImportError,
     extract_document_fields,
+    fetch_public_document,
     sanitize_html,
     validate_public_url,
 )
@@ -43,3 +47,32 @@ def test_import_sanitizes_markup_and_extracts_stable_job_fields() -> None:
     assert "alert" not in safe_content
     assert "Trabalhe com Python & FastAPI." in safe_content
     assert "<script>" not in sanitize_html(document.body)
+
+
+@pytest.mark.anyio
+async def test_import_stops_after_the_redirect_limit(monkeypatch) -> None:
+    calls: list[str] = []
+
+    class RedirectResponse:
+        status_code = 302
+        headers = {"location": "/next"}
+        content = b""
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args) -> None:
+            return None
+
+        async def get(self, url: str, *, follow_redirects: bool) -> RedirectResponse:
+            assert follow_redirects is False
+            calls.append(url)
+            return RedirectResponse()
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: FakeClient())
+
+    with pytest.raises(JobImportError, match="limite de redirecionamentos"):
+        await fetch_public_document("https://jobs.example.com/first")
+
+    assert len(calls) == MAX_REDIRECTS + 1

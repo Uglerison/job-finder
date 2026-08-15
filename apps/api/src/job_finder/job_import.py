@@ -117,10 +117,8 @@ def extract_document_fields(document: FetchedDocument) -> tuple[str, str, str]:
     safe_content = sanitize_html(document.body)
     title = normalize_text(" ".join(parser.title_parts), "title") if parser.title_parts else ""
     parsed_url = urlsplit(document.url)
-    fallback_title = normalize_text(
-        parsed_url.path.rstrip("/").rsplit("/", maxsplit=1)[-1],
-        "title",
-    )
+    fallback_raw = parsed_url.path.rstrip("/").rsplit("/", maxsplit=1)[-1]
+    fallback_title = normalize_text(fallback_raw, "title") if fallback_raw else ""
     title = title or fallback_title or "Vaga importada"
     company = parser.meta_values.get("og:site_name") or parser.meta_values.get("application-name")
     if not company:
