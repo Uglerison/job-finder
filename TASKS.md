@@ -64,7 +64,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-018 — Implementar o ciclo de vida do servidor local`.
+**Próxima tarefa pronta:** `JF-019 — Servir o frontend compilado pelo backend`.
 
 ## Marcos
 
@@ -165,10 +165,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: sessão transacional, WAL e Alembic funcionais.
   - Evidência: SQLite em WAL, chaves estrangeiras e revisão Alembic `0001_initial_schema` validados.
 
-- [ ] **JF-018 — Implementar o ciclo de vida do servidor local**
+- [x] **JF-018 — Implementar o ciclo de vida do servidor local**
   - Depende de: JF-015 e JF-016.
   - Teste primeiro: início, detecção de porta, prontidão e encerramento controlado.
   - Aceite: servidor escuta apenas em `127.0.0.1` e encerra sem corromper estado.
+  - Evidência: teste de loopback valida porta livre, migração no startup, health e shutdown.
 
 - [ ] **JF-019 — Servir o frontend compilado pelo backend**
   - Depende de: JF-012 e JF-018.
@@ -630,6 +631,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-012 | Concluída | React/Vite, Vitest, lint e build configurados exclusivamente com pnpm |
 | 15/08/2026 | JF-016 | Concluída | Settings tipados, secret mascarado e variáveis `JOB_FINDER_*` validados |
 | 15/08/2026 | JF-017 | Concluída | SQLite WAL, SQLAlchemy e migração idempotente validados |
+| 15/08/2026 | JF-018 | Concluída | Servidor loopback com startup, migração, health e shutdown validados |
 
 ## Bloqueios e decisões pendentes
 

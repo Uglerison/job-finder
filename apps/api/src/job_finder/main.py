@@ -1,11 +1,14 @@
 """FastAPI application entry point for Job Finder."""
 
-from typing import Literal
+from contextlib import asynccontextmanager
+from typing import AsyncIterator, Literal
 
 from fastapi import FastAPI
 from pydantic import BaseModel
 
 from job_finder import __version__
+from job_finder.database import create_database_engine, create_session_factory, run_migrations
+from job_finder.settings import Settings, get_settings
 
 
 class HealthResponse(BaseModel):
@@ -15,15 +18,33 @@ class HealthResponse(BaseModel):
     version: str
 
 
-def create_app() -> FastAPI:
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """Prepare and dispose local persistent resources with the server lifecycle."""
+
+    settings: Settings = application.state.settings
+    run_migrations(settings.data_dir)
+    engine = create_database_engine(settings.data_dir)
+    application.state.database_engine = engine
+    application.state.session_factory = create_session_factory(engine)
+
+    try:
+        yield
+    finally:
+        engine.dispose()
+
+
+def create_app(settings: Settings | None = None) -> FastAPI:
     """Create a configured application instance without starting a server."""
 
     application = FastAPI(
         title="Job Finder",
         version=__version__,
         docs_url="/api/docs",
+        lifespan=lifespan,
         openapi_url="/api/openapi.json",
     )
+    application.state.settings = settings or get_settings()
 
     @application.get("/api/health", response_model=HealthResponse)
     def health() -> HealthResponse:
