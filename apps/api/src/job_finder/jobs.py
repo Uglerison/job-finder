@@ -47,6 +47,24 @@ class JobDraft(BaseModel):
     title: NonEmptyJobText
     company: NonEmptyJobText
     location: NonEmptyJobText | None = None
+    published_at: datetime | None = None
+    expires_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> "JobDraft":
+        """Keep normalized validity dates timezone-aware and ordered."""
+
+        for field_name in ("published_at", "expires_at"):
+            timestamp = getattr(self, field_name)
+            if timestamp is not None and timestamp.tzinfo is None:
+                raise ValueError(f"{field_name} must include timezone information")
+        if (
+            self.published_at is not None
+            and self.expires_at is not None
+            and self.expires_at < self.published_at
+        ):
+            raise ValueError("expires_at must be greater than or equal to published_at")
+        return self
 
 
 class JobOriginDraft(BaseModel):
@@ -97,6 +115,10 @@ class Job(Base):
     title: Mapped[str] = mapped_column(String(240), nullable=False)
     company: Mapped[str] = mapped_column(String(240), nullable=False)
     location: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -202,6 +224,8 @@ def create_job(session: Session, draft: JobDraft) -> Job:
         title=draft.title,
         company=draft.company,
         location=draft.location,
+        published_at=draft.published_at,
+        expires_at=draft.expires_at,
     )
     session.add(job)
     session.flush()

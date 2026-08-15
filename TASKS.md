@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-201 — Implementar normalização determinística`.
+**Próxima tarefa pronta:** `JF-202 — Implementar inclusão manual de vaga`.
 
 ## Marcos
 
@@ -267,10 +267,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: schema e migração suportam URL canônica, conteúdo bruto e validade.
   - Evidência: migração `0004_jobs`, modelos `Job`/`JobOrigin`/`JobContentVersion`, histórico imutável e 3 testes unitários novos.
 
-- [ ] **JF-201 — Implementar normalização determinística**
+- [x] **JF-201 — Implementar normalização determinística**
   - Depende de: JF-200.
   - Teste primeiro: URLs, cargos, empresas, locais, datas e espaços inconsistentes.
   - Aceite: mesma entrada produz sempre a mesma representação.
+  - Evidência: normalizador remove rastreadores, ordena query, normaliza textos/datas e migração `0005_job_dates`.
 
 - [ ] **JF-202 — Implementar inclusão manual de vaga**
   - Depende de: JF-200 e JF-201.
@@ -675,6 +676,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-106 | Concluída | `1708bec` — filtros de país, regime, contrato, salário e palavras bloqueadas com razões rastreáveis; 2 testes unitários e 1 teste API |
 | 15/08/2026 | JF-107 | Concluída | `1708bec` — preferências de locale, moeda, fuso e retenção persistidas na migração `0003_preferences` e painel local |
 | 15/08/2026 | JF-200 | Concluída | Migração `0004_jobs`, vaga normalizada com múltiplas origens, conteúdo bruto versionado com validade e 39 testes backend verdes |
+| 15/08/2026 | JF-201 | Concluída | Normalização determinística de URL, textos, espaços e datas; 7 testes focados verdes |
 
 ## Bloqueios e decisões pendentes
 
