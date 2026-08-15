@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-103 — Criar onboarding do perfil`.
+**Próxima tarefa pronta:** `JF-104 — Implementar edição e visualização de versões`.
 
 ## Marcos
 
@@ -228,12 +228,12 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: contratos tipados para leitura e atualização.
   - Evidência: rotas `/api/profile` retornam estado vazio, criam versões imutáveis e rejeitam critérios inválidos.
 
-- [ ] 🔄 **JF-103 — Criar onboarding do perfil e aplicar a identidade visual**
+- [x] **JF-103 — Criar onboarding do perfil e aplicar a identidade visual**
   - Depende de: JF-012 e JF-102.
   - Teste primeiro: fluxo obrigatório, validações e salvamento bem-sucedido.
   - Diretriz visual: usar a composição editorial registrada acima na tela inicial e no onboarding.
   - Aceite: perfil completo configurável sem editar arquivos; interface responsiva, acessível e coerente com a referência visual.
-  - Progresso: shell editorial e primeira composição visual em implementação; formulário persistente pendente.
+  - Evidência: commit `266a44d`; Vitest cobre carregamento, abertura, preenchimento e `PUT /api/profile`; lint, Prettier, TypeScript/build e suíte backend verdes.
 
 - [ ] **JF-104 — Implementar edição e visualização de versões**
   - Depende de: JF-103.
@@ -664,7 +664,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-100 | Concluída | Perfil versionado em SQLite com histórico imutável e consulta da versão ativa |
 | 15/08/2026 | JF-101 | Concluída | Critérios tipados validam cargos, pesos, remuneração, idiomas e restrições |
 | 15/08/2026 | JF-102 | Concluída | API local cria e lê versões validadas do perfil |
-| 15/08/2026 | JF-103 | Em andamento | Shell editorial alinhado à referência Prepara AI; 2 testes Vitest, lint, formatação e build verdes; formulário persistente pendente |
+| 15/08/2026 | JF-103 | Concluída | `266a44d` — onboarding local com validação, salvamento versionado e shell editorial; 3 testes Vitest, lint, formatação, build e 26 testes backend verdes |
 
 ## Bloqueios e decisões pendentes
 
