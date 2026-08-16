@@ -6,7 +6,6 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
-from math import ceil
 from time import monotonic
 from typing import Literal, Protocol
 from urllib.parse import urlsplit, urlunsplit
@@ -152,7 +151,7 @@ class JSearchProvider(_JsonProvider):
             params={
                 "query": _provider_query(params),
                 "page": params.page,
-                "num_pages": max(1, min(3, ceil(params.limit / 10))),
+                "num_pages": 1,
                 "country": params.country,
                 "language": _jsearch_language(params.language),
                 "date_posted": "all",

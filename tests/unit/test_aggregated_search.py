@@ -99,6 +99,7 @@ async def test_jsearch_maps_brazilian_payload_and_headers() -> None:
     assert seen[0].headers["X-RapidAPI-Key"] == "secret"
     assert str(seen[0].url).split("?", 1)[0] == "https://jsearch.p.rapidapi.com/search"
     assert dict(seen[0].url.params)["query"] == "Analista de Dados em Curitiba, PR"
+    assert dict(seen[0].url.params)["num_pages"] == "1"
     assert dict(seen[0].url.params)["country"] == "br"
     assert dict(seen[0].url.params)["language"] == "pt"
 
