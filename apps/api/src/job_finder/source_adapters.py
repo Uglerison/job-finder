@@ -76,6 +76,9 @@ class SourceCandidate:
     published_at: datetime | None = None
     expires_at: datetime | None = None
     raw_payload: dict[str, object] = field(default_factory=dict)
+    work_model: str | None = None
+    salary: str | None = None
+    source_label: str | None = None
 
     def as_payload(self) -> dict[str, object]:
         """Return a JSON-safe representation for duplicate review persistence."""
@@ -91,6 +94,9 @@ class SourceCandidate:
             "published_at": self.published_at.isoformat() if self.published_at else None,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "raw_payload": self.raw_payload,
+            "work_model": self.work_model,
+            "salary": self.salary,
+            "source_label": self.source_label,
         }
 
     @classmethod
@@ -122,6 +128,13 @@ class SourceCandidate:
             published_at=parse_timestamp(payload.get("published_at")),
             expires_at=parse_timestamp(payload.get("expires_at")),
             raw_payload=cast(dict[str, object], raw_payload),
+            work_model=(
+                str(payload["work_model"]) if payload.get("work_model") is not None else None
+            ),
+            salary=str(payload["salary"]) if payload.get("salary") is not None else None,
+            source_label=(
+                str(payload["source_label"]) if payload.get("source_label") is not None else None
+            ),
         )
 
 
@@ -165,6 +178,7 @@ class SafeHttpClient:
         url: str,
         *,
         params: dict[str, str | int] | None = None,
+        headers: dict[str, str] | None = None,
         cancellation: CancellationToken | None = None,
         max_attempts: int = 3,
     ) -> Any:
@@ -172,10 +186,12 @@ class SafeHttpClient:
 
         current_url = _validate_public_http_url(url)
         timeout = httpx.Timeout(float(self.timeout_seconds), connect=min(5.0, self.timeout_seconds))
-        headers = {"User-Agent": "JobFinder/0.1 (local job research)"}
+        request_headers = {"User-Agent": "JobFinder/0.1 (local job research)"}
+        if headers:
+            request_headers.update(headers)
         async with httpx.AsyncClient(
             timeout=timeout,
-            headers=headers,
+            headers=request_headers,
             follow_redirects=False,
             transport=self.transport,
         ) as client:
@@ -223,6 +239,65 @@ class SafeHttpClient:
                 content_type = response.headers.get("content-type", "")
                 if "json" not in content_type and not response.text.lstrip().startswith(("{", "[")):
                     raise SourceAdapterError("a fonte não retornou JSON")
+                try:
+                    return response.json()
+                except (ValueError, json.JSONDecodeError) as error:
+                    raise SourceAdapterError("JSON inválido retornado pela fonte") from error
+
+    async def post_json(
+        self,
+        url: str,
+        *,
+        json_body: dict[str, object],
+        headers: dict[str, str] | None = None,
+        cancellation: CancellationToken | None = None,
+        max_attempts: int = 3,
+    ) -> Any:
+        """POST a bounded JSON request for providers such as Jooble."""
+
+        current_url = _validate_public_http_url(url)
+        timeout = httpx.Timeout(float(self.timeout_seconds), connect=min(5.0, self.timeout_seconds))
+        request_headers = {
+            "User-Agent": "JobFinder/0.1 (local job research)",
+            "Content-Type": "application/json",
+        }
+        if headers:
+            request_headers.update(headers)
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            headers=request_headers,
+            follow_redirects=False,
+            transport=self.transport,
+        ) as client:
+            attempt = 0
+            while True:
+                if cancellation:
+                    cancellation.raise_if_cancelled()
+                try:
+                    response = await client.post(current_url, json=json_body)
+                except httpx.HTTPError as error:
+                    if attempt + 1 >= max_attempts:
+                        raise SourceAdapterError("não foi possível acessar a fonte") from error
+                    await self._wait(attempt, cancellation)
+                    attempt += 1
+                    continue
+                if response.status_code == 429:
+                    retry_after = _retry_after(response.headers.get("retry-after"))
+                    if attempt + 1 >= max_attempts:
+                        raise SourceRateLimitError(
+                            "a fonte solicitou redução de ritmo", retry_after
+                        )
+                    await self._wait(attempt, cancellation, retry_after)
+                    attempt += 1
+                    continue
+                if response.status_code >= 500 and attempt + 1 < max_attempts:
+                    await self._wait(attempt, cancellation)
+                    attempt += 1
+                    continue
+                if response.status_code >= 400:
+                    raise SourceAdapterError(f"a fonte respondeu com HTTP {response.status_code}")
+                if len(response.content) > MAX_DOCUMENT_BYTES:
+                    raise SourceAdapterError("resposta da fonte excede o limite local")
                 try:
                     return response.json()
                 except (ValueError, json.JSONDecodeError) as error:
@@ -299,6 +374,9 @@ class JsonSourceAdapter:
         description: object,
         published_at: object = None,
         raw_payload: dict[str, object],
+        work_model: str | None = None,
+        salary: str | None = None,
+        source_label: str | None = None,
     ) -> SourceCandidate | None:
         if not isinstance(url, str) or not isinstance(title, str) or not isinstance(company, str):
             return None
@@ -322,6 +400,9 @@ class JsonSourceAdapter:
             description=description_value,
             published_at=_parse_timestamp(published_at),
             raw_payload=raw_payload,
+            work_model=work_model,
+            salary=salary,
+            source_label=source_label,
         )
 
 
@@ -343,6 +424,8 @@ class RemoteOkAdapter(JsonSourceAdapter):
             description=item.get("description"),
             published_at=item.get("date"),
             raw_payload=item,
+            work_model="remote",
+            source_label="Remote OK",
         )
 
 
@@ -366,6 +449,7 @@ class ArbeitnowAdapter(JsonSourceAdapter):
             description=item.get("description"),
             published_at=item.get("created_at"),
             raw_payload=item,
+            source_label="Arbeitnow",
         )
 
 
@@ -389,6 +473,8 @@ class JobicyAdapter(JsonSourceAdapter):
             description=item.get("jobDescription"),
             published_at=item.get("pubDate"),
             raw_payload=item,
+            work_model="remote",
+            source_label="Jobicy",
         )
 
 

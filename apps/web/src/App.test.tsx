@@ -67,6 +67,125 @@ describe('App', () => {
     expect(document.querySelector('.paper-app')).not.toBeNull();
   });
 
+  it('oferece busca única e link externo para treino de entrevista', async () => {
+    fetchMock.mockImplementation(
+      (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (_input === '/api/ai/settings') {
+          return Promise.resolve({
+            json: async () => ({
+              configured: false,
+              unlocked: false,
+              model: 'gpt-5.6-luna',
+              storage: 'not_configured',
+            }),
+            ok: true,
+          });
+        }
+        if (_input === '/api/search' && init?.method === 'POST') {
+          return Promise.resolve({
+            json: async () => ({
+              cache_hit: false,
+              jobs: [
+                {
+                  company: 'Dados Brasil',
+                  description: 'Python e SQL',
+                  location: 'Curitiba, PR',
+                  published_at: null,
+                  salary: null,
+                  source: 'Portal parceiro',
+                  title: 'Analista de Dados',
+                  url: 'https://jobs.example/1',
+                  work_model: 'hybrid',
+                },
+              ],
+              partial: false,
+              provider_runs: [],
+              warnings: [],
+            }),
+            ok: true,
+          });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Cargo ou palavra-chave'), {
+      target: { value: 'Analista de Dados' },
+    });
+    fireEvent.change(screen.getByLabelText('Localização'), {
+      target: { value: 'Curitiba, PR' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar vagas' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Analista de Dados')).toBeInTheDocument(),
+    );
+    expect(screen.queryByLabelText('Fonte da busca')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /Treinar entrevista no Se Prepara AI/ }),
+    ).toHaveAttribute('href', 'https://sepreparai.com.br/');
+  });
+
+  it('permite cadastrar uma chave de provider no cofre local', async () => {
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/ai/settings') {
+          return Promise.resolve({
+            json: async () => ({
+              configured: false,
+              unlocked: false,
+              model: 'gpt-5.6-luna',
+              storage: 'not_configured',
+            }),
+            ok: true,
+          });
+        }
+        if (input === '/api/search/providers' && !init?.method) {
+          return Promise.resolve({ json: async () => [], ok: true });
+        }
+        if (
+          input === '/api/search/providers/jsearch' &&
+          init?.method === 'PUT'
+        ) {
+          return Promise.resolve({
+            json: async () => ({
+              configured: true,
+              provider: 'jsearch',
+              storage: 'encrypted_database',
+              unlocked: true,
+            }),
+            ok: true,
+          });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('API key'), {
+      target: { value: 'jsearch-local-key' },
+    });
+    fireEvent.change(screen.getByLabelText('Senha do cofre'), {
+      target: { value: 'senha local com doze' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar credencial' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Credencial criptografada no banco local.'),
+      ).toBeInTheDocument(),
+    );
+    const [, options] = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        input === '/api/search/providers/jsearch' && init?.method === 'PUT',
+    ) as [string, RequestInit];
+    expect(JSON.parse(options.body as string)).toMatchObject({
+      api_key: 'jsearch-local-key',
+      vault_password: 'senha local com doze',
+    });
+  });
+
   it('abre o onboarding e salva critérios válidos no perfil local', async () => {
     render(<App />);
 
@@ -612,7 +731,7 @@ describe('App', () => {
     });
   });
 
-  it('exibe fontes de busca e inicia uma execução com contadores auditáveis', async () => {
+  it('exibe a busca unificada e envia filtros normalizados', async () => {
     const sources = [
       {
         backoff_until: null,
@@ -634,25 +753,6 @@ describe('App', () => {
         timeout_seconds: 15,
       },
     ];
-    const run = {
-      approximate_duplicates: 1,
-      candidates_seen: 4,
-      cancellation_requested: false,
-      current_cursor: null,
-      duration_ms: 120,
-      error_message: null,
-      exact_duplicates: 1,
-      finished_at: null,
-      id: 1,
-      jobs_created: 2,
-      query: { query: 'Backend Engineer' },
-      requested_at: '2026-08-15T10:00:00Z',
-      source_key: 'remoteok',
-      source_name: 'Remote OK',
-      started_at: null,
-      status: 'running',
-    };
-
     fetchMock.mockImplementation(
       (input: RequestInfo | URL, init?: RequestInit) => {
         if (input === '/api/sources') {
@@ -661,8 +761,29 @@ describe('App', () => {
         if (input === '/api/search-runs?limit=12') {
           return Promise.resolve({ json: async () => [], ok: true });
         }
-        if (input === '/api/search-runs' && init?.method === 'POST') {
-          return Promise.resolve({ json: async () => run, ok: true });
+        if (input === '/api/search' && init?.method === 'POST') {
+          return Promise.resolve({
+            json: async () => ({
+              cache_hit: false,
+              jobs: [
+                {
+                  company: 'Example Labs',
+                  description: 'Backend Engineer com Python',
+                  location: 'Remote',
+                  published_at: '2026-08-15T10:00:00Z',
+                  salary: null,
+                  source: 'Portal parceiro',
+                  title: 'Backend Engineer',
+                  url: 'https://jobs.example.com/backend-1',
+                  work_model: 'remote',
+                },
+              ],
+              partial: false,
+              provider_runs: [],
+              warnings: [],
+            }),
+            ok: true,
+          });
         }
         if (init?.method === 'PUT') {
           return Promise.resolve({ json: async () => sources[0], ok: true });
@@ -674,7 +795,9 @@ describe('App', () => {
     render(<App />);
 
     expect(
-      await screen.findByRole('heading', { name: 'Fontes e execuções' }),
+      await screen.findByRole('heading', {
+        name: 'Encontre uma vaga para treinar',
+      }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { name: 'Remote OK' }),
@@ -682,19 +805,16 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText('Cargo ou palavra-chave'), {
       target: { value: 'Backend Engineer' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Buscar agora' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar vagas' }));
 
-    expect(
-      await screen.findByText('Busca iniciada em Remote OK.'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('1 para revisar')).toBeInTheDocument();
+    expect(await screen.findByText('Backend Engineer')).toBeInTheDocument();
     const [, options] = fetchMock.mock.calls.find(
-      ([input, init]) =>
-        input === '/api/search-runs' && init?.method === 'POST',
+      ([input, init]) => input === '/api/search' && init?.method === 'POST',
     ) as [string, RequestInit];
     expect(JSON.parse(options.body as string)).toMatchObject({
       query: 'Backend Engineer',
-      source_key: 'remoteok',
+      location: null,
+      work_model: 'all',
     });
   });
 

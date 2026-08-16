@@ -131,6 +131,21 @@ caixa de entrada para confirmar e reanalisar somente as vagas escolhidas.
 
 ## Dashboard E6
 
+### Busca unificada E4.1
+
+`POST /api/search` recebe `query`, `location`, `work_model`, `page` e `limit` e
+retorna vagas normalizadas em uma única resposta. O backend tenta JSearch,
+Adzuna e Jooble de forma sequencial, acionando fontes legadas somente quando
+faltam resultados. Falhas individuais são resumidas em `provider_runs` sem
+expor chaves ou respostas brutas. A interface não solicita uma fonte técnica;
+cada cartão mantém apenas a origem pública disponível e oferece o link externo
+para [Se Prepara AI](https://sepreparai.com.br/) para treino de entrevista.
+
+As credenciais podem ser definidas como variáveis `JOB_FINDER_*` ou salvas no
+SQLite criptografado por senha local através de `/api/search/providers`. A
+senha nunca é persistida. Depois de reiniciar o app, desbloqueie cada provider
+com `POST /api/search/providers/{provider}/unlock`.
+
 O painel local consulta `GET /api/dashboard/summary`, aceitando `from`, `to`,
 `timezone` e `source_key`. Ele exibe cartões, funil com denominadores, séries
 semanais, desempenho por fonte e contadores de agenda. Vagas removidas não

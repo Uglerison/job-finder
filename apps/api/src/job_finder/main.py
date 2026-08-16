@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from job_finder import __version__
+from job_finder.aggregated_search_api import router as aggregated_search_router
 from job_finder.ai_analysis_api import router as ai_analysis_router
 from job_finder.ai_cache import AnalysisPromptCache
 from job_finder.ai_discovery_api import router as ai_discovery_router
@@ -108,6 +109,7 @@ def create_app(
     application.include_router(export_router)
     application.include_router(trash_router)
     application.include_router(sources_router)
+    application.include_router(aggregated_search_router)
 
     @application.get("/api/health", response_model=HealthResponse)
     def health() -> HealthResponse:

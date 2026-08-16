@@ -6,7 +6,7 @@ import os
 from typing import Protocol
 
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy import Integer, LargeBinary
+from sqlalchemy import Integer, LargeBinary, String
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
 from job_finder.database import Base
@@ -32,6 +32,17 @@ class AiSecretRecord(Base):
     salt: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
 
 
+class ProviderSecretRecord(Base):
+    """Encrypted credentials for external job providers."""
+
+    __tablename__ = "provider_secrets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider_key: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    ciphertext: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    salt: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+
+
 class CredentialVault(Protocol):
     """Application-facing contract for the encrypted OpenAI API credential."""
 
@@ -53,6 +64,21 @@ class CredentialVault(Protocol):
     def delete_openai_api_key(self) -> None:
         """Remove the encrypted record and its in-memory value."""
 
+    def has_provider_secret(self, provider_key: str) -> bool:
+        """Report whether a provider credential is encrypted in SQLite."""
+
+    def save_provider_secret(self, provider_key: str, value: str, vault_password: str) -> None:
+        """Encrypt and persist a provider credential."""
+
+    def unlock_provider_secret(self, provider_key: str, vault_password: str) -> None:
+        """Decrypt one provider credential into process memory."""
+
+    def get_unlocked_provider_secret(self, provider_key: str) -> str | None:
+        """Return a provider credential only while it is unlocked."""
+
+    def delete_provider_secret(self, provider_key: str) -> None:
+        """Remove one encrypted provider credential."""
+
 
 class EncryptedDatabaseVault:
     """SQLite-backed OpenAI key vault unlocked by an unpersisted local password."""
@@ -60,6 +86,7 @@ class EncryptedDatabaseVault:
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         self._session_factory = session_factory
         self._unlocked_key: str | None = None
+        self._unlocked_provider_keys: dict[str, str] = {}
 
     def has_openai_api_key(self) -> bool:
         try:
@@ -105,6 +132,7 @@ class EncryptedDatabaseVault:
 
     def lock(self) -> None:
         self._unlocked_key = None
+        self._unlocked_provider_keys.clear()
 
     def get_unlocked_openai_api_key(self) -> str | None:
         return self._unlocked_key
@@ -119,6 +147,78 @@ class EncryptedDatabaseVault:
             self.lock()
         except Exception as error:
             raise SecretStoreError("Não foi possível remover a chave do cofre local.") from error
+
+    def has_provider_secret(self, provider_key: str) -> bool:
+        try:
+            with self._session_factory() as session:
+                return (
+                    session.query(ProviderSecretRecord).filter_by(provider_key=provider_key).first()
+                    is not None
+                )
+        except Exception as error:
+            raise SecretStoreError("O cofre local está indisponível.") from error
+
+    def save_provider_secret(self, provider_key: str, value: str, vault_password: str) -> None:
+        try:
+            salt = os.urandom(_SALT_LENGTH)
+            ciphertext = self._encrypt(value, vault_password, salt)
+            with self._session_factory() as session:
+                record = (
+                    session.query(ProviderSecretRecord).filter_by(provider_key=provider_key).first()
+                )
+                if record is None:
+                    session.add(
+                        ProviderSecretRecord(
+                            provider_key=provider_key,
+                            ciphertext=ciphertext,
+                            salt=salt,
+                        ),
+                    )
+                else:
+                    record.ciphertext = ciphertext
+                    record.salt = salt
+                session.commit()
+            self._unlocked_provider_keys[provider_key] = value
+        except Exception as error:
+            raise SecretStoreError(
+                "Não foi possível salvar a credencial no cofre local."
+            ) from error
+
+    def unlock_provider_secret(self, provider_key: str, vault_password: str) -> None:
+        try:
+            with self._session_factory() as session:
+                record = (
+                    session.query(ProviderSecretRecord).filter_by(provider_key=provider_key).first()
+                )
+                if record is None:
+                    raise SecretStoreError("Nenhuma credencial foi configurada para este provider.")
+                self._unlocked_provider_keys[provider_key] = self._decrypt(
+                    bytes(record.ciphertext),
+                    vault_password,
+                    bytes(record.salt),
+                )
+        except SecretStoreError:
+            raise
+        except Exception as error:
+            raise SecretStoreError("O cofre local está indisponível.") from error
+
+    def get_unlocked_provider_secret(self, provider_key: str) -> str | None:
+        return self._unlocked_provider_keys.get(provider_key)
+
+    def delete_provider_secret(self, provider_key: str) -> None:
+        try:
+            with self._session_factory() as session:
+                record = (
+                    session.query(ProviderSecretRecord).filter_by(provider_key=provider_key).first()
+                )
+                if record is not None:
+                    session.delete(record)
+                    session.commit()
+            self._unlocked_provider_keys.pop(provider_key, None)
+        except Exception as error:
+            raise SecretStoreError(
+                "Não foi possível remover a credencial do cofre local."
+            ) from error
 
     @staticmethod
     def _encrypt(value: str, vault_password: str, salt: bytes) -> bytes:

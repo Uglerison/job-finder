@@ -174,6 +174,43 @@ type SearchRun = {
   current_cursor: string | null;
 };
 
+type AggregatedJob = {
+  company: string;
+  description: string;
+  location: string | null;
+  published_at: string | null;
+  salary: string | null;
+  source: string | null;
+  title: string;
+  url: string;
+  work_model: 'remote' | 'hybrid' | 'on_site' | 'unknown' | null;
+};
+
+type AggregatedSearchResponse = {
+  cache_hit: boolean;
+  jobs: AggregatedJob[];
+  partial: boolean;
+  provider_runs: {
+    candidates: number;
+    display_name: string;
+    duration_ms: number;
+    error: string | null;
+    fallback: boolean;
+    provider: string;
+    status: 'success' | 'empty' | 'skipped' | 'failed';
+  }[];
+  warnings: string[];
+};
+
+type ProviderKey = 'jsearch' | 'adzuna' | 'jooble';
+
+type ProviderCredentialStatus = {
+  configured: boolean;
+  provider: ProviderKey;
+  storage: 'encrypted_database' | 'environment' | 'not_configured';
+  unlocked: boolean;
+};
+
 type DashboardSummary = {
   agenda: { overdue: number; upcoming: number };
   cards: {
@@ -585,11 +622,28 @@ function App() {
   const [sourceRuns, setSourceRuns] = useState<SearchRun[]>([]);
   const [isLoadingSourceRuns, setIsLoadingSourceRuns] = useState(true);
   const [sourceRunsError, setSourceRunsError] = useState<string | null>(null);
-  const [sourceQuery, setSourceQuery] = useState('');
-  const [sourceLocation, setSourceLocation] = useState('');
-  const [selectedSourceKey, setSelectedSourceKey] = useState('remoteok');
-  const [isStartingSourceRun, setIsStartingSourceRun] = useState(false);
-  const [sourceMessage, setSourceMessage] = useState<string | null>(null);
+  const [aggregatedQuery, setAggregatedQuery] = useState('');
+  const [aggregatedLocation, setAggregatedLocation] = useState('');
+  const [aggregatedWorkModel, setAggregatedWorkModel] = useState('all');
+  const [aggregatedResults, setAggregatedResults] =
+    useState<AggregatedSearchResponse | null>(null);
+  const [aggregatedError, setAggregatedError] = useState<string | null>(null);
+  const [isSearchingAggregated, setIsSearchingAggregated] = useState(false);
+  const [providerStatuses, setProviderStatuses] = useState<
+    ProviderCredentialStatus[]
+  >([]);
+  const [providerCredential, setProviderCredential] = useState('');
+  const [providerAppId, setProviderAppId] = useState('');
+  const [providerAppKey, setProviderAppKey] = useState('');
+  const [providerVaultPassword, setProviderVaultPassword] = useState('');
+  const [providerKey, setProviderKey] = useState<ProviderKey>('jsearch');
+  const [isSavingProvider, setIsSavingProvider] = useState(false);
+  const [providerSettingsMessage, setProviderSettingsMessage] = useState<
+    string | null
+  >(null);
+  const [providerSettingsError, setProviderSettingsError] = useState<
+    string | null
+  >(null);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
@@ -643,6 +697,32 @@ function App() {
 
     void loadProfile();
 
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    void fetch('/api/search/providers')
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar as credenciais de busca.');
+        }
+        return (await response.json()) as ProviderCredentialStatus[];
+      })
+      .then((payload) => {
+        if (isMounted && Array.isArray(payload)) {
+          setProviderStatuses(payload);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setProviderSettingsError(
+            'Não foi possível consultar as credenciais de busca.',
+          );
+        }
+      });
     return () => {
       isMounted = false;
     };
@@ -742,14 +822,6 @@ function App() {
         if (isMounted) {
           const savedSources = Array.isArray(payload) ? payload : [];
           setSources(savedSources);
-          if (
-            savedSources.length > 0 &&
-            !savedSources.some(
-              (source) => source.source_key === selectedSourceKey,
-            )
-          ) {
-            setSelectedSourceKey(savedSources[0].source_key);
-          }
         }
       } catch {
         if (isMounted) {
@@ -767,7 +839,7 @@ function App() {
     return () => {
       isMounted = false;
     };
-  }, [selectedSourceKey]);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -1501,15 +1573,6 @@ function App() {
     setSavedFilterMessage(`Filtro “${saved.name}” aplicado.`);
   };
 
-  const refreshSourceRuns = async () => {
-    const response = await fetch('/api/search-runs?limit=12');
-    if (!response.ok) {
-      throw new Error('Não foi possível atualizar as execuções.');
-    }
-    const payload = (await response.json()) as SearchRun[] | null;
-    setSourceRuns(Array.isArray(payload) ? payload : []);
-  };
-
   const toggleSource = async (source: SourceConfig) => {
     setSourcesError(null);
     try {
@@ -1537,55 +1600,115 @@ function App() {
           item.source_key === saved.source_key ? saved : item,
         ),
       );
-      setSourceMessage(
-        saved.enabled
-          ? `${saved.display_name} ativada para buscas manuais.`
-          : `${saved.display_name} pausada.`,
-      );
     } catch {
       setSourcesError('Não foi possível atualizar a configuração da fonte.');
     }
   };
 
-  const startSourceRun = async (sourceKey = selectedSourceKey) => {
-    setIsStartingSourceRun(true);
-    setSourceRunsError(null);
-    setSourceMessage(null);
+  const runAggregatedSearch = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = aggregatedQuery.trim();
+    if (query.length < 2) {
+      setAggregatedError(
+        'Informe ao menos duas letras no cargo ou palavra-chave.',
+      );
+      return;
+    }
+    setIsSearchingAggregated(true);
+    setAggregatedError(null);
     try {
-      const response = await fetch('/api/search-runs', {
+      const response = await fetch('/api/search', {
         body: JSON.stringify({
-          location: sourceLocation.trim() || null,
-          limit: 50,
-          query: sourceQuery.trim() || null,
-          source_key: sourceKey,
+          query,
+          location: aggregatedLocation.trim() || null,
+          work_model: aggregatedWorkModel,
+          limit: 20,
         }),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       });
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as {
-          detail?: string;
-        } | null;
-        throw new Error(payload?.detail ?? 'Não foi possível iniciar a busca.');
+      const payload = (await response.json().catch(() => null)) as
+        AggregatedSearchResponse | { detail?: string } | null;
+      if (!response.ok || !payload || !('jobs' in payload)) {
+        throw new Error(
+          payload && 'detail' in payload
+            ? payload.detail
+            : 'Não foi possível buscar vagas agora.',
+        );
       }
-      const run = (await response.json()) as SearchRun;
-      setSourceRuns((current) => [
-        run,
-        ...current.filter((item) => item.id !== run.id),
-      ]);
-      setSourceMessage(`Busca iniciada em ${run.source_name}.`);
-      window.setTimeout(
-        () => void refreshSourceRuns().catch(() => undefined),
-        250,
-      );
+      setAggregatedResults(payload);
     } catch (error) {
-      setSourceRunsError(
+      setAggregatedError(
         error instanceof Error
           ? error.message
-          : 'Não foi possível iniciar a busca.',
+          : 'Não foi possível buscar vagas agora.',
       );
     } finally {
-      setIsStartingSourceRun(false);
+      setIsSearchingAggregated(false);
+    }
+  };
+
+  const saveProviderCredential = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (providerVaultPassword.length < 12) {
+      setProviderSettingsError(
+        'A senha do cofre deve ter pelo menos 12 caracteres.',
+      );
+      return;
+    }
+    if (
+      (providerKey === 'adzuna' &&
+        (!providerAppId.trim() || !providerAppKey.trim())) ||
+      (providerKey !== 'adzuna' && !providerCredential.trim())
+    ) {
+      setProviderSettingsError(
+        providerKey === 'adzuna'
+          ? 'Informe o app ID e a app key do Adzuna.'
+          : 'Informe a API key do provider.',
+      );
+      return;
+    }
+    setIsSavingProvider(true);
+    setProviderSettingsError(null);
+    setProviderSettingsMessage(null);
+    try {
+      const response = await fetch(`/api/search/providers/${providerKey}`, {
+        body: JSON.stringify({
+          api_key:
+            providerKey === 'adzuna' ? undefined : providerCredential.trim(),
+          app_id: providerKey === 'adzuna' ? providerAppId.trim() : undefined,
+          app_key: providerKey === 'adzuna' ? providerAppKey.trim() : undefined,
+          vault_password: providerVaultPassword,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT',
+      });
+      const payload = (await response.json().catch(() => null)) as
+        ProviderCredentialStatus | { detail?: string } | null;
+      if (!response.ok || !payload || !('provider' in payload)) {
+        throw new Error(
+          payload && 'detail' in payload
+            ? payload.detail
+            : 'Não foi possível salvar a credencial.',
+        );
+      }
+      setProviderStatuses((current) => [
+        ...current.filter((item) => item.provider !== payload.provider),
+        payload,
+      ]);
+      setProviderCredential('');
+      setProviderAppId('');
+      setProviderAppKey('');
+      setProviderVaultPassword('');
+      setProviderSettingsMessage('Credencial criptografada no banco local.');
+    } catch (error) {
+      setProviderSettingsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível salvar a credencial.',
+      );
+    } finally {
+      setIsSavingProvider(false);
     }
   };
 
@@ -1771,72 +1894,270 @@ function App() {
         aria-labelledby="sources-title"
       >
         <div className="sources-intro">
-          <p className="eyebrow">BUSCA CONTROLADA</p>
-          <h2 id="sources-title">Fontes e execuções</h2>
+          <p className="eyebrow">BUSCA UNIFICADA</p>
+          <h2 id="sources-title">Encontre uma vaga para treinar</h2>
           <p>
-            Escolha de onde buscar, faça uma execução manual e acompanhe os
-            contadores sem perder a origem de cada vaga.
+            Pesquise em fontes públicas de forma seletiva. A gente organiza os
+            resultados para você comparar oportunidades sem precisar escolher
+            uma API.
           </p>
         </div>
 
         <div className="sources-workspace">
-          <div className="source-search-form">
+          <form className="source-search-form" onSubmit={runAggregatedSearch}>
             <div className="form-field">
-              <label htmlFor="source-query">Cargo ou palavra-chave</label>
+              <label htmlFor="aggregated-query">Cargo ou palavra-chave</label>
               <input
-                id="source-query"
-                onChange={(event) => setSourceQuery(event.target.value)}
-                placeholder="ex.: Backend Engineer"
-                value={sourceQuery}
+                id="aggregated-query"
+                onChange={(event) => setAggregatedQuery(event.target.value)}
+                placeholder="ex.: Analista de Dados"
+                value={aggregatedQuery}
+                required
               />
             </div>
             <div className="form-field">
-              <label htmlFor="source-location">Localização</label>
+              <label htmlFor="aggregated-location">Localização</label>
               <input
-                id="source-location"
-                onChange={(event) => setSourceLocation(event.target.value)}
-                placeholder="ex.: remoto ou São Paulo"
-                value={sourceLocation}
+                id="aggregated-location"
+                onChange={(event) => setAggregatedLocation(event.target.value)}
+                placeholder="ex.: Curitiba, PR"
+                value={aggregatedLocation}
               />
             </div>
             <div className="form-field">
-              <label htmlFor="source-select">Fonte da busca</label>
+              <label htmlFor="aggregated-work-model">Modalidade</label>
               <select
-                id="source-select"
-                onChange={(event) => setSelectedSourceKey(event.target.value)}
-                value={selectedSourceKey}
+                id="aggregated-work-model"
+                onChange={(event) => setAggregatedWorkModel(event.target.value)}
+                value={aggregatedWorkModel}
               >
-                {sources.map((source) => (
-                  <option key={source.source_key} value={source.source_key}>
-                    {source.display_name}
-                  </option>
-                ))}
+                <option value="all">Todos</option>
+                <option value="remote">Remoto</option>
+                <option value="hybrid">Híbrido</option>
+                <option value="on_site">Presencial</option>
               </select>
             </div>
             <button
               className="primary-button source-run-button"
-              disabled={isStartingSourceRun || sources.length === 0}
-              onClick={() => void startSourceRun()}
-              type="button"
+              disabled={isSearchingAggregated}
+              type="submit"
             >
-              {isStartingSourceRun ? 'Iniciando…' : 'Buscar agora'}
+              {isSearchingAggregated ? 'Buscando…' : 'Buscar vagas'}
             </button>
-          </div>
+          </form>
 
-          {sourceMessage && (
-            <p className="form-message is-success" role="status">
-              {sourceMessage}
-            </p>
-          )}
-          {sourcesError && (
+          {aggregatedError && (
             <p className="sources-feedback is-error" role="status">
-              {sourcesError}
+              {aggregatedError}
             </p>
           )}
+
+          {aggregatedResults && (
+            <div
+              aria-live="polite"
+              aria-label="Resultados da busca unificada"
+              className="aggregated-results"
+              role="region"
+            >
+              <div className="source-list-heading">
+                <span className="meta-label">
+                  {aggregatedResults.jobs.length} VAGAS ENCONTRADAS
+                </span>
+                <span className="mono-note">
+                  {aggregatedResults.cache_hit
+                    ? 'RESULTADO EM CACHE'
+                    : 'ATUALIZADO AGORA'}
+                </span>
+              </div>
+              {aggregatedResults.jobs.length === 0 ? (
+                <p className="sources-empty">
+                  Nenhuma vaga correspondeu a esses critérios. Tente ampliar a
+                  localização ou a modalidade.
+                </p>
+              ) : (
+                <ul className="aggregated-job-list">
+                  {aggregatedResults.jobs.map((job) => (
+                    <li
+                      className="aggregated-job-card"
+                      key={`${job.url}-${job.title}`}
+                    >
+                      <div className="aggregated-job-card-main">
+                        <p className="eyebrow">
+                          {job.source || 'VAGA ENCONTRADA'}
+                        </p>
+                        <h3>{job.title}</h3>
+                        <p className="aggregated-job-company">{job.company}</p>
+                        <p className="aggregated-job-meta">
+                          {job.location || 'Localização não informada'}
+                          {job.work_model && job.work_model !== 'unknown'
+                            ? ` · ${
+                                job.work_model === 'on_site'
+                                  ? 'Presencial'
+                                  : job.work_model === 'hybrid'
+                                    ? 'Híbrido'
+                                    : 'Remoto'
+                              }`
+                            : ''}
+                          {job.published_at
+                            ? ` · ${formatRunDate(job.published_at)}`
+                            : ''}
+                        </p>
+                        <p className="aggregated-job-description">
+                          {job.description}
+                        </p>
+                        {job.salary && (
+                          <p className="aggregated-job-salary">{job.salary}</p>
+                        )}
+                      </div>
+                      <div className="aggregated-job-actions">
+                        <a
+                          className="card-link"
+                          href={job.url}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          Ver vaga ↗
+                        </a>
+                        <a
+                          className="text-button text-button-plain"
+                          href="https://sepreparai.com.br/"
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          Treinar entrevista no Se Prepara AI ↗
+                        </a>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {aggregatedResults.partial &&
+                aggregatedResults.warnings.length > 0 && (
+                  <p className="sources-feedback" role="status">
+                    Algumas fontes não responderam; mostramos o que foi possível
+                    encontrar.
+                  </p>
+                )}
+            </div>
+          )}
+
+          <section
+            aria-labelledby="provider-credentials-title"
+            className="provider-credentials"
+          >
+            <div className="source-list-heading">
+              <span className="meta-label" id="provider-credentials-title">
+                CREDENCIAIS OPCIONAIS
+              </span>
+              <span className="mono-note">CIFRADAS NO BANCO LOCAL</span>
+            </div>
+            <p className="sources-feedback">
+              Cadastre as chaves uma vez para ampliar a busca brasileira. A
+              senha do cofre não é armazenada.
+            </p>
+            <form
+              className="provider-credentials-form"
+              onSubmit={saveProviderCredential}
+            >
+              <div className="form-field">
+                <label htmlFor="provider-key">Provider</label>
+                <select
+                  id="provider-key"
+                  onChange={(event) =>
+                    setProviderKey(event.target.value as ProviderKey)
+                  }
+                  value={providerKey}
+                >
+                  <option value="jsearch">JSearch</option>
+                  <option value="adzuna">Adzuna</option>
+                  <option value="jooble">Jooble</option>
+                </select>
+              </div>
+              {providerKey === 'adzuna' ? (
+                <>
+                  <div className="form-field">
+                    <label htmlFor="provider-app-id">Adzuna app ID</label>
+                    <input
+                      id="provider-app-id"
+                      onChange={(event) => setProviderAppId(event.target.value)}
+                      type="password"
+                      value={providerAppId}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="provider-app-key">Adzuna app key</label>
+                    <input
+                      id="provider-app-key"
+                      onChange={(event) =>
+                        setProviderAppKey(event.target.value)
+                      }
+                      type="password"
+                      value={providerAppKey}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="form-field">
+                  <label htmlFor="provider-credential">API key</label>
+                  <input
+                    id="provider-credential"
+                    onChange={(event) =>
+                      setProviderCredential(event.target.value)
+                    }
+                    type="password"
+                    value={providerCredential}
+                  />
+                </div>
+              )}
+              <div className="form-field">
+                <label htmlFor="provider-vault-password">Senha do cofre</label>
+                <input
+                  id="provider-vault-password"
+                  minLength={12}
+                  onChange={(event) =>
+                    setProviderVaultPassword(event.target.value)
+                  }
+                  type="password"
+                  value={providerVaultPassword}
+                />
+              </div>
+              <button
+                className="primary-button"
+                disabled={isSavingProvider}
+                type="submit"
+              >
+                {isSavingProvider ? 'Salvando…' : 'Salvar credencial'}
+              </button>
+            </form>
+            {(providerSettingsError || providerSettingsMessage) && (
+              <p
+                className={`form-message${providerSettingsError ? ' is-error' : ' is-success'}`}
+                role="status"
+              >
+                {providerSettingsError || providerSettingsMessage}
+              </p>
+            )}
+            {providerStatuses.length > 0 && (
+              <ul className="provider-status-list">
+                {providerStatuses.map((status) => (
+                  <li key={status.provider}>
+                    <span>{status.provider}</span>
+                    <span>
+                      {status.configured
+                        ? status.unlocked
+                          ? 'disponível nesta execução'
+                          : 'bloqueada'
+                        : 'não configurada'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
           <div className="source-list-heading">
-            <span className="meta-label">FONTES CONFIGURADAS</span>
-            <span className="mono-note">AGENDAMENTO DESLIGADO POR PADRÃO</span>
+            <span className="meta-label">CONFIGURAÇÕES TÉCNICAS</span>
+            <span className="mono-note">OPCIONAL · SEM SELEÇÃO NA BUSCA</span>
           </div>
           {isLoadingSources && (
             <p className="sources-feedback" role="status">
@@ -1868,13 +2189,6 @@ function App() {
                     )}
                   </div>
                   <div className="source-row-actions">
-                    <button
-                      className="card-link"
-                      onClick={() => setSelectedSourceKey(source.source_key)}
-                      type="button"
-                    >
-                      Selecionar
-                    </button>
                     <button
                       className="text-button text-button-plain"
                       onClick={() => void toggleSource(source)}
