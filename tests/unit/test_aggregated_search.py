@@ -213,10 +213,15 @@ async def test_aggregator_logs_http_diagnostics_and_continues_with_fallback(capl
         async def search(self, params, cancellation=None):
             return SourceSearchResult((candidate(source_key="backup"),))
 
-    with caplog.at_level(logging.WARNING, logger="job_finder.aggregated_search"):
-        result = await SearchAggregator([HttpFailingProvider(), BackupProvider()]).search(
-            JobSearchParams(query="Python", limit=1),
-        )
+    logger = logging.getLogger("job_finder.aggregated_search")
+    logger.addHandler(caplog.handler)
+    try:
+        with caplog.at_level(logging.WARNING, logger="job_finder.aggregated_search"):
+            result = await SearchAggregator([HttpFailingProvider(), BackupProvider()]).search(
+                JobSearchParams(query="Python", limit=1),
+            )
+    finally:
+        logger.removeHandler(caplog.handler)
 
     assert result.outcome == "partial"
     assert result.candidates[0].source_key == "backup"
