@@ -1708,9 +1708,9 @@
 
 .job-row-content {
   align-items: start;
-  display: flex;
-  gap: 1.5rem;
-  justify-content: space-between;
+  column-gap: 1.5rem;
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
 }
 
 .job-row-main {
@@ -1768,7 +1768,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
-  margin-left: 2.15rem;
+  margin-left: 2.75rem;
   padding: 0.85rem 1rem;
 }
 
@@ -2373,7 +2373,7 @@
   }
 
   .job-row-content {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .job-row-meta {
