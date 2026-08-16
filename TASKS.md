@@ -71,7 +71,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E2 — Perfil | JF-100–JF-107 | Concluído | Perfil editável e versionado |
 | E3 — Vagas e candidaturas | JF-200–JF-216 | Concluído | Fluxo manual completo |
 | E4 — Busca e fontes | JF-300–JF-313 | Concluído | Vagas coletadas, auditadas e deduplicadas |
-| E4.1 — Busca agregada e foco Brasil | JF-320–JF-343 | Em validação | Buscador único, resiliente e independente de provider |
+| E4.1 — Busca agregada e foco Brasil | JF-320–JF-344 | Em validação | Buscador único, resiliente e independente de provider |
 | E5 — GPT-5.6 Luna | JF-400–JF-412 | Concluída | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Em andamento | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
@@ -677,6 +677,15 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Evidência: `ProviderResponseFormatError` é tratado pelo agregador; testes cobrem lista aninhada
     e objeto inválido, eliminando o `TypeError: unhashable type: 'slice'` observado localmente.
 
+- [x] **JF-344 — Limitar identificadores externos longos antes de persistir**
+  - Depende de: JF-311 e JF-343.
+  - Teste primeiro: ID externo acima de 255 caracteres em duas URLs distintas da mesma fonte.
+  - Aceite: o ID persistido cabe no contrato, usa hash determinístico quando necessário e mantém a
+    deduplicação exata em buscas futuras.
+  - Evidência: `source_dedup` normaliza o ID opaco longo para `sha256:<digest>` antes da consulta,
+    criação e atualização da origem; o teste reproduz a resposta real da JSearch e persiste sem
+    `ValidationError`.
+
 ## E5 — GPT-5.6 Luna
 
 - [x] **JF-400 — Integrar o cliente OpenAI no backend**
@@ -1009,6 +1018,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 16/08/2026 | JF-341 | Concluída com pendência externa | Corrigida a rota aposentada `/search` para a rota atual `/search-v2`, idioma normalizado para `pt`, diagnóstico HTTP seguro, contagem de providers corrigida e desbloqueio no frontend; 142 testes backend, 20 Vitest, Ruff, Mypy, Oxlint, TypeScript/build e Prettier verdes. |
 | 16/08/2026 | JF-342 | Concluída | Lock de instância agora é validado por `/api/health` antes de abrir o navegador; busca sem conexão recebe orientação de reinício e exceções inesperadas retornam JSON seguro e entram no log local. |
 | 16/08/2026 | JF-343 | Concluída | A resposta real da JSearch continha `data` como objeto; o parser agora aceita coleções aninhadas e converte formatos desconhecidos em falha isolada da fonte, preservando os fallbacks. |
+| 16/08/2026 | JF-344 | Concluída | IDs externos opacos da JSearch acima de 255 caracteres são convertidos em hash determinístico antes de persistir, mantendo a deduplicação exata e eliminando o `ValidationError`. |
 | 15/08/2026 | JF-601 | Concluída | Cofre SQLite cifrado por senha transitória, UI local e migração `0013_ai_secrets`; testes de ausência de plaintext, bloqueio/desbloqueio, API e interface verdes. |
 | 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
 | 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |

@@ -35,6 +35,9 @@ class DedupeKind:
     APPROXIMATE: Literal["approximate"] = "approximate"
 
 
+MAX_EXTERNAL_ID_LENGTH = 255
+
+
 @dataclass(frozen=True)
 class DedupeResult:
     """Result of ingesting one candidate."""
@@ -91,13 +94,14 @@ def find_exact_match(session: Session, candidate: SourceCandidate) -> tuple[Job 
         if job is not None:
             return job, "canonical_url"
 
-    if candidate.external_id:
+    external_id = _bounded_external_id(candidate.external_id)
+    if external_id:
         job = session.scalar(
             select(Job)
             .join(JobOrigin, JobOrigin.job_id == Job.id)
             .where(
                 JobOrigin.source == candidate.source_key,
-                JobOrigin.external_id == candidate.external_id,
+                JobOrigin.external_id == external_id,
                 Job.deleted_at.is_(None),
             ),
         )
@@ -178,6 +182,20 @@ def content_hash(value: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest() if normalized else ""
 
 
+def _bounded_external_id(value: str | None) -> str | None:
+    """Fit opaque provider identifiers into the persistent origin contract safely."""
+
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    if len(cleaned) <= MAX_EXTERNAL_ID_LENGTH:
+        return cleaned
+    digest = hashlib.sha256(cleaned.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
+
+
 def _create_candidate(session: Session, candidate: SourceCandidate) -> Job:
     draft = normalize_job(
         RawJobData(
@@ -195,7 +213,7 @@ def _create_candidate(session: Session, candidate: SourceCandidate) -> Job:
         job.id,
         JobOriginDraft(
             source=candidate.source_key,
-            external_id=candidate.external_id,
+            external_id=_bounded_external_id(candidate.external_id),
             url=candidate.url,
         ),
     )
@@ -205,11 +223,12 @@ def _create_candidate(session: Session, candidate: SourceCandidate) -> Job:
 
 def _refresh_origin(session: Session, job: Job, candidate: SourceCandidate) -> None:
     origins = get_job_origins(session, job.id)
+    external_id = _bounded_external_id(candidate.external_id)
     origin = next(
         (
             item
             for item in origins
-            if item.source == candidate.source_key and item.external_id == candidate.external_id
+            if item.source == candidate.source_key and item.external_id == external_id
         ),
         None,
     )
@@ -219,7 +238,7 @@ def _refresh_origin(session: Session, job: Job, candidate: SourceCandidate) -> N
             job.id,
             JobOriginDraft(
                 source=candidate.source_key,
-                external_id=candidate.external_id,
+                external_id=external_id,
                 url=candidate.url,
             ),
         )
