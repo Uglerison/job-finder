@@ -626,7 +626,7 @@ def _infer_work_model(item: dict[str, object]) -> str:
         return "hybrid"
     if any(token in values for token in ("remote", "remoto", "home office", "work from home")):
         return "remote"
-    if any(token in values for token in ("on-site", "onsite", "presencial")):
+    if any(token in values for token in ("on-site", "on site", "onsite", "presencial")):
         return "on_site"
     return "unknown"
 
