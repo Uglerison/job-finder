@@ -637,12 +637,14 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Evidência: `source-select` e botão de seleção removidos do fluxo; lista técnica e histórico
     continuam disponíveis para compatibilidade.
 
-- [ ] **JF-340 — Validar a migração agregada de ponta a ponta**
+- [x] **JF-340 — Validar a migração agregada de ponta a ponta**
   - Depende de: JF-323 a JF-339.
   - Teste primeiro: cenário Brasil, fallback, cache, deduplicação, ranking, persistência e interface
     integrados com providers simulados.
   - Aceite: suíte completa, Ruff, Mypy, Vitest, lint, formatação e build passam; README e
     `.env.example` documentam credenciais, limites, comportamento parcial e o link externo.
+  - Evidência: 50 testes de API/integração e 92 unitários passam no Windows; Ruff, Mypy, Vitest,
+    Oxlint, TypeScript, Prettier e build frontend passam.
 
 - [x] **JF-341 — Investigar e diagnosticar erros HTTP da JSearch**
   - Depende de: JF-325, JF-332 e JF-335.
@@ -982,9 +984,9 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-216 | Concluída | Lixeira com soft-delete, restauração, expiração por retenção e proteção de candidaturas vinculadas; migração `0011_recoverable_trash`, UI de restauração/confirmação, 68 testes backend e 12 Vitest verdes |
 | 15/08/2026 | JF-300–JF-313 | Concluída | E4 completa: contrato de adaptadores, três fontes públicas, configuração sem segredos, runs auditáveis, cancelamento, scheduler persistente, cliente HTTP resiliente, limites/backoff, deduplicação exata/aproximada e painel; 49 testes unitários backend, 2 testes API E4, Ruff e Mypy verdes |
 | 16/08/2026 | JF-320–JF-339 | Concluída | Busca agregada com JSearch/Adzuna/Jooble, fallback legado, normalização, deduplicação, ranking, cache, API única, cartões, cofre de credenciais e link externo implementados; testes focados, Ruff/Mypy e frontend verdes |
-| 16/08/2026 | JF-340 | Em validação | E4.1 implementada; falta concluir uma execução única da suíte backend completa no ambiente Windows para fechar a validação ponta a ponta |
+| 16/08/2026 | JF-340 | Concluída | E4.1 validada ponta a ponta com 50 testes API/integração e 92 unitários no Windows; Ruff, Mypy, Vitest, Oxlint, TypeScript, Prettier e build frontend verdes |
 | 16/08/2026 | JF-508 | Concluída | Acessibilidade da busca e telas principais validada com 18 testes Vitest, Oxlint, TypeScript/build e Prettier |
-| 16/08/2026 | JF-341 | Concluída com pendência externa | Endpoint JSearch canonizado, idioma normalizado para `pt`, diagnóstico HTTP seguro, contagem de providers corrigida; testes focados, Ruff, Mypy, Vitest, Oxlint, TypeScript/build e Prettier verdes. Busca real aguarda desbloqueio da credencial cifrada. |
+| 16/08/2026 | JF-341 | Concluída com pendência externa | Endpoint JSearch canonizado, idioma normalizado para `pt`, diagnóstico HTTP seguro, contagem de providers corrigida; 142 testes backend, Ruff, Mypy, Vitest, Oxlint, TypeScript/build e Prettier verdes. Busca real aguarda desbloqueio da credencial cifrada. |
 | 15/08/2026 | JF-601 | Concluída | Cofre SQLite cifrado por senha transitória, UI local e migração `0013_ai_secrets`; testes de ausência de plaintext, bloqueio/desbloqueio, API e interface verdes. |
 | 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
 | 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |
