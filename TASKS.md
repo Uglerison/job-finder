@@ -456,7 +456,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Teste primeiro: cliente simulado, timeout, autenticação inválida e indisponibilidade.
   - Aceite: modelo padrão `gpt-5.6-luna` e nenhuma chamada pelo frontend.
 
-- [ ] **JF-401 — Criar schemas estruturados da IA**
+- [x] **JF-401 — Criar schemas estruturados da IA**
   - Depende de: JF-100 e JF-200.
   - Teste primeiro: respostas válidas, ausentes, fora de faixa e com evidência inválida.
   - Aceite: extração e aderência validadas antes de persistir.
@@ -725,6 +725,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-601 | Concluída | Cofre SQLite cifrado por senha transitória, UI local e migração `0013_ai_secrets`; testes de ausência de plaintext, bloqueio/desbloqueio, API e interface verdes. |
 | 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
 | 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |
+| 15/08/2026 | JF-401 | Concluída | Contratos Pydantic para extração, aderência, score, confiança e evidências; validações cobrem campos ausentes, faixas inválidas, evidência inválida e salário inconsistente. |
 
 ## Bloqueios e decisões pendentes
 
