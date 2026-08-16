@@ -155,6 +155,13 @@ com `POST /api/search/providers/{provider}/unlock` ou pelo botão **Desbloquear*
 que aparece ao lado de um provider bloqueado na seção de credenciais. A busca
 continua sem expor a chave no navegador.
 
+Se o navegador informar que não conseguiu conectar ao serviço local, feche a
+aba antiga e execute novamente o comando de inicialização. O iniciador valida
+`/api/health` antes de reutilizar uma instância registrada e recupera um lock
+que aponta para um servidor interrompido. Falhas internas inesperadas da busca
+são registradas em `%LOCALAPPDATA%\\JobFinder\\logs\\job-finder.log` e voltam à
+interface com uma mensagem segura.
+
 O painel local consulta `GET /api/dashboard/summary`, aceitando `from`, `to`,
 `timezone` e `source_key`. Ele exibe cartões, funil com denominadores, séries
 semanais, desempenho por fonte e contadores de agenda. Vagas removidas não

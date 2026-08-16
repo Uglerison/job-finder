@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -91,6 +92,33 @@ async def test_unified_search_explains_when_no_provider_returns_a_job(applicatio
     assert response.status_code == 200
     assert response.json()["outcome"] == "no_results"
     assert response.json()["message"] == "Nenhuma vaga encontrada para estes filtros."
+
+
+@pytest.mark.anyio
+async def test_unified_search_logs_and_explains_an_unexpected_internal_failure(
+    application,
+    caplog,
+    monkeypatch,
+) -> None:
+    application.state.aggregated_providers = [FakeProvider()]
+
+    def fail_to_persist(*_args, **_kwargs) -> None:
+        raise RuntimeError("database write failed")
+
+    monkeypatch.setattr("job_finder.aggregated_search_api.ingest_candidate", fail_to_persist)
+    transport = ASGITransport(app=application)
+    with caplog.at_level(logging.ERROR, logger="job_finder.aggregated_search_api"):
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            response = await client.post(
+                "/api/search",
+                json={"query": "Analista de Dados", "limit": 5},
+            )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "detail": "A busca encontrou uma falha interna. Consulte o log local e tente novamente."
+    }
+    assert "aggregated_search request=failed error_type=RuntimeError" in caplog.text
 
 
 @pytest.mark.anyio

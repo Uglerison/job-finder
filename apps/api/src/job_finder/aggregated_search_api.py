@@ -1,6 +1,7 @@
 """Unified job-search API that keeps provider details server-side."""
 
 import json
+import logging
 from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Annotated, Literal
@@ -28,6 +29,7 @@ from job_finder.source_dedup import ingest_candidate
 from job_finder.source_models import ensure_default_sources
 
 router = APIRouter(prefix="/api/search", tags=["aggregated-search"])
+logger = logging.getLogger(__name__)
 
 ProviderName = Literal["jsearch", "adzuna", "jooble"]
 
@@ -276,22 +278,35 @@ async def search_jobs(
 ) -> AggregatedSearchResponse:
     """Search providers selectively, persist normalized jobs and return one result shape."""
 
-    providers = getattr(request.app.state, "aggregated_providers", None)
-    if providers is None:
-        providers = _providers(request, session)
-    aggregator = SearchAggregator(
-        providers,
-        cache=getattr(
-            request.app.state,
-            "aggregated_cache",
-            SearchCache(request.app.state.settings.search_cache_ttl_seconds),
-        ),
-        minimum_results=request.app.state.settings.search_minimum_results,
-    )
-    request.app.state.aggregated_cache = aggregator.cache
-    result = await aggregator.search(payload)
-    if not result.cache_hit:
-        for candidate in result.candidates:
-            ingest_candidate(session, candidate)
-        session.commit()
-    return _response(result)
+    try:
+        providers = getattr(request.app.state, "aggregated_providers", None)
+        if providers is None:
+            providers = _providers(request, session)
+        aggregator = SearchAggregator(
+            providers,
+            cache=getattr(
+                request.app.state,
+                "aggregated_cache",
+                SearchCache(request.app.state.settings.search_cache_ttl_seconds),
+            ),
+            minimum_results=request.app.state.settings.search_minimum_results,
+        )
+        request.app.state.aggregated_cache = aggregator.cache
+        result = await aggregator.search(payload)
+        if not result.cache_hit:
+            for candidate in result.candidates:
+                ingest_candidate(session, candidate)
+            session.commit()
+        return _response(result)
+    except HTTPException:
+        raise
+    except Exception as error:
+        session.rollback()
+        logger.exception(
+            "aggregated_search request=failed error_type=%s",
+            type(error).__name__,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="A busca encontrou uma falha interna. Consulte o log local e tente novamente.",
+        ) from error

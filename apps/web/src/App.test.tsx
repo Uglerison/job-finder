@@ -331,6 +331,29 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
+  it('explica como recuperar a busca quando o serviço local não responde', async () => {
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/search' && init?.method === 'POST') {
+          return Promise.reject(new TypeError('Failed to fetch'));
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Cargo ou palavra-chave'), {
+      target: { value: 'Analista de Dados' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar vagas' }));
+
+    expect(
+      await screen.findByText(
+        'Não foi possível conectar ao serviço local. Feche o Job Finder, inicie-o novamente e tente a busca.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('abre o onboarding e salva critérios válidos no perfil local', async () => {
     render(<App />);
 

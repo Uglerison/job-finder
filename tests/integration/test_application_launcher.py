@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 from job_finder.application import ApplicationLauncher, InstanceLock
@@ -34,6 +35,29 @@ def test_instance_lock_recovers_an_invalid_stale_lock(tmp_path: Path) -> None:
     assert lock.existing_url == "http://127.0.0.1:48124"
 
     lock.release()
+
+
+def test_application_launcher_recovers_from_an_unresponsive_live_instance(
+    tmp_path: Path,
+) -> None:
+    settings = Settings(data_dir=tmp_path / "data", environment="test")
+    lock_path = settings.data_dir / "job-finder.instance.json"
+    lock_path.parent.mkdir(parents=True)
+    lock_path.write_text(
+        json.dumps({"pid": os.getpid(), "url": "http://127.0.0.1:65534"}),
+        encoding="utf-8",
+    )
+    browser_urls: list[str] = []
+    launcher = ApplicationLauncher(settings, browser_opener=browser_urls.append)
+
+    try:
+        result = launcher.start()
+
+        assert not result.reused_existing_instance
+        assert result.url != "http://127.0.0.1:65534"
+        assert browser_urls == [result.url]
+    finally:
+        launcher.stop()
 
 
 def test_application_launcher_reuses_existing_url_then_releases_the_instance_lock(

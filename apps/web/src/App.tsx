@@ -1670,18 +1670,26 @@ function App() {
       const payload = (await response.json().catch(() => null)) as
         AggregatedSearchResponse | { detail?: string } | null;
       if (!response.ok || !payload || !('jobs' in payload)) {
-        throw new Error(
-          payload && 'detail' in payload
+        const detail =
+          payload &&
+          'detail' in payload &&
+          typeof payload.detail === 'string' &&
+          payload.detail.trim()
             ? payload.detail
-            : 'Não foi possível buscar vagas agora.',
+            : null;
+        throw new Error(
+          detail ||
+            `O serviço local retornou uma resposta inesperada (HTTP ${response.status}). Feche o Job Finder, inicie-o novamente e tente a busca.`,
         );
       }
       setAggregatedResults(payload);
     } catch (error) {
       setAggregatedError(
-        error instanceof Error
-          ? error.message
-          : 'Não foi possível buscar vagas agora.',
+        error instanceof TypeError
+          ? 'Não foi possível conectar ao serviço local. Feche o Job Finder, inicie-o novamente e tente a busca.'
+          : error instanceof Error
+            ? error.message
+            : 'Não foi possível buscar vagas agora.',
       );
     } finally {
       setIsSearchingAggregated(false);
