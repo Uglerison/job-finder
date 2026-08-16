@@ -646,7 +646,7 @@ def _search_outcome(
             "Nenhum provider está configurado. Cadastre uma credencial na seção "
             "técnica para buscar vagas.",
         )
-    if rate_limited and not any(run.status == "success" for run in runs):
+    if rate_limited and not any(run.status in {"success", "empty"} for run in runs):
         return (
             "rate_limited",
             "As fontes atingiram o limite de consultas. Aguarde e tente novamente.",
