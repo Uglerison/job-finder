@@ -97,7 +97,7 @@ async def test_jsearch_maps_brazilian_payload_and_headers() -> None:
     assert result.candidates[0].location == "Curitiba, PR, BR"
     assert result.candidates[0].salary == "5000–7000 BRL"
     assert seen[0].headers["X-RapidAPI-Key"] == "secret"
-    assert str(seen[0].url).split("?", 1)[0] == "https://jsearch.p.rapidapi.com/search"
+    assert str(seen[0].url).split("?", 1)[0] == "https://jsearch.p.rapidapi.com/search-v2"
     assert dict(seen[0].url.params)["query"] == "Analista de Dados em Curitiba, PR"
     assert dict(seen[0].url.params)["num_pages"] == "1"
     assert dict(seen[0].url.params)["country"] == "br"
@@ -107,13 +107,17 @@ async def test_jsearch_maps_brazilian_payload_and_headers() -> None:
 def test_jsearch_endpoint_is_canonical_and_rejects_unknown_paths() -> None:
     assert (
         JSearchProvider(endpoint="https://jsearch.p.rapidapi.com/").endpoint
-        == "https://jsearch.p.rapidapi.com/search"
+        == "https://jsearch.p.rapidapi.com/search-v2"
     )
     assert (
         JSearchProvider(endpoint="https://jsearch.p.rapidapi.com/search/").endpoint
-        == "https://jsearch.p.rapidapi.com/search"
+        == "https://jsearch.p.rapidapi.com/search-v2"
     )
-    with pytest.raises(ValueError, match="exatamente para /search"):
+    assert (
+        JSearchProvider(endpoint="https://jsearch.p.rapidapi.com/search-v2/").endpoint
+        == "https://jsearch.p.rapidapi.com/search-v2"
+    )
+    with pytest.raises(ValueError, match="exatamente para /search-v2"):
         JSearchProvider(endpoint="https://jsearch.p.rapidapi.com/search/search")
 
 

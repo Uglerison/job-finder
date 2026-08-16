@@ -140,6 +140,8 @@ faltam resultados. Falhas individuais são resumidas em `provider_runs` sem
 expor chaves ou respostas brutas. A interface não solicita uma fonte técnica;
 cada cartão mantém apenas a origem pública disponível e oferece o link externo
 para [Se Prepara AI](https://sepreparai.com.br/) para treino de entrevista.
+Na JSearch via RapidAPI, a rota atual é `/search-v2`; a rota aposentada `/search`
+é migrada automaticamente pelo adaptador.
 
 Quando não há vagas, a resposta também informa o motivo: filtros sem
 correspondência, provider ainda não configurado, limite de consultas, falha de

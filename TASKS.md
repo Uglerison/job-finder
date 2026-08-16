@@ -648,11 +648,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 
 - [x] **JF-341 — Investigar e diagnosticar erros HTTP da JSearch**
   - Depende de: JF-325, JF-332 e JF-335.
-  - Teste primeiro: endpoint base, `/search`, query em português, headers RapidAPI, respostas 200,
+  - Teste primeiro: endpoint base, `/search-v2` (rota atual; `/search` aposentada), query em português, headers RapidAPI, respostas 200,
     401/403/404, fallback e sanitização do diagnóstico.
-  - Aceite: nenhuma composição de path duplica `/search`; falhas preservam fallback e registram
+  - Aceite: nenhuma composição de path duplica `/search-v2`; falhas preservam fallback e registram
     provider, método, URL sem credenciais, status, duração e corpo limitado/sanitizado somente no log.
-  - Evidência: `JSearchProvider` canoniza o endpoint e envia `query`, `page`, `num_pages`, `country=br`,
+  - Evidência: `JSearchProvider` canoniza o endpoint atual `/search-v2` (e migra `/search` aposentada) e envia `query`, `page`, `num_pages`, `country=br`,
     `language=pt` e `date_posted=all`; `SourceHttpError` protege headers, paths sensíveis e corpos;
     contagem visual exclui providers `skipped`; a interface permite desbloquear uma credencial já
     cifrada sem recadastrá-la. O teste real depende do desbloqueio da credencial JSearch já cifrada
@@ -987,7 +987,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 16/08/2026 | JF-320–JF-339 | Concluída | Busca agregada com JSearch/Adzuna/Jooble, fallback legado, normalização, deduplicação, ranking, cache, API única, cartões, cofre de credenciais e link externo implementados; testes focados, Ruff/Mypy e frontend verdes |
 | 16/08/2026 | JF-340 | Concluída | E4.1 validada ponta a ponta com 50 testes API/integração e 92 unitários no Windows; Ruff, Mypy, Vitest, Oxlint, TypeScript, Prettier e build frontend verdes |
 | 16/08/2026 | JF-508 | Concluída | Acessibilidade da busca e telas principais validada com 18 testes Vitest, Oxlint, TypeScript/build e Prettier |
-| 16/08/2026 | JF-341 | Concluída com pendência externa | Endpoint JSearch canonizado, idioma normalizado para `pt`, diagnóstico HTTP seguro, contagem de providers corrigida e desbloqueio no frontend; 142 testes backend, 20 Vitest, Ruff, Mypy, Oxlint, TypeScript/build e Prettier verdes. Busca real aguarda desbloqueio da credencial cifrada. |
+| 16/08/2026 | JF-341 | Concluída com pendência externa | Corrigida a rota aposentada `/search` para a rota atual `/search-v2`, idioma normalizado para `pt`, diagnóstico HTTP seguro, contagem de providers corrigida e desbloqueio no frontend; 142 testes backend, 20 Vitest, Ruff, Mypy, Oxlint, TypeScript/build e Prettier verdes. |
 | 15/08/2026 | JF-601 | Concluída | Cofre SQLite cifrado por senha transitória, UI local e migração `0013_ai_secrets`; testes de ausência de plaintext, bloqueio/desbloqueio, API e interface verdes. |
 | 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
 | 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |

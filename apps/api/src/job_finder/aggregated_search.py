@@ -132,7 +132,7 @@ class JSearchProvider(_JsonProvider):
 
     def __init__(
         self,
-        endpoint: str = "https://jsearch.p.rapidapi.com/search",
+        endpoint: str = "https://jsearch.p.rapidapi.com/search-v2",
         api_key: str | None = None,
         client: SafeHttpClient | None = None,
     ) -> None:
@@ -650,14 +650,14 @@ def _jsearch_language(language: str) -> str:
 
 
 def _canonical_jsearch_endpoint(endpoint: str) -> str:
-    """Accept the documented base URL or /search path, never a duplicated path."""
+    """Use the current RapidAPI v5 route and upgrade the retired /search path."""
 
     validated = validate_public_url(endpoint)
     parsed = urlsplit(validated)
     path = parsed.path.rstrip("/")
-    if path not in {"", "/search"}:
-        raise ValueError("O endpoint da JSearch deve apontar exatamente para /search.")
-    return urlunsplit((parsed.scheme, parsed.netloc, "/search", "", ""))
+    if path not in {"", "/search", "/search-v2"}:
+        raise ValueError("O endpoint da JSearch deve apontar exatamente para /search-v2.")
+    return urlunsplit((parsed.scheme, parsed.netloc, "/search-v2", "", ""))
 
 
 def _cache_key(params: JobSearchParams) -> str:
