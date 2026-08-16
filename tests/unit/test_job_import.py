@@ -12,7 +12,7 @@ from job_finder.job_import import (
 )
 
 
-def test_import_policy_rejects_local_private_and_non_http_destinations() -> None:
+def test_import_policy_rejects_local_private_and_non_http_destinations(monkeypatch) -> None:
     for url in (
         "file:///C:/secret.txt",
         "http://localhost:8000/jobs/1",
@@ -27,6 +27,15 @@ def test_import_policy_rejects_local_private_and_non_http_destinations() -> None
         "https://jobs.example.com/opportunities/1"
     )
 
+    monkeypatch.setattr(
+        "job_finder.job_import.socket.getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (2, 1, 6, "", ("192.168.1.20", 443)),
+        ],
+    )
+    with pytest.raises(ValueError, match="rede privada"):
+        validate_public_url("https://rebound.example/jobs/1")
+
 
 def test_import_sanitizes_markup_and_extracts_stable_job_fields() -> None:
     document = FetchedDocument(
@@ -35,7 +44,8 @@ def test_import_sanitizes_markup_and_extracts_stable_job_fields() -> None:
         body=(
             "<html><head><title>Backend Engineer | Example Labs</title>"
             '<meta property="og:site_name" content="Example Labs"></head>'
-            "<body><h1>Backend Engineer</h1><script>alert(1)</script>"
+            '<body onload="alert(2)"><h1>Backend Engineer</h1><script>alert(1)</script>'
+            "<iframe>não persistir</iframe><svg>não persistir</svg>"
             "<p>Trabalhe com Python &amp; FastAPI.</p></body></html>"
         ),
     )

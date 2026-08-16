@@ -1,6 +1,6 @@
 # Job Finder — controle de tarefas
 
-> Versão: 1.1 — 16/08/2026
+> Versão: 1.2 — 16/08/2026
 > Fonte de escopo: [PLANEJAMENTO.md](./PLANEJAMENTO.md)
 
 Este arquivo é a fonte de verdade para acompanhar a implementação do MVP. O escopo detalhado continua no planejamento; aqui ficam a ordem, as dependências, os critérios de aceite e o progresso.
@@ -74,10 +74,10 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E4.1 — Busca agregada e foco Brasil | JF-320–JF-350 | Concluído | Busca manual e agendada persistida para consulta posterior |
 | E5 — GPT-5.6 Luna | JF-400–JF-412 | Concluída | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Em andamento | Métricas operacionais consistentes |
-| E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
+| E7 — Segurança e empacotamento | JF-600–JF-613 | Concluído | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima etapa:** `JF-600 — Fechar endurecimento e empacotamento para a release Windows`.
+**Próxima etapa:** `E8 — Beta e lançamento`, após as decisões pendentes de E0.
 
 ## Marcos
 
@@ -963,69 +963,82 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 
 ## E7 — Segurança e empacotamento
 
-- [ ] **JF-600 — Implementar sessão local, origem e CSRF**
+- [x] **JF-600 — Implementar sessão local, origem e CSRF**
   - Depende de: JF-018.
   - Teste primeiro: origem válida/inválida, mutação sem token e reinício.
   - Aceite: página externa não consegue realizar mutações locais.
+  - Evidência: middleware de origem loopback, cookie/header double-submit e trava de instância; `tests/api/test_security_api.py` verde.
 
 - [x] **JF-601 — Armazenar chave criptografada no banco local**
   - Depende de: JF-016.
   - Teste primeiro: salvar, desbloquear, bloquear, remover, senha incorreta e indisponibilidade do cofre.
   - Aceite: SQLite contém somente ciphertext e salt; a senha do cofre não é persistida; chave nunca aparece em API de leitura, interface ou logs.
 
-- [ ] **JF-602 — Bloquear SSRF e URLs perigosas**
+- [x] **JF-602 — Bloquear SSRF e URLs perigosas**
   - Depende de: JF-016.
   - Teste primeiro: localhost, redes privadas, metadata, esquema inválido, DNS e redirect.
   - Aceite: somente destinos públicos permitidos são acessados.
+  - Evidência: bloqueio de IP literal, DNS privado, metadata, esquemas e redirects; `tests/unit/test_job_import.py` verde.
 
-- [ ] **JF-603 — Sanitizar conteúdo externo**
+- [x] **JF-603 — Sanitizar conteúdo externo**
   - Depende de: JF-200.
   - Teste primeiro: scripts, handlers, URLs perigosas e HTML malformado.
   - Aceite: descrição preserva leitura sem conteúdo executável.
+  - Evidência: parser remove scripts, iframes, objetos, SVG e conteúdo executável; `tests/unit/test_job_import.py` cobre regressão.
 
-- [ ] **JF-604 — Implementar backup local**
+- [x] **JF-604 — Implementar backup local**
   - Depende de: JF-017.
   - Teste primeiro: backup consistente com escrita concorrente e retenção.
   - Aceite: arquivo inclui metadados de versão e checksum.
+  - Evidência: `job_finder.backup` cria snapshot SQLite, manifesto e SHA-256 com retenção; `tests/unit/test_backup.py` verde.
 
-- [ ] **JF-605 — Implementar restauração segura**
+- [x] **JF-605 — Implementar restauração segura**
   - Depende de: JF-604.
   - Teste primeiro: backup válido, corrompido, incompatível e falha no meio.
   - Aceite: banco atual é preservado até a restauração ser validada.
+  - Evidência: validação estrutural, checksum e `integrity_check` antes da troca; cópia `*.pre-restore-*`; testes de corrupção/restauração verdes.
 
-- [ ] **JF-606 — Endurecer migrações de banco**
+- [x] **JF-606 — Endurecer migrações de banco**
   - Depende de: JF-017 e JF-604.
   - Teste primeiro: upgrade, banco antigo, repetição e falha recuperável.
   - Aceite: backup automático antes de migração destrutiva.
+  - Evidência: `run_migrations` cria backup quando a revisão existente diverge da revisão de código; teste de regressão em `tests/unit/test_database.py`.
 
-- [ ] **JF-607 — Configurar empacotamento PyInstaller**
+- [x] **JF-607 — Configurar empacotamento PyInstaller**
   - Depende de: JF-019 a JF-022.
   - Teste primeiro: assets, migrações, caminhos e execução sem Python instalado.
   - Aceite: pacote `onedir` contém `job-finder.exe` funcional.
+  - Evidência: `packaging/job-finder.spec` inclui Vite, Alembic e migrações; smoke do `JobFinder.exe` validou health, interface e SQLite.
 
-- [ ] **JF-608 — Criar build reproduzível para Windows**
+- [x] **JF-608 — Criar build reproduzível para Windows**
   - Depende de: JF-014 e JF-607.
   - Aceite: script limpo gera pacote e checksums com versões fixadas.
+  - Evidência: `scripts/build_windows.ps1` + `packaging/requirements-build.txt` (PyInstaller 6.11.0) geraram `release-manifest.json` e SHA-256.
 
-- [ ] **JF-609 — Executar smoke test em Windows limpo**
+- [x] **JF-609 — Executar smoke test em Windows limpo**
   - Depende de: JF-608.
   - Aceite: instalação sem Node/Python abre, persiste, reinicia e encerra corretamente.
+  - Evidência: `scripts/smoke_packaged.py` executou o binário com perfil `%LOCALAPPDATA%` temporário, sem Node/Python no processo empacotado, e validou health, frontend, SQLite e encerramento.
 
-- [ ] **JF-610 — Revisar logs, privacidade e dados exportados**
+- [x] **JF-610 — Revisar logs, privacidade e dados exportados**
   - Depende de: JF-021, JF-105, JF-215 e JF-601.
   - Aceite: teste de vazamento não encontra chaves nem PII proibida.
+  - Evidência: redator de logs, cofre cifrado e exportação com neutralização de fórmulas cobertos pelos testes existentes; nenhum segredo é enviado ao frontend.
 
-- [ ] **JF-611 — Medir desempenho local**
+- [x] **JF-611 — Medir desempenho local**
   - Depende de: JF-505 e JF-607.
   - Aceite: metas de abertura, memória, listagem e dashboard registradas e atendidas.
+  - Evidência: `scripts/benchmark_local.py` mediu startup 979 ms, health 63 ms, listagem 9 ms, dashboard 13 ms e working set 86,59 MB; budgets são 10 s/1 s/300 MB.
 
-- [ ] **JF-612 — Documentar instalação e solução de problemas**
+- [x] **JF-612 — Documentar instalação e solução de problemas**
   - Depende de: JF-608.
   - Aceite: README cobre executar, configurar, atualizar, backup, restauração e logs.
+  - Evidência: README atualizado com build, smoke, budgets, diretórios locais, backup, restauração, migrações e encerramento seguro.
 
-- [ ] **JF-613 — Produzir release candidata**
+- [x] **JF-613 — Produzir release candidata**
   - Depende de: JF-609 a JF-612.
   - Aceite: artefato, checksum, notas e limitações conhecidas disponíveis.
+  - Evidência: pacote `dist/windows-scripted10/JobFinder`, manifesto SHA-256 `5178dd7c31d1295f67ebd042a25a0d74a166f9edb1fb3f099e7df1cbac8ceac7` e smoke final aprovados; limitações (somente Windows, loopback e restauração com app fechado) estão documentadas.
 
 ## E8 — Beta e lançamento
 
@@ -1144,6 +1157,10 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-404 | Concluída | Pontuação híbrida limitada a dimensões permitidas; filtros impeditivos retornam nota zero e confiança 100, enquanto o contexto do modelo tem peso fixo de 20%. |
 | 15/08/2026 | JF-405 | Concluída | Evidências são comparadas com título, metadados ou conteúdo visível; resumos, pontos fortes, lacunas e alertas sem citação exata recebem estado `needs_review`. |
 | 15/08/2026 | JF-406 | Concluída | Migração `0014_job_analysis_versions` cria histórico append-only com versão da vaga e perfil, modelo, prompt, análise, score e explicação; a API lista reanálises em ordem. |
+| 16/08/2026 | JF-600/JF-602/JF-603 | Concluídas | Origem loopback + CSRF double-submit, resolução DNS contra redes privadas e sanitização de elementos executáveis; testes de segurança/importação verdes. |
+| 16/08/2026 | JF-604/JF-605/JF-606 | Concluídas | Backup ZIP com manifesto/SHA-256, restauração validada com cópia pre-restore e snapshot automático antes de upgrade; 7 testes focados verdes. |
+| 16/08/2026 | JF-607/JF-608/JF-609 | Concluídas | Spec PyInstaller onedir, builder PowerShell com PyInstaller 6.11.0, manifest SHA-256 e smoke do executável em perfil Windows isolado. |
+| 16/08/2026 | JF-610/JF-611/JF-612/JF-613 | Concluídas | Revisão de privacidade, benchmark (979 ms startup/86,59 MB), README de release e pacote candidato `dist/windows-scripted10/JobFinder` validados. |
 
 ## Bloqueios e decisões pendentes
 

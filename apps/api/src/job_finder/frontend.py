@@ -1,5 +1,6 @@
 """Delivery of the compiled React application from the local FastAPI server."""
 
+import sys
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -10,6 +11,9 @@ from fastapi.staticfiles import StaticFiles
 def frontend_dist_path() -> Path:
     """Return the development location of Vite's compiled frontend assets."""
 
+    bundle_root = getattr(sys, "_MEIPASS", None)
+    if isinstance(bundle_root, str) and (Path(bundle_root) / "apps" / "web" / "dist").is_dir():
+        return Path(bundle_root) / "apps" / "web" / "dist"
     return Path(__file__).resolve().parents[4] / "apps" / "web" / "dist"
 
 

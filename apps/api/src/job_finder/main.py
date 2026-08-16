@@ -36,6 +36,8 @@ from job_finder.scheduled_searches_api import run_due_scheduled_searches
 from job_finder.scheduler import PersistentScheduler
 from job_finder.search_runs import SearchTaskRegistry
 from job_finder.secret_store import EncryptedDatabaseVault
+from job_finder.security import LocalSecurityMiddleware
+from job_finder.security import router as security_router
 from job_finder.settings import Settings, get_settings
 from job_finder.source_adapters import SourceRegistry
 from job_finder.sources_api import router as sources_router
@@ -117,6 +119,7 @@ def create_app(
         lifespan=lifespan,
         openapi_url="/api/openapi.json",
     )
+    application.add_middleware(LocalSecurityMiddleware)
     application.state.settings = settings or get_settings()
     application.state.source_registry = SourceRegistry()
     application.state.search_tasks = SearchTaskRegistry()
@@ -138,6 +141,7 @@ def create_app(
     application.include_router(process_events_router)
     application.include_router(export_router)
     application.include_router(trash_router)
+    application.include_router(security_router)
     application.include_router(sources_router)
     application.include_router(aggregated_search_router)
     application.include_router(scheduled_searches_router)

@@ -612,7 +612,42 @@ function aiStorageLabel(storage: AiSettings['storage']): string {
   }[storage];
 }
 
+let csrfToken: string | null = null;
+let csrfTokenRequest: Promise<void> | null = null;
+
+async function apiFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    if (!csrfTokenRequest) {
+      csrfTokenRequest = globalThis
+        .fetch('/api/security/csrf')
+        .then(async (response) => {
+          if (response.ok) {
+            const payload = (await response.json().catch(() => null)) as {
+              token?: string;
+            } | null;
+            csrfToken = payload?.token ?? null;
+          }
+        })
+        .catch(() => undefined);
+    }
+    await csrfTokenRequest;
+    const headers = new Headers(init?.headers);
+    if (csrfToken) {
+      headers.set('X-CSRF-Token', csrfToken);
+    }
+    return globalThis.fetch(input, { ...init, headers });
+  }
+  return init === undefined
+    ? globalThis.fetch(input)
+    : globalThis.fetch(input, init);
+}
+
 function App() {
+  const fetch = apiFetch;
   const [formState, setFormState] =
     useState<ProfileFormState>(defaultFormState);
   const [isFormOpen, setIsFormOpen] = useState(false);

@@ -49,6 +49,46 @@ pnpm --filter job-finder-web build
 .\.venv\Scripts\python.exe scripts\smoke_test.py
 ```
 
+## Release Windows (E7)
+
+O pacote de distribuição é uma pasta `JobFinder` criada pelo PyInstaller. O
+builder é fixado em `packaging/requirements-build.txt`; em uma máquina Windows
+limpa, instale as dependências e execute:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pip install -r packaging\requirements-build.txt
+.\scripts\build_windows.ps1
+.\.venv\Scripts\python.exe scripts\smoke_packaged.py dist\windows\JobFinder\JobFinder.exe
+```
+
+Para repetir os budgets locais de abertura, listagem e painel:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\benchmark_local.py
+```
+
+O script compila o frontend com pnpm, inclui as migrações e o `alembic.ini`,
+gera `release-manifest.json` com SHA-256 e não copia `.env` nem o banco local.
+O executável escuta somente em `127.0.0.1`; dados, logs e backups ficam em
+`%LOCALAPPDATA%\JobFinder`.
+
+### Backup e restauração local
+
+Backups são snapshots consistentes do SQLite, com manifesto, checksum SHA-256,
+verificação `PRAGMA integrity_check` e retenção dos cinco arquivos mais novos:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\backup.py create
+.\.venv\Scripts\python.exe scripts\backup.py validate <caminho-do-zip>
+.\.venv\Scripts\python.exe scripts\backup.py restore <caminho-do-zip>
+```
+
+Antes de uma migração de banco existente, o backend cria automaticamente um
+backup quando a revisão instalada está atrás da revisão do código. A
+restauração preserva o arquivo atual como `job-finder.db.pre-restore-*`; feche
+o Job Finder antes de restaurar para liberar conexões SQLite no Windows.
+
 ## Busca e fontes (E4)
 
 A área **Busca unificada** consulta providers em sequência sem pedir que o
