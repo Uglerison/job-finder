@@ -188,6 +188,77 @@ describe('App', () => {
     });
   });
 
+  it('desbloqueia uma credencial de provider já cifrada', async () => {
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/ai/settings') {
+          return Promise.resolve({
+            json: async () => ({
+              configured: false,
+              unlocked: false,
+              model: 'gpt-5.6-luna',
+              storage: 'not_configured',
+            }),
+            ok: true,
+          });
+        }
+        if (input === '/api/search/providers' && !init?.method) {
+          return Promise.resolve({
+            json: async () => [
+              {
+                configured: true,
+                provider: 'jsearch',
+                storage: 'encrypted_database',
+                unlocked: false,
+              },
+            ],
+            ok: true,
+          });
+        }
+        if (
+          input === '/api/search/providers/jsearch/unlock' &&
+          init?.method === 'POST'
+        ) {
+          return Promise.resolve({
+            json: async () => ({
+              configured: true,
+              provider: 'jsearch',
+              storage: 'encrypted_database',
+              unlocked: true,
+            }),
+            ok: true,
+          });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+    render(<App />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Desbloquear' }),
+      ).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByLabelText('Senha do cofre'), {
+      target: { value: 'senha local com doze' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Desbloquear' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('JSEARCH desbloqueada somente nesta execução.'),
+      ).toBeInTheDocument(),
+    );
+    const [, options] = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        input === '/api/search/providers/jsearch/unlock' &&
+        init?.method === 'POST',
+    ) as [string, RequestInit];
+    expect(JSON.parse(options.body as string)).toEqual({
+      vault_password: 'senha local com doze',
+    });
+  });
+
   it('explica quando a busca termina sem vagas e mostra o log dos providers', async () => {
     fetchMock.mockImplementation(
       (input: RequestInfo | URL, init?: RequestInit) => {

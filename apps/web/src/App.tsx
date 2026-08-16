@@ -1752,6 +1752,50 @@ function App() {
     }
   };
 
+  const unlockProviderCredential = async (provider: ProviderKey) => {
+    if (providerVaultPassword.length < 12) {
+      setProviderSettingsError(
+        'Informe a senha do cofre com pelo menos 12 caracteres para desbloquear.',
+      );
+      return;
+    }
+    setIsSavingProvider(true);
+    setProviderSettingsError(null);
+    setProviderSettingsMessage(null);
+    try {
+      const response = await fetch(`/api/search/providers/${provider}/unlock`, {
+        body: JSON.stringify({ vault_password: providerVaultPassword }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+      const payload = (await response.json().catch(() => null)) as
+        ProviderCredentialStatus | { detail?: string } | null;
+      if (!response.ok || !payload || !('provider' in payload)) {
+        throw new Error(
+          payload && 'detail' in payload
+            ? payload.detail
+            : 'Não foi possível desbloquear a credencial.',
+        );
+      }
+      setProviderStatuses((current) => [
+        ...current.filter((item) => item.provider !== payload.provider),
+        payload,
+      ]);
+      setProviderVaultPassword('');
+      setProviderSettingsMessage(
+        `${provider.toUpperCase()} desbloqueada somente nesta execução.`,
+      );
+    } catch (error) {
+      setProviderSettingsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível desbloquear a credencial.',
+      );
+    } finally {
+      setIsSavingProvider(false);
+    }
+  };
+
   const cancelSourceRun = async (run: SearchRun) => {
     try {
       const response = await fetch(`/api/search-runs/${run.id}/cancel`, {
@@ -2203,12 +2247,25 @@ function App() {
                 {providerStatuses.map((status) => (
                   <li key={status.provider}>
                     <span>{status.provider}</span>
-                    <span>
-                      {status.configured
-                        ? status.unlocked
-                          ? 'disponível nesta execução'
-                          : 'bloqueada'
-                        : 'não configurada'}
+                    <span className="provider-status-action">
+                      {status.configured ? (
+                        status.unlocked ? (
+                          'disponível nesta execução'
+                        ) : (
+                          <button
+                            className="text-button text-button-plain"
+                            disabled={isSavingProvider}
+                            onClick={() =>
+                              void unlockProviderCredential(status.provider)
+                            }
+                            type="button"
+                          >
+                            Desbloquear
+                          </button>
+                        )
+                      ) : (
+                        'não configurada'
+                      )}
                     </span>
                   </li>
                 ))}

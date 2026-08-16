@@ -654,8 +654,9 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
     provider, método, URL sem credenciais, status, duração e corpo limitado/sanitizado somente no log.
   - Evidência: `JSearchProvider` canoniza o endpoint e envia `query`, `page`, `num_pages`, `country=br`,
     `language=pt` e `date_posted=all`; `SourceHttpError` protege headers, paths sensíveis e corpos;
-    contagem visual exclui providers `skipped`. O teste real depende do desbloqueio da credencial
-    JSearch já cifrada no banco local.
+    contagem visual exclui providers `skipped`; a interface permite desbloquear uma credencial já
+    cifrada sem recadastrá-la. O teste real depende do desbloqueio da credencial JSearch já cifrada
+    no banco local.
 
 ## E5 — GPT-5.6 Luna
 
@@ -986,7 +987,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 16/08/2026 | JF-320–JF-339 | Concluída | Busca agregada com JSearch/Adzuna/Jooble, fallback legado, normalização, deduplicação, ranking, cache, API única, cartões, cofre de credenciais e link externo implementados; testes focados, Ruff/Mypy e frontend verdes |
 | 16/08/2026 | JF-340 | Concluída | E4.1 validada ponta a ponta com 50 testes API/integração e 92 unitários no Windows; Ruff, Mypy, Vitest, Oxlint, TypeScript, Prettier e build frontend verdes |
 | 16/08/2026 | JF-508 | Concluída | Acessibilidade da busca e telas principais validada com 18 testes Vitest, Oxlint, TypeScript/build e Prettier |
-| 16/08/2026 | JF-341 | Concluída com pendência externa | Endpoint JSearch canonizado, idioma normalizado para `pt`, diagnóstico HTTP seguro, contagem de providers corrigida; 142 testes backend, Ruff, Mypy, Vitest, Oxlint, TypeScript/build e Prettier verdes. Busca real aguarda desbloqueio da credencial cifrada. |
+| 16/08/2026 | JF-341 | Concluída com pendência externa | Endpoint JSearch canonizado, idioma normalizado para `pt`, diagnóstico HTTP seguro, contagem de providers corrigida e desbloqueio no frontend; 142 testes backend, 20 Vitest, Ruff, Mypy, Oxlint, TypeScript/build e Prettier verdes. Busca real aguarda desbloqueio da credencial cifrada. |
 | 15/08/2026 | JF-601 | Concluída | Cofre SQLite cifrado por senha transitória, UI local e migração `0013_ai_secrets`; testes de ausência de plaintext, bloqueio/desbloqueio, API e interface verdes. |
 | 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
 | 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |
