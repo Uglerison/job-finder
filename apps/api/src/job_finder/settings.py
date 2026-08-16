@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     openai_cached_input_price_usd_per_million: Decimal = Decimal("0.02")
     openai_output_price_usd_per_million: Decimal = Decimal("1.20")
     openai_monthly_budget_usd: Decimal | None = None
+    jsearch_api_key: SecretStr | None = Field(default=None, repr=False)
+    adzuna_app_id: SecretStr | None = Field(default=None, repr=False)
+    adzuna_app_key: SecretStr | None = Field(default=None, repr=False)
+    jooble_api_key: SecretStr | None = Field(default=None, repr=False)
+    search_cache_ttl_seconds: int = Field(default=300, ge=0, le=86_400)
+    search_minimum_results: int = Field(default=10, ge=1, le=100)
 
 
 @lru_cache(maxsize=1)

@@ -48,6 +48,35 @@ def test_exact_dedupe_uses_url_and_keeps_multiple_origins(tmp_path: Path) -> Non
         assert len(second.job.origins) == 2
 
 
+def test_long_external_id_is_bounded_without_losing_exact_deduplication(tmp_path: Path) -> None:
+    run_migrations(tmp_path)
+    factory = create_session_factory(create_database_engine(tmp_path))
+    long_external_id = "jsearch-" + ("x" * 400)
+    with factory() as session:
+        first = ingest_candidate(
+            session,
+            _candidate(source="jsearch", external_id=long_external_id),
+        )
+        session.commit()
+        second = ingest_candidate(
+            session,
+            _candidate(
+                source="jsearch",
+                external_id=long_external_id,
+                url="https://another.example/jobs/backend",
+            ),
+        )
+        session.commit()
+
+        assert first.kind == DedupeKind.CREATED
+        assert first.job is not None
+        assert first.job.origins[0].external_id != long_external_id
+        assert len(first.job.origins[0].external_id or "") <= 255
+        assert second.kind == DedupeKind.EXACT
+        assert second.reason == "external_id"
+        assert len(second.job.origins) == 1
+
+
 def test_approximate_dedupe_waits_for_confirmation_then_attaches_origin(tmp_path: Path) -> None:
     run_migrations(tmp_path)
     factory = create_session_factory(create_database_engine(tmp_path))

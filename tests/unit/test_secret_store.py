@@ -60,3 +60,24 @@ def test_database_vault_rejects_a_wrong_password_without_leaking_secrets(tmp_pat
         vault.unlock_openai_api_key("senha errada e longa")
 
     assert secret not in str(error.value)
+
+
+def test_database_vault_supports_provider_credentials_without_plaintext(tmp_path: Path) -> None:
+    vault = create_vault(tmp_path)
+    secret = "jsearch-test-key"
+    password = "senha do cofre com doze"
+
+    assert vault.has_provider_secret("jsearch") is False
+    vault.save_provider_secret("jsearch", secret, password)
+    assert vault.has_provider_secret("jsearch") is True
+    assert vault.get_unlocked_provider_secret("jsearch") == secret
+
+    vault.lock()
+    assert vault.get_unlocked_provider_secret("jsearch") is None
+    vault.unlock_provider_secret("jsearch", password)
+    assert vault.get_unlocked_provider_secret("jsearch") == secret
+
+    database_bytes = (tmp_path / "job-finder.db").read_bytes()
+    assert secret.encode() not in database_bytes
+    vault.delete_provider_secret("jsearch")
+    assert vault.has_provider_secret("jsearch") is False

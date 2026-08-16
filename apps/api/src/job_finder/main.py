@@ -1,5 +1,6 @@
 """FastAPI application entry point for Job Finder."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -9,6 +10,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from job_finder import __version__
+from job_finder.aggregated_search_api import router as aggregated_search_router
 from job_finder.ai_analysis_api import router as ai_analysis_router
 from job_finder.ai_cache import AnalysisPromptCache
 from job_finder.ai_discovery_api import router as ai_discovery_router
@@ -29,9 +31,13 @@ from job_finder.privacy_api import router as privacy_router
 from job_finder.process_events_api import router as process_events_router
 from job_finder.profile_api import router as profile_router
 from job_finder.saved_filters_api import router as saved_filters_router
+from job_finder.scheduled_searches_api import router as scheduled_searches_router
+from job_finder.scheduled_searches_api import run_due_scheduled_searches
 from job_finder.scheduler import PersistentScheduler
 from job_finder.search_runs import SearchTaskRegistry
 from job_finder.secret_store import EncryptedDatabaseVault
+from job_finder.security import LocalSecurityMiddleware
+from job_finder.security import router as security_router
 from job_finder.settings import Settings, get_settings
 from job_finder.source_adapters import SourceRegistry
 from job_finder.sources_api import router as sources_router
@@ -63,14 +69,41 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         with application.state.session_factory() as session:
             application.state.scheduler.recover_interrupted_runs(session)
             session.commit()
+        application.state.scheduled_search_tasks = {}
+        application.state.scheduled_search_worker = asyncio.create_task(
+            _scheduled_search_worker(application)
+        )
         yield
     finally:
         try:
+            worker = getattr(application.state, "scheduled_search_worker", None)
+            if worker is not None:
+                worker.cancel()
+                try:
+                    await worker
+                except asyncio.CancelledError:
+                    pass
+            scheduled_tasks = list(
+                getattr(application.state, "scheduled_search_tasks", {}).values()
+            )
+            for task in scheduled_tasks:
+                task.cancel()
+            if scheduled_tasks:
+                await asyncio.gather(*scheduled_tasks, return_exceptions=True)
             logger.info("Stopping local Job Finder service.")
             if engine is not None:
                 engine.dispose()
         finally:
             close_logging(logger)
+
+
+async def _scheduled_search_worker(application: FastAPI) -> None:
+    """Poll persisted unified schedules while the local process is running."""
+
+    while True:
+        with application.state.session_factory() as session:
+            await run_due_scheduled_searches(application, session)
+        await asyncio.sleep(30)
 
 
 def create_app(
@@ -86,6 +119,7 @@ def create_app(
         lifespan=lifespan,
         openapi_url="/api/openapi.json",
     )
+    application.add_middleware(LocalSecurityMiddleware)
     application.state.settings = settings or get_settings()
     application.state.source_registry = SourceRegistry()
     application.state.search_tasks = SearchTaskRegistry()
@@ -107,7 +141,10 @@ def create_app(
     application.include_router(process_events_router)
     application.include_router(export_router)
     application.include_router(trash_router)
+    application.include_router(security_router)
     application.include_router(sources_router)
+    application.include_router(aggregated_search_router)
+    application.include_router(scheduled_searches_router)
 
     @application.get("/api/health", response_model=HealthResponse)
     def health() -> HealthResponse:

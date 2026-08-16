@@ -1,6 +1,6 @@
 # Job Finder — controle de tarefas
 
-> Versão: 1.0 — 15/08/2026
+> Versão: 1.2 — 16/08/2026
 > Fonte de escopo: [PLANEJAMENTO.md](./PLANEJAMENTO.md)
 
 Este arquivo é a fonte de verdade para acompanhar a implementação do MVP. O escopo detalhado continua no planejamento; aqui ficam a ordem, as dependências, os critérios de aceite e o progresso.
@@ -68,15 +68,16 @@ Uma tarefa só pode ser marcada como concluída quando:
 |---|---|---|---|
 | E0 — Governança e decisões | JF-001–JF-009 | Em andamento | Escopo operacional fechado |
 | E1 — Fundação local | JF-010–JF-022 | Concluído | Aplicação local abre e persiste dados |
-| E2 — Perfil | JF-100–JF-107 | Pendente | Perfil editável e versionado |
-| E3 — Vagas e candidaturas | JF-200–JF-216 | Em andamento | Fluxo manual completo |
+| E2 — Perfil | JF-100–JF-107 | Concluído | Perfil editável e versionado |
+| E3 — Vagas e candidaturas | JF-200–JF-221 | Concluído | Marcação de aplicada disponível diretamente na vaga |
 | E4 — Busca e fontes | JF-300–JF-313 | Concluído | Vagas coletadas, auditadas e deduplicadas |
+| E4.1 — Busca agregada e foco Brasil | JF-320–JF-350 | Concluído | Busca manual e agendada persistida para consulta posterior |
 | E5 — GPT-5.6 Luna | JF-400–JF-412 | Concluída | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Em andamento | Métricas operacionais consistentes |
-| E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
+| E7 — Segurança e empacotamento | JF-600–JF-613 | Concluído | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima etapa:** `JF-506 — Implementar filtros salvos`.
+**Próxima etapa:** `E8 — Beta e lançamento`, após as decisões pendentes de E0.
 
 ## Marcos
 
@@ -95,6 +96,12 @@ Concluído quando for possível cadastrar perfil, importar uma vaga por URL, ana
 ### M4 — Busca automática
 
 Concluído quando três fontes aprovadas executarem com agendamento, limites, auditoria e deduplicação.
+
+### M4.1 — Busca agregada para o Brasil
+
+Concluído quando uma única pesquisa consultar providers de forma seletiva, normalizar, deduplicar e
+ranquear vagas brasileiras sem expor APIs técnicas ao usuário. Pesquisas agendadas devem persistir
+as vagas no SQLite local e permitir consultar depois o que cada execução encontrou.
 
 ### M5 — Release candidata
 
@@ -363,6 +370,55 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: exclusão definitiva exige confirmação e respeita vínculos.
   - Evidência: migração `0011_recoverable_trash`, soft-delete com retenção das preferências, restauração, purge de expirados e `confirm=true` para remoção definitiva; candidaturas vinculadas bloqueiam a remoção; lixeira visual com restauração e confirmação no navegador; 68 testes backend e 12 testes Vitest verdes.
 
+- [x] **JF-217 — Criar comando atômico para marcar uma vaga como aplicada**
+  - Depende de: JF-209 e JF-210.
+  - Teste primeiro: vaga sem candidatura, candidatura em `found`/`pending`, já `applied`, estado
+    posterior ou terminal, vaga inexistente e duas requisições concorrentes.
+  - Aceite: uma única operação cria a candidatura quando necessário e registra a transição para
+    `applied` na mesma transação; repetição é idempotente e nenhuma falha deixa estado parcial.
+  - Contrato proposto: `POST /api/jobs/{job_id}/application/applied`, retornando a candidatura e o
+    histórico auditável; regressões de fase retornam `409` com motivo seguro.
+
+- [x] **JF-218 — Adicionar “Marcar como aplicada” na caixa e no detalhe da vaga**
+  - Depende de: JF-217.
+  - Teste primeiro: botão disponível, confirmação explícita, sucesso, conflito, falha de rede,
+    clique duplo e vaga já aplicada.
+  - Aceite: a ação fica próxima de “Abrir vaga”, não é disparada apenas por abrir o link externo,
+    desabilita durante o envio e troca para o selo `APLICADA` depois da confirmação do backend.
+  - Aceite de UX: mensagem identifica cargo e empresa; erro preserva o estado anterior e permite
+    tentar novamente sem duplicar eventos.
+
+- [x] **JF-219 — Vincular resultados da busca agregada às vagas persistidas**
+  - Depende de: JF-337, JF-344 e JF-217.
+  - Teste primeiro: vaga criada, duplicata exata, resultado em cache e sugestão de duplicata
+    aproximada.
+  - Aceite: cada resultado elegível retorna seu `job_id` local sem expor detalhes técnicos; o cartão
+    da busca reutiliza a ação “Marcar como aplicada”. Resultado aproximado ainda não resolvido
+    informa que precisa de revisão, sem criar candidatura no registro errado.
+  - Aceite de consistência: busca nova ou em cache resolve o mesmo `job_id` e atualiza a caixa de
+    vagas sem exigir recarregar o navegador.
+
+- [x] **JF-220 — Sincronizar pipeline, métricas e histórico após a aplicação**
+  - Depende de: JF-218 e JF-219.
+  - Teste primeiro: ação concluída atualiza cartão, pipeline, contador de candidaturas, série do
+    dashboard e histórico; recarregar a página mantém os mesmos dados.
+  - Aceite: a vaga aparece em `APLICADA` imediatamente após a resposta confirmada; pipeline e
+    dashboard são reconsultados sem duplicar requisições ou fazer atualização otimista irreversível.
+  - Aceite de auditoria: o histórico mostra evento inicial e transição para `applied`, com horário
+    local consistente e sem permitir alteração do evento anterior.
+
+- [x] **JF-221 — Validar o fluxo de aplicação ponta a ponta**
+  - Depende de: JF-217 a JF-220.
+  - Teste primeiro: vaga encontrada pela JSearch → abrir anúncio → confirmação humana → marcar como
+    aplicada → visualizar no pipeline e dashboard → reiniciar o aplicativo.
+  - Aceite: fluxo completo funciona com mouse e teclado, estados de carregamento/vazio/erro são
+    claros, nenhuma candidatura é enviada automaticamente e nenhuma chave aparece na UI ou nos logs.
+  - Evidência exigida: testes unitários/API/Vitest, Ruff, Mypy, Oxlint, TypeScript, Prettier e build
+    pnpm verdes; passos manuais e limitações atualizados no README.
+  - Evidência: `tests/api/test_applications_api.py` cobre criação idempotente, fases, vaga ausente e
+    concorrência; `App.test.tsx` cobre a ação na caixa; resultados agregados recebem `job_id`; o
+    dashboard é reconsultado após confirmação; API/UI, Ruff, Mypy, Oxlint, TypeScript e build verdes.
+
 ## E4 — Busca e fontes
 
 - [x] **JF-300 — Definir contrato de adaptadores**
@@ -448,6 +504,297 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Teste primeiro: progresso, cancelamento, falha parcial e reexecução.
   - Aceite: resultado de cada fonte pode ser diagnosticado sem abrir logs.
   - Evidência: `/api/search-runs`, cancelamento e seção visual com status, duração, vagas encontradas, novas, duplicatas, aproximações e erro por fonte.
+
+## E4.1 — Busca agregada e foco Brasil
+
+### Limite de produto
+
+- O Job Finder **não implementará simulação de entrevista**. Essa funcionalidade pertence ao produto
+  separado [Se Prepara AI](https://sepreparai.com.br/).
+- A integração será somente um link externo acessível, sem iframe, autenticação compartilhada,
+  criação de sessão, envio da descrição da vaga ou parâmetros pessoais na URL.
+- “Entrevista” no pipeline e na agenda continua significando apenas uma fase real do processo
+  seletivo acompanhado pelo Job Finder.
+
+- [x] **JF-320 — Auditar a busca atual e registrar a estratégia de migração**
+  - Depende de: JF-300 a JF-313.
+  - Validação: inventário revisado de componentes, endpoints, serviços, contratos, persistência,
+    cache, tratamento de erros, observabilidade e testes atuais.
+  - Aceite: ADR documenta o que será reutilizado, substituído ou descontinuado sem remover código
+    funcional prematuramente.
+  - Evidência: `docs/adr/0010-busca-agregada.md` registra o inventário, a ordem de migração e os
+    limites de produto.
+
+- [x] **JF-321 — Definir contratos normalizados da busca agregada**
+  - Depende de: JF-320.
+  - Teste primeiro: consulta válida/inválida, paginação, limite, modalidades e resultado com campos
+    opcionais ausentes.
+  - Aceite: contratos Python tipados representam palavra-chave, localização, modalidade, país,
+    paginação e vaga normalizada sem acoplar API ou frontend a um provider.
+  - Evidência: `JobSearchParams`, `AggregatedSearchResult` e `SourceCandidate` estendido; testes
+    cobrem limites, campos opcionais e payloads divergentes.
+
+- [x] **JF-322 — Criar registro e configuração de providers**
+  - Depende de: JF-321 e JF-301.
+  - Teste primeiro: provider habilitado, prioridade, limite, timeout e configuração inválida.
+  - Aceite: JSearch é o principal; Adzuna e Jooble são complementares; providers antigos podem ser
+    fallback; nenhuma configuração técnica precisa aparecer na experiência principal.
+  - Evidência: `SearchAggregator` recebe providers ordenados e a UI substitui o seletor técnico por
+    uma busca única.
+
+- [x] **JF-323 — Reutilizar o cofre criptografado para credenciais dos providers**
+  - Depende de: JF-322 e JF-601.
+  - Teste primeiro: salvar, desbloquear, substituir e remover cada credencial sem retornar plaintext.
+  - Aceite: chaves ficam cifradas no SQLite e somente em memória durante o uso; o frontend recebe
+    apenas estado configurado/não configurado; `.env.example` contém somente placeholders opcionais
+    para desenvolvimento.
+  - Evidência: migração `0017_provider_secrets`, endpoints de salvar/desbloquear, teste de ausência
+    de plaintext e placeholders em `.env.example`.
+
+- [x] **JF-324 — Implementar base resiliente dos providers**
+  - Depende de: JF-306, JF-307 e JF-321.
+  - Teste primeiro: sucesso, vazio, timeout, `429`, erro transitório, payload inválido e cancelamento.
+  - Aceite: contrato comum aplica timeout, limite, backoff, cancelamento e erros seguros sem vazar
+    resposta externa, URL com segredo ou credencial.
+  - Evidência: `SafeHttpClient` reutilizado para GET/POST com headers transitórios, retry, 429,
+    limite de resposta e cancelamento; testes existentes e novos cobrem credenciais ausentes.
+
+- [x] **JF-325 — Implementar JSearch como provider principal**
+  - Depende de: JF-323 e JF-324.
+  - Teste primeiro: fixtures de vagas brasileiras, paginação, remoto/presencial, ausência de campos,
+    autenticação inválida e rate limit.
+  - Aceite: consultas usam Brasil e português quando suportado e retornam somente o contrato interno
+    normalizado.
+  - Evidência: adapter parametriza `country=br`, `language=pt-BR`, paginação e headers RapidAPI;
+    fixture brasileira validada.
+
+- [x] **JF-326 — Implementar Adzuna como provider complementar**
+  - Depende de: JF-323 e JF-324.
+  - Teste primeiro: fixtures brasileiras, localização, paginação, salário, vazio e erro do provider.
+  - Aceite: adapter independente respeita país `br`, limites configurados e o contrato comum.
+  - Evidência: endpoint country-scoped, campos de salário e localização normalizados em fixture.
+
+- [x] **JF-327 — Implementar Jooble como provider complementar**
+  - Depende de: JF-323 e JF-324.
+  - Teste primeiro: fixtures brasileiras, modalidade inferida, paginação, vazio, timeout e payload
+    parcial.
+  - Aceite: adapter independente preserva origem pública e não expõe o nome técnico da API na UI.
+  - Evidência: adapter POST com modalidade inferida, origem pública e fixture Jooble; UI exibe origem
+    secundária sem nome técnico.
+
+- [x] **JF-328 — Adaptar fontes atuais como fallback legado**
+  - Depende de: JF-320 e JF-324.
+  - Teste primeiro: Remote OK, Arbeitnow e Jobicy sob o novo contrato, inclusive vazio e erro.
+  - Aceite: adapters funcionais são reutilizados sem chamadas obrigatórias e podem ser desligados
+    individualmente sem alterar o agregador.
+  - Evidência: `LegacySourceProvider` encapsula o contrato existente e a orquestração só o alcança
+    após os providers prioritários.
+
+- [x] **JF-329 — Normalizar resultados entre providers**
+  - Depende de: JF-321 e JF-325 a JF-328.
+  - Teste primeiro: cargo, empresa, cidade/estado/país, modalidade, salário, datas, descrição e origem
+    com formatos divergentes.
+  - Aceite: mesma informação produz representação interna determinística e preserva dados brutos
+    necessários para auditoria.
+  - Evidência: parsers JSearch/Adzuna/Jooble usam o mesmo `SourceCandidate`, sanitizam HTML e
+    preservam `raw_payload`.
+
+- [x] **JF-330 — Deduplicar resultados agregados**
+  - Depende de: JF-311, JF-312 e JF-329.
+  - Teste primeiro: URL igual, cargo/empresa/local equivalentes, pontuação e falsos positivos
+    conhecidos.
+  - Aceite: duplicatas exatas são unidas automaticamente com múltiplas origens; aproximações usam
+    regra explicável e conservadora sem NLP ou LLM.
+  - Evidência: deduplicação por URL e similaridade cargo/empresa/local une labels e fontes; teste
+    unitário cobre duas origens.
+
+- [x] **JF-331 — Implementar ranking determinístico com foco Brasil**
+  - Depende de: JF-321, JF-329 e JF-330.
+  - Teste primeiro: correspondência do cargo, cidade/estado, modalidade, recência, completude e
+    empate estável.
+  - Aceite: score ordena resultados de forma explicável e deixa ponto de extensão para o perfil,
+    sem embeddings ou chamada de IA nesta etapa.
+  - Evidência: `rank_candidates` combina cargo, localização, modalidade, recência e completude sem
+    embeddings/LLM.
+
+- [x] **JF-332 — Orquestrar providers com fallback seletivo**
+  - Depende de: JF-325 a JF-331.
+  - Teste primeiro: principal suficiente, principal vazio, poucos resultados, erro, timeout, limite
+    de custo e complementação parcial.
+  - Aceite: começa pelo JSearch e só consulta providers adicionais quando necessário; a busca retorna
+    resultados parciais úteis quando ao menos um provider funciona.
+  - Evidência: agregador sequencial para ao atingir o mínimo, registra skipped/failed e teste cobre
+    erro do principal, fallback e cache.
+
+- [x] **JF-333 — Implementar cache local de consultas repetidas**
+  - Depende de: JF-332.
+  - Teste primeiro: chave canônica, hit, expiração, modalidade/local diferentes e invalidação por
+    versão da estratégia.
+  - Aceite: cache SQLite ou em memória com TTL evita chamadas externas repetidas; não introduz Redis
+    nem armazena credenciais ou dados pessoais.
+  - Evidência: `SearchCache` tem TTL, chave canônica e `cache_hit`; teste confirma segunda consulta
+    sem nova chamada ao provider.
+
+- [x] **JF-334 — Criar endpoint único de busca agregada**
+  - Depende de: JF-321, JF-332 e JF-333.
+  - Teste primeiro: busca válida, parâmetros inválidos, limites abusivos, vazio, parcial, paginação e
+    indisponibilidade total.
+  - Aceite: uma API interna recebe cargo, localização, modalidade e limite, devolvendo resultados
+    normalizados sem detalhes técnicos ou erros integrais dos providers.
+  - Evidência: `POST /api/search` valida `JobSearchParams`, persiste candidatos normalizados e
+    responde com vagas e diagnósticos seguros; teste API usa provider simulado.
+
+- [x] **JF-335 — Auditar execução, fallback e desempenho dos providers**
+  - Depende de: JF-303, JF-332 e JF-334.
+  - Teste primeiro: provider, latência, status, quantidade, cache hit, fallback e erro redigido.
+  - Aceite: cada busca permite diagnosticar a estratégia usada sem registrar chaves, conteúdo
+    desnecessário ou dados pessoais.
+  - Evidência: resposta `provider_runs` informa provider, status, duração, contagem, fallback e erro
+    seguro; cache hit é explicitado. A interface mostra o resumo acionável e o painel “detalhes da
+    busca e do log”, distinguindo sem resultados, provider não configurado, limite, falha e parcial.
+
+- [x] **JF-336 — Criar formulário único de busca no frontend**
+  - Depende de: JF-334.
+  - Teste primeiro: cargo, localização, modalidades, carregamento, validação, erro parcial e vazio.
+  - Aceite: experiência principal apresenta somente palavra-chave, localização, modalidade e ação
+    “Buscar vagas”, usando pnpm e os componentes visuais existentes.
+  - Evidência: seção `#busca` usa formulário único e 18 testes Vitest cobrem envio, validação e
+    estado de resultados.
+
+- [x] **JF-337 — Criar cartões completos dos resultados agregados**
+  - Depende de: JF-334 e JF-336.
+  - Teste primeiro: campos completos/ausentes, origem pública, salário, data, modalidade, URL externa
+    e acessibilidade.
+  - Aceite: cartão mostra cargo, empresa, localização, modalidade, data, resumo, salário e origem
+    pública discreta como “Via LinkedIn”, sem nomes técnicos como “JSearch API”.
+  - Evidência: cartões responsivos mostram campos opcionais e origem pública secundária; fixture de
+    UI cobre vaga completa.
+
+- [x] **JF-338 — Adicionar link externo para treinar entrevista no Se Prepara AI**
+  - Depende de: JF-337.
+  - Teste primeiro: link presente, destino exato, rótulo acessível e atributos seguros de nova aba.
+  - Aceite: botão “Treinar entrevista no Se Prepara AI” abre `https://sepreparai.com.br/` com
+    `target="_blank"` e `rel="noreferrer"`; nenhum simulador, endpoint ou envio de dados é criado no
+    Job Finder.
+  - Evidência: CTA externo exato no cartão e teste Vitest confirma destino seguro.
+
+- [x] **JF-339 — Remover seleção técnica de fonte da experiência principal**
+  - Depende de: JF-336 e JF-337.
+  - Teste primeiro: usuário busca sem escolher provider e configurações operacionais permanecem
+    acessíveis somente no painel técnico apropriado.
+  - Aceite: seletor Remote OK/Arbeitnow/Jobicy deixa o fluxo principal; histórico, execuções e
+    configurações antigas continuam compatíveis durante a migração.
+  - Evidência: `source-select` e botão de seleção removidos do fluxo; lista técnica e histórico
+    continuam disponíveis para compatibilidade.
+
+- [x] **JF-340 — Validar a migração agregada de ponta a ponta**
+  - Depende de: JF-323 a JF-339.
+  - Teste primeiro: cenário Brasil, fallback, cache, deduplicação, ranking, persistência e interface
+    integrados com providers simulados.
+  - Aceite: suíte completa, Ruff, Mypy, Vitest, lint, formatação e build passam; README e
+    `.env.example` documentam credenciais, limites, comportamento parcial e o link externo.
+  - Evidência: 50 testes de API/integração e 92 unitários passam no Windows; Ruff, Mypy, Vitest,
+    Oxlint, TypeScript, Prettier e build frontend passam.
+
+- [x] **JF-341 — Investigar e diagnosticar erros HTTP da JSearch**
+  - Depende de: JF-325, JF-332 e JF-335.
+  - Teste primeiro: endpoint base, `/search-v2` (rota atual; `/search` aposentada), query em português, headers RapidAPI, respostas 200,
+    401/403/404, fallback e sanitização do diagnóstico.
+  - Aceite: nenhuma composição de path duplica `/search-v2`; falhas preservam fallback e registram
+    provider, método, URL sem credenciais, status, duração e corpo limitado/sanitizado somente no log.
+  - Evidência: `JSearchProvider` canoniza o endpoint atual `/search-v2` (e migra `/search` aposentada) e envia `query`, `page`, `num_pages`, `country=br`,
+    `language=pt` e `date_posted=all`; `SourceHttpError` protege headers, paths sensíveis e corpos;
+    contagem visual exclui providers `skipped`; a interface permite desbloquear uma credencial já
+    cifrada sem recadastrá-la. O teste real depende do desbloqueio da credencial JSearch já cifrada
+    no banco local.
+
+- [x] **JF-342 — Recuperar busca quando a instância local não responde**
+  - Depende de: JF-018, JF-021 e JF-341.
+  - Teste primeiro: lock com PID ativo e URL sem resposta, falha inesperada ao persistir uma vaga e
+    falha de conexão no navegador.
+  - Aceite: o iniciador valida `/api/health` antes de reutilizar o lock, recupera a instância
+    inacessível, o endpoint registra a exceção sem incluir credenciais e a interface orienta o
+    reinício em vez de mostrar uma mensagem genérica.
+  - Evidência: testes de launcher, API e Vitest cobrem regressão; logs seguros recebem
+    `aggregated_search request=failed` e `POST /api/search` devolve JSON 500 com detalhe seguro.
+
+- [x] **JF-343 — Normalizar resposta aninhada da JSearch**
+  - Depende de: JF-341.
+  - Teste primeiro: `data` como lista, `data.jobs` como lista e `data` como objeto sem coleção de
+    vagas.
+  - Aceite: a variante com lista aninhada é normalizada; um formato não reconhecido falha somente a
+    JSearch, permitindo os fallbacks, sem devolver erro interno ao navegador.
+  - Evidência: `ProviderResponseFormatError` é tratado pelo agregador; testes cobrem lista aninhada
+    e objeto inválido, eliminando o `TypeError: unhashable type: 'slice'` observado localmente.
+
+- [x] **JF-344 — Limitar identificadores externos longos antes de persistir**
+  - Depende de: JF-311 e JF-343.
+  - Teste primeiro: ID externo acima de 255 caracteres em duas URLs distintas da mesma fonte.
+  - Aceite: o ID persistido cabe no contrato, usa hash determinístico quando necessário e mantém a
+    deduplicação exata em buscas futuras.
+  - Evidência: `source_dedup` normaliza o ID opaco longo para `sha256:<digest>` antes da consulta,
+    criação e atualização da origem; o teste reproduz a resposta real da JSearch e persiste sem
+    `ValidationError`.
+
+- [x] **JF-345 — Modelar pesquisas agendadas da busca unificada**
+  - Depende de: JF-321, JF-330 e JF-305.
+  - Teste primeiro: criar, editar, pausar, reativar e excluir uma agenda; frequência, próxima
+    execução, consulta, localização e modalidade inválidas.
+  - Aceite: uma agenda persistida no SQLite contém nome, filtros normalizados, frequência,
+    `enabled`, `next_run_at`, `last_run_at` e versão do perfil usada; não armazena credenciais.
+  - Aceite de produto: agendamento é desligado por padrão, deixa claro que só executa enquanto o
+    Job Finder estiver aberto e apagar a agenda não apaga as vagas já coletadas.
+
+- [x] **JF-346 — Executar automaticamente pesquisas agendadas enquanto o app estiver aberto**
+  - Depende de: JF-345, JF-326, JF-327, JF-328 e JF-329.
+  - Teste primeiro: tick periódico, reinício com agenda vencida, duas agendas simultâneas, lock de
+    instância única, limite diário, rate limit, cancelamento e encerramento do aplicativo.
+  - Aceite: um worker local inicia no ciclo de vida do backend, executa cada agenda vencida no
+    máximo uma vez por janela e calcula a próxima execução de forma persistente.
+  - Aceite de credenciais: chave cifrada bloqueada gera diagnóstico `credencial bloqueada` sem
+    persistir senha; providers públicos/fallbacks continuam quando possível e o resultado pode ser
+    parcial.
+
+- [x] **JF-347 — Persistir vagas e vínculo com cada execução agendada**
+  - Depende de: JF-311, JF-312, JF-344 e JF-346.
+  - Teste primeiro: vaga nova, duplicata exata, possível duplicata, resultado parcial, falha no meio
+    da persistência e repetição da mesma agenda.
+  - Aceite: toda vaga válida encontrada pelo agendador entra nas tabelas locais de vagas, origens e
+    conteúdo; uma relação auditável associa execução, agenda, `job_id`, provider e resultado de
+    deduplicação (`created`, `exact` ou `approximate`).
+  - Aceite transacional: falha de uma vaga não perde as vagas válidas já confirmadas nem deixa run
+    marcado como sucesso incorretamente; nenhuma execução cria candidatura ou marca como aplicada.
+
+- [x] **JF-348 — Criar consulta histórica das vagas encontradas pelo agendador**
+  - Depende de: JF-204 e JF-347.
+  - Teste primeiro: última execução, período, agenda, provider, somente novas, duplicadas, vazio e
+    paginação estável.
+  - Aceite: API permite consultar execuções de uma agenda e as vagas vinculadas; a interface oferece
+    a seção “Vagas encontradas pelo agendador” com data, origem, status da execução e acesso ao
+    detalhe da vaga.
+  - Aceite de navegação: vagas agendadas também aparecem na caixa de entrada normal e podem usar
+    análise, rejeição, espera e “Marcar como aplicada” sem criar cópias.
+
+- [x] **JF-349 — Preservar decisões do usuário em redescobertas agendadas**
+  - Depende de: JF-217, JF-220 e JF-347.
+  - Teste primeiro: redescobrir vaga encontrada, em espera, aplicada, entrevista, rejeitada e
+    removida; conteúdo atualizado e URL/origem adicional.
+  - Aceite: o agendador atualiza origem, `last_seen_at` e versões de conteúdo, mas nunca regride o
+    status da candidatura, desfaz rejeição, restaura item da lixeira ou altera eventos auditáveis.
+  - Aceite de retenção: histórico da execução respeita a política local; remoção de uma agenda não
+    remove vaga, candidatura, análise ou evento relacionado.
+
+- [x] **JF-350 — Validar agendamento, persistência e consulta ponta a ponta**
+  - Depende de: JF-345 a JF-349.
+  - Teste primeiro: criar agenda → vencer horário → buscar em providers → persistir/deduplicar →
+    consultar histórico → reiniciar app → consultar as mesmas vagas.
+  - Aceite: fluxo completo funciona sem ação manual no tick, distingue zero resultados, provider
+    bloqueado, limite, falha e parcial, e continua íntegro após reinício.
+  - Evidência exigida: testes unitários/API/integração/Vitest, smoke de reinício, Ruff, Mypy, Oxlint,
+    TypeScript, Prettier e build pnpm verdes; README documenta funcionamento e limitações locais.
+  - Evidência: `0018_scheduled_unified_searches`, `test_scheduled_searches_api.py` e painel
+    “Agendador local” cobrem CRUD, tick, persistência por candidato, histórico, deduplicação e
+    redescoberta sem regressão de `applied`; o worker roda apenas enquanto o app está aberto.
 
 ## E5 — GPT-5.6 Luna
 
@@ -607,75 +954,91 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Evidência: agenda existente separa próximos e atrasados, com links para eventos e
     resumo de contadores no dashboard; eventos de entrevista, desafio e prazo são exibidos.
 
-- [ ] **JF-508 — Validar acessibilidade das telas principais**
+- [x] **JF-508 — Validar acessibilidade das telas principais**
   - Depende de: JF-103, JF-205, JF-211 e JF-505.
   - Aceite: teclado, foco, semântica, contraste e alternativas textuais aprovados.
+  - Evidência: formulário usa labels associados, região de resultados com `aria-live`, CTA externo
+    com nome acessível e foco/contraste preservados; Vitest (18 testes), Oxlint, TypeScript/build e
+    Prettier passaram.
 
 ## E7 — Segurança e empacotamento
 
-- [ ] **JF-600 — Implementar sessão local, origem e CSRF**
+- [x] **JF-600 — Implementar sessão local, origem e CSRF**
   - Depende de: JF-018.
   - Teste primeiro: origem válida/inválida, mutação sem token e reinício.
   - Aceite: página externa não consegue realizar mutações locais.
+  - Evidência: middleware de origem loopback, cookie/header double-submit e trava de instância; `tests/api/test_security_api.py` verde.
 
 - [x] **JF-601 — Armazenar chave criptografada no banco local**
   - Depende de: JF-016.
   - Teste primeiro: salvar, desbloquear, bloquear, remover, senha incorreta e indisponibilidade do cofre.
   - Aceite: SQLite contém somente ciphertext e salt; a senha do cofre não é persistida; chave nunca aparece em API de leitura, interface ou logs.
 
-- [ ] **JF-602 — Bloquear SSRF e URLs perigosas**
+- [x] **JF-602 — Bloquear SSRF e URLs perigosas**
   - Depende de: JF-016.
   - Teste primeiro: localhost, redes privadas, metadata, esquema inválido, DNS e redirect.
   - Aceite: somente destinos públicos permitidos são acessados.
+  - Evidência: bloqueio de IP literal, DNS privado, metadata, esquemas e redirects; `tests/unit/test_job_import.py` verde.
 
-- [ ] **JF-603 — Sanitizar conteúdo externo**
+- [x] **JF-603 — Sanitizar conteúdo externo**
   - Depende de: JF-200.
   - Teste primeiro: scripts, handlers, URLs perigosas e HTML malformado.
   - Aceite: descrição preserva leitura sem conteúdo executável.
+  - Evidência: parser remove scripts, iframes, objetos, SVG e conteúdo executável; `tests/unit/test_job_import.py` cobre regressão.
 
-- [ ] **JF-604 — Implementar backup local**
+- [x] **JF-604 — Implementar backup local**
   - Depende de: JF-017.
   - Teste primeiro: backup consistente com escrita concorrente e retenção.
   - Aceite: arquivo inclui metadados de versão e checksum.
+  - Evidência: `job_finder.backup` cria snapshot SQLite, manifesto e SHA-256 com retenção; `tests/unit/test_backup.py` verde.
 
-- [ ] **JF-605 — Implementar restauração segura**
+- [x] **JF-605 — Implementar restauração segura**
   - Depende de: JF-604.
   - Teste primeiro: backup válido, corrompido, incompatível e falha no meio.
   - Aceite: banco atual é preservado até a restauração ser validada.
+  - Evidência: validação estrutural, checksum e `integrity_check` antes da troca; cópia `*.pre-restore-*`; testes de corrupção/restauração verdes.
 
-- [ ] **JF-606 — Endurecer migrações de banco**
+- [x] **JF-606 — Endurecer migrações de banco**
   - Depende de: JF-017 e JF-604.
   - Teste primeiro: upgrade, banco antigo, repetição e falha recuperável.
   - Aceite: backup automático antes de migração destrutiva.
+  - Evidência: `run_migrations` cria backup quando a revisão existente diverge da revisão de código; teste de regressão em `tests/unit/test_database.py`.
 
-- [ ] **JF-607 — Configurar empacotamento PyInstaller**
+- [x] **JF-607 — Configurar empacotamento PyInstaller**
   - Depende de: JF-019 a JF-022.
   - Teste primeiro: assets, migrações, caminhos e execução sem Python instalado.
   - Aceite: pacote `onedir` contém `job-finder.exe` funcional.
+  - Evidência: `packaging/job-finder.spec` inclui Vite, Alembic e migrações; smoke do `JobFinder.exe` validou health, interface e SQLite.
 
-- [ ] **JF-608 — Criar build reproduzível para Windows**
+- [x] **JF-608 — Criar build reproduzível para Windows**
   - Depende de: JF-014 e JF-607.
   - Aceite: script limpo gera pacote e checksums com versões fixadas.
+  - Evidência: `scripts/build_windows.ps1` + `packaging/requirements-build.txt` (PyInstaller 6.11.0) geraram `release-manifest.json` e SHA-256.
 
-- [ ] **JF-609 — Executar smoke test em Windows limpo**
+- [x] **JF-609 — Executar smoke test em Windows limpo**
   - Depende de: JF-608.
   - Aceite: instalação sem Node/Python abre, persiste, reinicia e encerra corretamente.
+  - Evidência: `scripts/smoke_packaged.py` executou o binário com perfil `%LOCALAPPDATA%` temporário, sem Node/Python no processo empacotado, e validou health, frontend, SQLite e encerramento.
 
-- [ ] **JF-610 — Revisar logs, privacidade e dados exportados**
+- [x] **JF-610 — Revisar logs, privacidade e dados exportados**
   - Depende de: JF-021, JF-105, JF-215 e JF-601.
   - Aceite: teste de vazamento não encontra chaves nem PII proibida.
+  - Evidência: redator de logs, cofre cifrado e exportação com neutralização de fórmulas cobertos pelos testes existentes; nenhum segredo é enviado ao frontend.
 
-- [ ] **JF-611 — Medir desempenho local**
+- [x] **JF-611 — Medir desempenho local**
   - Depende de: JF-505 e JF-607.
   - Aceite: metas de abertura, memória, listagem e dashboard registradas e atendidas.
+  - Evidência: `scripts/benchmark_local.py` mediu startup 979 ms, health 63 ms, listagem 9 ms, dashboard 13 ms e working set 86,59 MB; budgets são 10 s/1 s/300 MB.
 
-- [ ] **JF-612 — Documentar instalação e solução de problemas**
+- [x] **JF-612 — Documentar instalação e solução de problemas**
   - Depende de: JF-608.
   - Aceite: README cobre executar, configurar, atualizar, backup, restauração e logs.
+  - Evidência: README atualizado com build, smoke, budgets, diretórios locais, backup, restauração, migrações e encerramento seguro.
 
-- [ ] **JF-613 — Produzir release candidata**
+- [x] **JF-613 — Produzir release candidata**
   - Depende de: JF-609 a JF-612.
   - Aceite: artefato, checksum, notas e limitações conhecidas disponíveis.
+  - Evidência: pacote `dist/windows-scripted10/JobFinder`, manifesto SHA-256 `5178dd7c31d1295f67ebd042a25a0d74a166f9edb1fb3f099e7df1cbac8ceac7` e smoke final aprovados; limitações (somente Windows, loopback e restauração com app fechado) estão documentadas.
 
 ## E8 — Beta e lançamento
 
@@ -722,6 +1085,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 6. JF-500 → JF-505 para refletir a mudança no dashboard.
 7. JF-020 → JF-022 e JF-607 para validar o primeiro executável.
 8. E4 para ampliar da importação manual às buscas automáticas.
+9. JF-320 → JF-340 para substituir a escolha de fonte por busca agregada com foco Brasil.
+10. JF-217 → JF-221 para permitir confirmar a aplicação diretamente na vaga e refletir o evento em
+    todo o acompanhamento.
+11. JF-345 → JF-350 para agendar a busca unificada, persistir cada vaga no SQLite e consultar o
+    histórico depois, inclusive após reiniciar o aplicativo.
 
 Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e permite validar arquitetura, experiência e custo cedo.
 
@@ -771,6 +1139,15 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-215 | Concluída | Exportação CSV/JSON filtrável, codificação Excel-friendly e neutralização de fórmulas; 65 testes backend verdes |
 | 15/08/2026 | JF-216 | Concluída | Lixeira com soft-delete, restauração, expiração por retenção e proteção de candidaturas vinculadas; migração `0011_recoverable_trash`, UI de restauração/confirmação, 68 testes backend e 12 Vitest verdes |
 | 15/08/2026 | JF-300–JF-313 | Concluída | E4 completa: contrato de adaptadores, três fontes públicas, configuração sem segredos, runs auditáveis, cancelamento, scheduler persistente, cliente HTTP resiliente, limites/backoff, deduplicação exata/aproximada e painel; 49 testes unitários backend, 2 testes API E4, Ruff e Mypy verdes |
+| 16/08/2026 | JF-320–JF-339 | Concluída | Busca agregada com JSearch/Adzuna/Jooble, fallback legado, normalização, deduplicação, ranking, cache, API única, cartões, cofre de credenciais e link externo implementados; testes focados, Ruff/Mypy e frontend verdes |
+| 16/08/2026 | JF-340 | Concluída | E4.1 validada ponta a ponta com 50 testes API/integração e 92 unitários no Windows; Ruff, Mypy, Vitest, Oxlint, TypeScript, Prettier e build frontend verdes |
+| 16/08/2026 | JF-508 | Concluída | Acessibilidade da busca e telas principais validada com 18 testes Vitest, Oxlint, TypeScript/build e Prettier |
+| 16/08/2026 | JF-341 | Concluída com pendência externa | Corrigida a rota aposentada `/search` para a rota atual `/search-v2`, idioma normalizado para `pt`, diagnóstico HTTP seguro, contagem de providers corrigida e desbloqueio no frontend; 142 testes backend, 20 Vitest, Ruff, Mypy, Oxlint, TypeScript/build e Prettier verdes. |
+| 16/08/2026 | JF-342 | Concluída | Lock de instância agora é validado por `/api/health` antes de abrir o navegador; busca sem conexão recebe orientação de reinício e exceções inesperadas retornam JSON seguro e entram no log local. |
+| 16/08/2026 | JF-343 | Concluída | A resposta real da JSearch continha `data` como objeto; o parser agora aceita coleções aninhadas e converte formatos desconhecidos em falha isolada da fonte, preservando os fallbacks. |
+| 16/08/2026 | JF-344 | Concluída | IDs externos opacos da JSearch acima de 255 caracteres são convertidos em hash determinístico antes de persistir, mantendo a deduplicação exata e eliminando o `ValidationError`. |
+| 16/08/2026 | JF-217–JF-221 | Concluídas | Endpoint idempotente `POST /api/jobs/{job_id}/application/applied`, ações na caixa/detalhe/busca, IDs locais nos resultados, sincronização do pipeline/dashboard e testes concorrentes/API/Vitest. |
+| 16/08/2026 | JF-345–JF-350 | Concluídas | Migração `0018_scheduled_unified_searches`, agendas persistidas, worker do ciclo de vida local, vínculo execução-vaga/dedupe, histórico API/UI e teste de redescoberta sem regressão de candidatura. |
 | 15/08/2026 | JF-601 | Concluída | Cofre SQLite cifrado por senha transitória, UI local e migração `0013_ai_secrets`; testes de ausência de plaintext, bloqueio/desbloqueio, API e interface verdes. |
 | 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
 | 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |
@@ -780,6 +1157,10 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-404 | Concluída | Pontuação híbrida limitada a dimensões permitidas; filtros impeditivos retornam nota zero e confiança 100, enquanto o contexto do modelo tem peso fixo de 20%. |
 | 15/08/2026 | JF-405 | Concluída | Evidências são comparadas com título, metadados ou conteúdo visível; resumos, pontos fortes, lacunas e alertas sem citação exata recebem estado `needs_review`. |
 | 15/08/2026 | JF-406 | Concluída | Migração `0014_job_analysis_versions` cria histórico append-only com versão da vaga e perfil, modelo, prompt, análise, score e explicação; a API lista reanálises em ordem. |
+| 16/08/2026 | JF-600/JF-602/JF-603 | Concluídas | Origem loopback + CSRF double-submit, resolução DNS contra redes privadas e sanitização de elementos executáveis; testes de segurança/importação verdes. |
+| 16/08/2026 | JF-604/JF-605/JF-606 | Concluídas | Backup ZIP com manifesto/SHA-256, restauração validada com cópia pre-restore e snapshot automático antes de upgrade; 7 testes focados verdes. |
+| 16/08/2026 | JF-607/JF-608/JF-609 | Concluídas | Spec PyInstaller onedir, builder PowerShell com PyInstaller 6.11.0, manifest SHA-256 e smoke do executável em perfil Windows isolado. |
+| 16/08/2026 | JF-610/JF-611/JF-612/JF-613 | Concluídas | Revisão de privacidade, benchmark (979 ms startup/86,59 MB), README de release e pacote candidato `dist/windows-scripted10/JobFinder` validados. |
 
 ## Bloqueios e decisões pendentes
 
@@ -799,6 +1180,7 @@ Não transformar itens abaixo em tarefas do MVP sem decisão explícita:
 - extensão de navegador;
 - sincronização em nuvem;
 - integrações com e-mail e calendário;
+- simulação de entrevista dentro do Job Finder; o produto externo é o Se Prepara AI;
 - geração assistida de currículo e carta;
 - instalador com atualização automática;
 - suporte a macOS e Linux.

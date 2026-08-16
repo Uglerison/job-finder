@@ -16,6 +16,7 @@ from job_finder.applications import (
     get_application,
     get_application_events,
     get_application_for_job,
+    mark_application_applied,
 )
 from job_finder.pipeline import (
     InvalidClosureReasonError,
@@ -80,6 +81,52 @@ def create_job_application(job_id: int, session: SessionDependency) -> Applicati
     except IntegrityError as error:
         session.rollback()
         raise HTTPException(status_code=409, detail="A candidatura já existe.") from error
+    session.refresh(application)
+    return _application_response(session, application)
+
+
+@router.post(
+    "/jobs/{job_id}/application/applied",
+    response_model=ApplicationResponse,
+)
+def mark_job_applied(job_id: int, session: SessionDependency) -> ApplicationResponse:
+    """Create or advance a candidacy to ``applied`` in one transaction.
+
+    This shortcut is idempotent for an already-applied candidacy and refuses
+    to regress an application that has reached a later pipeline phase.
+    """
+
+    try:
+        application = mark_application_applied(session, job_id)
+        session.commit()
+    except ValueError as error:
+        session.rollback()
+        message = str(error)
+        if "does not exist" in message:
+            raise HTTPException(status_code=404, detail="Vaga não encontrada.") from error
+        if "already advanced" in message:
+            status = message.removeprefix("Application already advanced to ").removesuffix(".")
+            raise HTTPException(
+                status_code=409,
+                detail=f"A candidatura já avançou para a fase {status}.",
+            ) from error
+        raise HTTPException(status_code=409, detail=message) from error
+    except IntegrityError as error:
+        session.rollback()
+        existing = get_application_for_job(session, job_id)
+        if existing is not None:
+            try:
+                application = mark_application_applied(session, job_id)
+                session.commit()
+                session.refresh(application)
+                return _application_response(session, application)
+            except ValueError:
+                session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="A candidatura já existe; tente novamente.",
+        ) from error
+
     session.refresh(application)
     return _application_response(session, application)
 

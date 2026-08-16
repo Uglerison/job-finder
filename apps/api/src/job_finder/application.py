@@ -2,17 +2,23 @@
 
 import json
 import os
+import time
 import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.error import URLError
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 from job_finder.launcher import LOOPBACK_HOST, LocalServer, find_available_port
 from job_finder.main import create_app
 from job_finder.settings import Settings
 
 INSTANCE_LOCK_FILENAME = "job-finder.instance.json"
+HEALTH_CHECK_ATTEMPTS = 3
+HEALTH_CHECK_DELAY_SECONDS = 0.1
+HEALTH_CHECK_TIMEOUT_SECONDS = 0.25
 BrowserOpener = Callable[[str], object]
 
 
@@ -109,6 +115,18 @@ class InstanceLock:
         self._descriptor = None
         self.path.unlink(missing_ok=True)
 
+    def reclaim_unresponsive_instance(self, expected_url: str) -> bool:
+        """Remove a lock only when it still identifies the failed loopback URL."""
+
+        record = self._read_record()
+        if record is None or record.get("url") != expected_url:
+            return False
+        try:
+            self.path.unlink()
+        except (FileNotFoundError, PermissionError):
+            return False
+        return True
+
     def _is_stale(self) -> bool:
         """Determine whether a valid lock record belongs to a process that has ended."""
 
@@ -175,6 +193,29 @@ def _process_is_running(process_id: int) -> bool:
     return True
 
 
+def _is_local_service_healthy(url: str) -> bool:
+    """Check the local health endpoint without trusting a PID or lock file alone."""
+
+    try:
+        with urlopen(f"{url}/api/health", timeout=HEALTH_CHECK_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read())
+    except (OSError, URLError, ValueError, json.JSONDecodeError):
+        return False
+
+    return response.status == 200 and isinstance(payload, dict) and payload.get("status") == "ok"
+
+
+def _wait_for_local_service(url: str) -> bool:
+    """Give a concurrently starting service a short chance to become healthy."""
+
+    for attempt in range(HEALTH_CHECK_ATTEMPTS):
+        if _is_local_service_healthy(url):
+            return True
+        if attempt < HEALTH_CHECK_ATTEMPTS - 1:
+            time.sleep(HEALTH_CHECK_DELAY_SECONDS)
+    return False
+
+
 @dataclass
 class ApplicationLauncher:
     """Start the local app once, otherwise bring its current browser tab forward."""
@@ -206,9 +247,15 @@ class ApplicationLauncher:
             existing_url = instance_lock.existing_url
             if existing_url is None:
                 raise RuntimeError("Another Job Finder instance is starting. Try again shortly.")
-
-            self.browser_opener(existing_url)
-            return LaunchResult(url=existing_url, reused_existing_instance=True)
+            if _wait_for_local_service(existing_url):
+                self.browser_opener(existing_url)
+                return LaunchResult(url=existing_url, reused_existing_instance=True)
+            if not instance_lock.reclaim_unresponsive_instance(existing_url):
+                raise RuntimeError(
+                    "The existing Job Finder instance is not responding. Close it and try again."
+                )
+            if not instance_lock.acquire(url):
+                raise RuntimeError("Another Job Finder instance is starting. Try again shortly.")
 
         server = LocalServer(create_app(self.settings), port=port)
         try:

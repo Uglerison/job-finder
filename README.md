@@ -49,18 +49,58 @@ pnpm --filter job-finder-web build
 .\.venv\Scripts\python.exe scripts\smoke_test.py
 ```
 
+## Release Windows (E7)
+
+O pacote de distribuição é uma pasta `JobFinder` criada pelo PyInstaller. O
+builder é fixado em `packaging/requirements-build.txt`; em uma máquina Windows
+limpa, instale as dependências e execute:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pip install -r packaging\requirements-build.txt
+.\scripts\build_windows.ps1
+.\.venv\Scripts\python.exe scripts\smoke_packaged.py dist\windows\JobFinder\JobFinder.exe
+```
+
+Para repetir os budgets locais de abertura, listagem e painel:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\benchmark_local.py
+```
+
+O script compila o frontend com pnpm, inclui as migrações e o `alembic.ini`,
+gera `release-manifest.json` com SHA-256 e não copia `.env` nem o banco local.
+O executável escuta somente em `127.0.0.1`; dados, logs e backups ficam em
+`%LOCALAPPDATA%\JobFinder`.
+
+### Backup e restauração local
+
+Backups são snapshots consistentes do SQLite, com manifesto, checksum SHA-256,
+verificação `PRAGMA integrity_check` e retenção dos cinco arquivos mais novos:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\backup.py create
+.\.venv\Scripts\python.exe scripts\backup.py validate <caminho-do-zip>
+.\.venv\Scripts\python.exe scripts\backup.py restore <caminho-do-zip>
+```
+
+Antes de uma migração de banco existente, o backend cria automaticamente um
+backup quando a revisão instalada está atrás da revisão do código. A
+restauração preserva o arquivo atual como `job-finder.db.pre-restore-*`; feche
+o Job Finder antes de restaurar para liberar conexões SQLite no Windows.
+
 ## Busca e fontes (E4)
 
-A área **Fontes e execuções** na interface lista três conectores públicos
-iniciais — Remote OK, Arbeitnow e Jobicy — sem credenciais. O agendamento fica
-desligado por padrão; a busca manual pode ser iniciada escolhendo cargo,
-localização e fonte.
+A área **Busca unificada** consulta providers em sequência sem pedir que o
+usuário escolha uma API. Remote OK, Arbeitnow e Jobicy continuam listados no
+painel técnico como fallback legado, sem credenciais; o agendamento fica
+desligado por padrão.
 
 Os contratos HTTP locais principais são:
 
 - `GET /api/sources` e `PUT /api/sources/{source_key}` para configuração e limites;
 - `POST /api/sources/{source_key}/test` para testar uma fonte sem persistir vagas;
-- `POST /api/search-runs` para iniciar uma execução (`wait=true` é útil em testes);
+- `POST /api/search-runs` para execuções legadas auditáveis (`wait=true` é útil em testes);
 - `GET /api/search-runs` e `POST /api/search-runs/{id}/cancel` para acompanhar/cancelar;
 - `GET /api/duplicates` e `POST /api/duplicates/{id}/confirm|dismiss` para revisão;
 - `POST /api/scheduler/tick` para disparar fontes agendadas já vencidas.
@@ -68,6 +108,28 @@ Os contratos HTTP locais principais são:
 Cada execução registra duração, contadores, cursor, falhas e cancelamento. A
 deduplicação exata usa URL canônica, identidade externa e hash de conteúdo; uma
 semelhança de cargo/empresa/local fica pendente até confirmação explícita.
+
+### Agendas da busca unificada
+
+Na seção **Agendador local**, salve uma consulta, localização, modalidade e
+frequência. A agenda nasce pausada; ao ativá-la, o worker do backend executa
+somente enquanto o Job Finder estiver aberto. Cada execução e cada vaga ficam
+persistidas no SQLite, inclusive o resultado da deduplicação, e podem ser
+consultados depois em:
+
+- `POST|GET /api/scheduled-searches` para criar/listar agendas;
+- `PUT|DELETE /api/scheduled-searches/{id}` para editar, pausar ou remover uma agenda;
+- `POST /api/scheduled-searches/tick` para disparar manualmente as agendas vencidas;
+- `GET /api/scheduled-searches/{id}/runs` e `/jobs` para consultar histórico e vagas encontradas.
+
+Remover uma agenda não remove vagas, candidaturas, análises ou eventos já
+coletados. Redescobertas atualizam origens e versões do conteúdo, sem rebaixar
+uma candidatura de `applied`, entrevista ou resultado terminal.
+
+Para registrar uma confirmação humana de envio, use o botão **Marcar como
+aplicada** na caixa, no detalhe ou no cartão de busca. O backend cria a
+candidatura e o evento inicial/transição em uma única transação; repetição é
+idempotente e não envia candidatura automaticamente a nenhum site.
 
 ## Chave OpenAI local
 
@@ -130,6 +192,37 @@ como `fallback`, sem inventar fatos. Na interface, use as caixas de seleção da
 caixa de entrada para confirmar e reanalisar somente as vagas escolhidas.
 
 ## Dashboard E6
+
+### Busca unificada E4.1
+
+`POST /api/search` recebe `query`, `location`, `work_model`, `page` e `limit` e
+retorna vagas normalizadas em uma única resposta. O backend tenta JSearch,
+Adzuna e Jooble de forma sequencial, acionando fontes legadas somente quando
+faltam resultados. Falhas individuais são resumidas em `provider_runs` sem
+expor chaves ou respostas brutas. A interface não solicita uma fonte técnica;
+cada cartão mantém apenas a origem pública disponível e oferece o link externo
+para [Se Prepara AI](https://sepreparai.com.br/) para treino de entrevista.
+Na JSearch via RapidAPI, a rota atual é `/search-v2`; a rota aposentada `/search`
+é migrada automaticamente pelo adaptador.
+
+Quando não há vagas, a resposta também informa o motivo: filtros sem
+correspondência, provider ainda não configurado, limite de consultas, falha de
+conexão ou resultado parcial. Abra **Ver detalhes da busca e do log** para ver
+o status, quantidade e duração de cada provider, sem expor credenciais.
+
+As credenciais podem ser definidas como variáveis `JOB_FINDER_*` ou salvas no
+SQLite criptografado por senha local através de `/api/search/providers`. A
+senha nunca é persistida. Depois de reiniciar o app, desbloqueie cada provider
+com `POST /api/search/providers/{provider}/unlock` ou pelo botão **Desbloquear**
+que aparece ao lado de um provider bloqueado na seção de credenciais. A busca
+continua sem expor a chave no navegador.
+
+Se o navegador informar que não conseguiu conectar ao serviço local, feche a
+aba antiga e execute novamente o comando de inicialização. O iniciador valida
+`/api/health` antes de reutilizar uma instância registrada e recupera um lock
+que aponta para um servidor interrompido. Falhas internas inesperadas da busca
+são registradas em `%LOCALAPPDATA%\\JobFinder\\logs\\job-finder.log` e voltam à
+interface com uma mensagem segura.
 
 O painel local consulta `GET /api/dashboard/summary`, aceitando `from`, `to`,
 `timezone` e `source_key`. Ele exibe cartões, funil com denominadores, séries

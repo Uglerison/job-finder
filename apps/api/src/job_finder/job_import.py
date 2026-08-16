@@ -1,6 +1,7 @@
 """Safe, testable URL fetching and text extraction for job listings."""
 
 import ipaddress
+import socket
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
@@ -57,7 +58,38 @@ def validate_public_url(value: str) -> str:
     ):
         raise ValueError("destino de rede privada bloqueado")
 
+    _reject_private_dns_answers(hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
+
     return normalized
+
+
+def _reject_private_dns_answers(hostname: str, port: int) -> None:
+    """Reject hostnames that currently resolve to loopback/private addresses."""
+
+    try:
+        answers = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        # Resolution may be intentionally deferred to an injected HTTP client
+        # in tests or to a provider that is temporarily offline.
+        return
+    for answer in answers:
+        address = answer[4][0]
+        if not isinstance(address, str):
+            continue
+        address = address.split("%", maxsplit=1)[0]
+        try:
+            resolved = ipaddress.ip_address(address)
+        except ValueError:
+            continue
+        if (
+            resolved.is_private
+            or resolved.is_loopback
+            or resolved.is_link_local
+            or resolved.is_reserved
+            or resolved.is_multicast
+            or resolved.is_unspecified
+        ):
+            raise ValueError("destino de rede privada bloqueado")
 
 
 async def fetch_public_document(url: str) -> FetchedDocument:
@@ -130,7 +162,16 @@ def extract_document_fields(document: FetchedDocument) -> tuple[str, str, str]:
 class _DocumentParser(HTMLParser):
     """Small dependency-free parser used for both metadata and safe text."""
 
-    _SKIPPED_TAGS = {"script", "style", "noscript", "template"}
+    _SKIPPED_TAGS = {
+        "embed",
+        "iframe",
+        "object",
+        "script",
+        "style",
+        "svg",
+        "template",
+        "noscript",
+    }
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
