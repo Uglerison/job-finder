@@ -9,9 +9,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from job_finder.database import Base
 
-ALLOWED_FILTER_KEYS = frozenset(
-    {"q", "status", "source_key", "order", "from", "to", "timezone"}
-)
+ALLOWED_FILTER_KEYS = frozenset({"q", "status", "source_key", "order", "from", "to", "timezone"})
 
 
 class SavedFilterData(BaseModel):

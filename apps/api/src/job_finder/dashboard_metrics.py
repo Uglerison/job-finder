@@ -131,8 +131,7 @@ def _cards(
         "hired": sum(status == "hired" for status in statuses),
         "rejected": sum(status == "rejected" for status in statuses),
         "active_pipeline": sum(
-            status not in {"rejected", "withdrawn", "expired", "hired"}
-            for status in statuses
+            status not in {"rejected", "withdrawn", "expired", "hired"} for status in statuses
         ),
     }
 
