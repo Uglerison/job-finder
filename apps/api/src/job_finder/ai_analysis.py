@@ -44,18 +44,18 @@ class JobExtraction(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    title: ShortAnalysisText | None = None
-    company: ShortAnalysisText | None = None
-    location: ShortAnalysisText | None = None
-    work_model: WorkModel = "unspecified"
-    contract_type: ContractType = "unspecified"
-    seniority: Seniority = "unspecified"
-    salary_currency: CurrencyCode | None = None
-    salary_minimum_monthly: int | None = Field(default=None, ge=1, le=10_000_000)
-    salary_maximum_monthly: int | None = Field(default=None, ge=1, le=10_000_000)
-    required_skills: list[ShortAnalysisText] = Field(default_factory=list, max_length=50)
-    responsibilities: list[AnalysisText] = Field(default_factory=list, max_length=50)
-    benefits: list[AnalysisText] = Field(default_factory=list, max_length=50)
+    title: ShortAnalysisText | None
+    company: ShortAnalysisText | None
+    location: ShortAnalysisText | None
+    work_model: WorkModel
+    contract_type: ContractType
+    seniority: Seniority
+    salary_currency: CurrencyCode | None
+    salary_minimum_monthly: int | None = Field(ge=1, le=10_000_000)
+    salary_maximum_monthly: int | None = Field(ge=1, le=10_000_000)
+    required_skills: list[ShortAnalysisText] = Field(max_length=50)
+    responsibilities: list[AnalysisText] = Field(max_length=50)
+    benefits: list[AnalysisText] = Field(max_length=50)
 
     @model_validator(mode="after")
     def salary_range_must_be_consistent(self) -> "JobExtraction":
@@ -76,10 +76,10 @@ class JobFitAssessment(BaseModel):
     score: int = Field(ge=0, le=100)
     confidence: int = Field(ge=0, le=100)
     summary: AnalysisText
-    strengths: list[AnalysisText] = Field(default_factory=list, max_length=20)
-    gaps: list[AnalysisText] = Field(default_factory=list, max_length=20)
-    warnings: list[AnalysisText] = Field(default_factory=list, max_length=20)
-    evidence: list[AnalysisEvidence] = Field(default_factory=list, max_length=30)
+    strengths: list[AnalysisText] = Field(max_length=20)
+    gaps: list[AnalysisText] = Field(max_length=20)
+    warnings: list[AnalysisText] = Field(max_length=20)
+    evidence: list[AnalysisEvidence] = Field(max_length=30)
 
 
 class StructuredJobAnalysis(BaseModel):

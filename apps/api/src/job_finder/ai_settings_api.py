@@ -10,6 +10,7 @@ from job_finder.openai_client import (
     OpenAiAuthenticationError,
     OpenAiClientError,
     OpenAiResponsesClient,
+    OpenAiStructuredClient,
     OpenAiTextClient,
     OpenAiTimeoutError,
     OpenAiUnavailableError,
@@ -145,8 +146,22 @@ def get_openai_client(request: Request) -> OpenAiTextClient:
     return client
 
 
+def get_openai_structured_client(request: Request) -> OpenAiStructuredClient:
+    """Return the same backend-only client through its structured-response contract."""
+
+    client = getattr(request.app.state, "openai_client", None)
+    if client is None:
+        client = OpenAiResponsesClient()
+        request.app.state.openai_client = client
+    return client
+
+
 AiSettingsDependency = Annotated[OpenAiCredentialSettings, Depends(get_ai_settings)]
 OpenAiClientDependency = Annotated[OpenAiTextClient, Depends(get_openai_client)]
+OpenAiStructuredClientDependency = Annotated[
+    OpenAiStructuredClient,
+    Depends(get_openai_structured_client),
+]
 
 
 def translate_vault_error(error: SecretStoreError) -> HTTPException:

@@ -72,14 +72,27 @@ semelhança de cargo/empresa/local fica pendente até confirmação explícita.
 ## Chave OpenAI local
 
 O modelo preparado é `gpt-5.6-luna`. A configuração local não inicia análises
-automaticamente: ela apenas deixa a futura triagem pronta para ser ativada. A
-senha do cofre e a chave nunca são devolvidas pela API, mostradas novamente na
+automaticamente: a análise é sempre uma ação explícita sobre uma vaga. A senha
+do cofre e a chave nunca são devolvidas pela API, mostradas novamente na
 interface ou gravadas nos logs.
 
 O botão **Testar conexão** faz uma chamada mínima e sem dados de perfil ou
 vagas pelo backend local. O cliente usa a [Responses API](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.6),
 `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; o navegador nunca
 chama a OpenAI diretamente.
+
+Com o perfil salvo e o cofre desbloqueado, a API local também permite analisar
+uma vaga individualmente:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:<porta-exibida>/api/jobs/1/analysis `
+  -ContentType 'application/json' -Body '{"mode":"batch"}'
+```
+
+Ela envia somente o perfil e o anúncio após a redação de dados pessoais
+detectáveis, pede JSON estrito à Responses API e valida cargo, requisitos,
+local, regime, salário e evidências antes de responder. O resultado ainda é
+transitório; o histórico imutável de análises será introduzido na JF-406.
 
 ## Qualidade de código
 

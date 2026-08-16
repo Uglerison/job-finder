@@ -71,12 +71,12 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E2 — Perfil | JF-100–JF-107 | Pendente | Perfil editável e versionado |
 | E3 — Vagas e candidaturas | JF-200–JF-216 | Em andamento | Fluxo manual completo |
 | E4 — Busca e fontes | JF-300–JF-313 | Concluído | Vagas coletadas, auditadas e deduplicadas |
-| E5 — GPT-5.6 Luna | JF-400–JF-412 | Pendente | Análise explicável e controlada |
+| E5 — GPT-5.6 Luna | JF-400–JF-412 | Em andamento | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Pendente | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `E5 — integração controlada do gpt-5.6-luna`.
+**Próxima tarefa pronta:** `JF-404 — pontuação híbrida de aderência`.
 
 ## Marcos
 
@@ -466,10 +466,14 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Teste primeiro: renderização determinística, perfil redigido e versão registrada.
   - Aceite: `low` padrão e `medium` somente para análise detalhada solicitada.
 
-- [ ] **JF-403 — Implementar extração estruturada de vaga**
+- [x] **JF-403 — Implementar extração estruturada de vaga**
   - Depende de: JF-402 e JF-009.
   - Teste primeiro: conjunto de fixtures e respostas simuladas com campos ausentes.
   - Aceite: cargo, requisitos, local, regime, salário e evidências extraídos.
+  - Evidência: `POST /api/jobs/{id}/analysis` analisa explicitamente a versão mais recente
+    da vaga, com JSON Schema estrito, perfil e anúncio redigidos, `low` por padrão e
+    validação Pydantic antes de retornar o resultado transitório. Coberto por testes
+    unitários e de API; JF-009 permanece pendente de rotulagem humana.
 
 - [ ] **JF-404 — Implementar pontuação híbrida de aderência**
   - Depende de: JF-106, JF-401 e JF-403.
@@ -727,6 +731,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |
 | 15/08/2026 | JF-401 | Concluída | Contratos Pydantic para extração, aderência, score, confiança e evidências; validações cobrem campos ausentes, faixas inválidas, evidência inválida e salário inconsistente. |
 | 15/08/2026 | JF-402 | Concluída | Prompt `2026-08-15.1` é determinístico, redige PII detectável do perfil e define `low` para lote e `medium` para revisão detalhada. |
+| 15/08/2026 | JF-403 | Concluída com exceção explícita | Rota de análise por vaga usa Structured Outputs estrito, redige perfil e anúncio, seleciona o conteúdo mais recente e devolve campos/evidências validados; JF-009 continua pendente de seleção e rótulos humanos. |
 
 ## Bloqueios e decisões pendentes
 

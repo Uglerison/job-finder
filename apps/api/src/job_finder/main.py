@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from job_finder import __version__
+from job_finder.ai_analysis_api import router as ai_analysis_router
 from job_finder.ai_settings_api import router as ai_settings_router
 from job_finder.applications_api import router as applications_router
 from job_finder.database import create_database_engine, create_session_factory, run_migrations
@@ -86,6 +87,7 @@ def create_app(
     application.state.openai_client = OpenAiResponsesClient()
     application.include_router(profile_router)
     application.include_router(ai_settings_router)
+    application.include_router(ai_analysis_router)
     application.include_router(preferences_router)
     application.include_router(filters_router)
     application.include_router(privacy_router)

@@ -192,7 +192,7 @@ As métricas deverão deixar clara a definição do denominador e desconsiderar 
 | ORM e migrações | SQLAlchemy + Alembic | Modelo explícito e evolução segura do banco |
 | Coleta HTTP | HTTPX + parser HTML | Requisições assíncronas e adaptadores testáveis |
 | Agendamento | APScheduler | Tarefas locais recorrentes e persistíveis |
-| IA | SDK oficial OpenAI + Responses API | Uso de `gpt-5.6-luna`, ferramentas e saída estruturada |
+| IA | Responses API oficial via backend HTTPX | Uso de `gpt-5.6-luna`, saída estruturada e chave isolada do navegador |
 | Empacotamento | PyInstaller, formato `onedir` | Mais previsível para assets e bibliotecas nativas |
 | Testes | Pytest + Vitest + Playwright | Cobertura unitária, integração e ponta a ponta |
 

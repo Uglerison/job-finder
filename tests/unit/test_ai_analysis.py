@@ -61,6 +61,15 @@ def test_structured_job_analysis_rejects_missing_or_out_of_range_fields() -> Non
     with pytest.raises(ValidationError, match="less than or equal to 100"):
         StructuredJobAnalysis.model_validate(invalid_score)
 
+    missing_extraction_field = valid_analysis_payload()
+    missing_extraction_field["extraction"] = {
+        key: value
+        for key, value in missing_extraction_field["extraction"].items()
+        if key != "salary_currency"
+    }
+    with pytest.raises(ValidationError, match="salary_currency"):
+        StructuredJobAnalysis.model_validate(missing_extraction_field)
+
 
 def test_structured_job_analysis_rejects_invalid_evidence_and_inconsistent_salary() -> None:
     invalid_evidence = valid_analysis_payload()

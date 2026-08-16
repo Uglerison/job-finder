@@ -8,6 +8,7 @@ from pydantic import SecretStr
 
 DEFAULT_OPENAI_MODEL: Literal["gpt-5.6-luna"] = "gpt-5.6-luna"
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
+OpenAiReasoningEffort = Literal["low", "medium"]
 
 
 class OpenAiClientError(RuntimeError):
@@ -46,6 +47,22 @@ class OpenAiTextClient(Protocol):
         """Create one low-reasoning, non-persisted text response."""
 
 
+class OpenAiStructuredClient(Protocol):
+    """Contract for a strict structured response, used by job analysis only."""
+
+    def create_structured_response(
+        self,
+        api_key: SecretStr,
+        *,
+        instructions: str,
+        input_text: str,
+        schema_name: str,
+        schema: dict[str, object],
+        reasoning_effort: OpenAiReasoningEffort,
+    ) -> OpenAiTextResponse:
+        """Create one non-persisted response constrained by a JSON Schema."""
+
+
 class OpenAiResponsesClient:
     """Use the Responses API through the backend with a per-call in-memory key."""
 
@@ -61,6 +78,54 @@ class OpenAiResponsesClient:
     def create_text_response(self, api_key: SecretStr, input_text: str) -> OpenAiTextResponse:
         """Call GPT-5.6 Luna without storing response state at the provider."""
 
+        return self._create_response(
+            api_key,
+            {
+                "input": input_text,
+                "model": DEFAULT_OPENAI_MODEL,
+                "reasoning": {"effort": "low"},
+                "store": False,
+            },
+        )
+
+    def create_structured_response(
+        self,
+        api_key: SecretStr,
+        *,
+        instructions: str,
+        input_text: str,
+        schema_name: str,
+        schema: dict[str, object],
+        reasoning_effort: OpenAiReasoningEffort,
+    ) -> OpenAiTextResponse:
+        """Request a strictly schema-shaped analysis without provider-side storage."""
+
+        return self._create_response(
+            api_key,
+            {
+                "input": input_text,
+                "instructions": instructions,
+                "model": DEFAULT_OPENAI_MODEL,
+                "reasoning": {"effort": reasoning_effort},
+                "store": False,
+                "text": {
+                    "format": {
+                        "type": "json_schema",
+                        "name": schema_name,
+                        "strict": True,
+                        "schema": schema,
+                    }
+                },
+            },
+        )
+
+    def _create_response(
+        self,
+        api_key: SecretStr,
+        payload: dict[str, Any],
+    ) -> OpenAiTextResponse:
+        """Execute one bounded Responses API request and normalize its text output."""
+
         try:
             with httpx.Client(
                 timeout=httpx.Timeout(self._timeout_seconds),
@@ -69,12 +134,7 @@ class OpenAiResponsesClient:
                 response = client.post(
                     OPENAI_RESPONSES_URL,
                     headers={"Authorization": f"Bearer {api_key.get_secret_value()}"},
-                    json={
-                        "input": input_text,
-                        "model": DEFAULT_OPENAI_MODEL,
-                        "reasoning": {"effort": "low"},
-                        "store": False,
-                    },
+                    json=payload,
                 )
         except httpx.TimeoutException as error:
             raise OpenAiTimeoutError("A OpenAI demorou para responder. Tente novamente.") from error

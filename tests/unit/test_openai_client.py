@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 import httpx
 import pytest
@@ -83,3 +84,57 @@ def test_responses_client_maps_auth_timeout_and_service_errors_without_leaking_k
 
     for error in (auth_error.value, timeout_error.value, unavailable_error.value):
         assert secret not in str(error)
+
+
+def test_responses_client_sends_a_strict_json_schema_without_storing_the_response() -> None:
+    secret = "sk-test-only-12345678901234567890"
+    received: dict[str, Any] = {}
+    schema = {
+        "type": "object",
+        "properties": {"title": {"type": "string"}},
+        "required": ["title"],
+        "additionalProperties": False,
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        received["payload"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp_structured_123",
+                "model": DEFAULT_OPENAI_MODEL,
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [{"type": "output_text", "text": '{"title":"Data Analyst"}'}],
+                    }
+                ],
+            },
+        )
+
+    client = OpenAiResponsesClient(transport=httpx.MockTransport(handler))
+    result = client.create_structured_response(
+        SecretStr(secret),
+        instructions="Extraia uma vaga.",
+        input_text="Vaga não confiável: Data Analyst.",
+        schema_name="job_analysis",
+        schema=schema,
+        reasoning_effort="medium",
+    )
+
+    assert result.response_id == "resp_structured_123"
+    assert received["payload"] == {
+        "input": "Vaga não confiável: Data Analyst.",
+        "instructions": "Extraia uma vaga.",
+        "model": DEFAULT_OPENAI_MODEL,
+        "reasoning": {"effort": "medium"},
+        "store": False,
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "job_analysis",
+                "strict": True,
+                "schema": schema,
+            }
+        },
+    }
