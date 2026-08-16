@@ -141,6 +141,11 @@ expor chaves ou respostas brutas. A interface não solicita uma fonte técnica;
 cada cartão mantém apenas a origem pública disponível e oferece o link externo
 para [Se Prepara AI](https://sepreparai.com.br/) para treino de entrevista.
 
+Quando não há vagas, a resposta também informa o motivo: filtros sem
+correspondência, provider ainda não configurado, limite de consultas, falha de
+conexão ou resultado parcial. Abra **Ver detalhes da busca e do log** para ver
+o status, quantidade e duração de cada provider, sem expor credenciais.
+
 As credenciais podem ser definidas como variáveis `JOB_FINDER_*` ou salvas no
 SQLite criptografado por senha local através de `/api/search/providers`. A
 senha nunca é persistida. Depois de reiniciar o app, desbloqueie cada provider

@@ -19,6 +19,7 @@ from job_finder.aggregated_search import (
     LegacySourceProvider,
     SearchAggregator,
     SearchCache,
+    SearchOutcome,
 )
 from job_finder.secret_store import EncryptedDatabaseVault, SecretStoreError
 from job_finder.settings import Settings
@@ -59,6 +60,8 @@ class AggregatedSearchResponse(BaseModel):
     partial: bool
     warnings: list[str]
     cache_hit: bool
+    outcome: SearchOutcome
+    message: str
 
 
 class ProviderCredentialStatus(BaseModel):
@@ -260,6 +263,8 @@ def _response(result: AggregatedSearchResult) -> AggregatedSearchResponse:
         partial=result.partial,
         warnings=list(result.warnings),
         cache_hit=result.cache_hit,
+        outcome=result.outcome,
+        message=result.message,
     )
 
 

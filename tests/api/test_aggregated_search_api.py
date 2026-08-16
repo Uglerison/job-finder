@@ -57,6 +57,8 @@ async def test_unified_search_returns_normalized_jobs_without_provider_names(app
     assert payload["jobs"][0]["title"] == "Analista de Dados"
     assert payload["jobs"][0]["source"] == "Portal parceiro"
     assert payload["provider_runs"][0]["display_name"] == "Fonte pública"
+    assert payload["outcome"] == "results"
+    assert payload["message"] == "Encontramos 1 vaga para estes filtros."
 
 
 @pytest.mark.anyio
@@ -67,6 +69,28 @@ async def test_provider_status_never_returns_secret_material(application) -> Non
 
     assert response.status_code == 200
     assert all("api_key" not in item and "secret" not in item for item in response.json())
+
+
+@pytest.mark.anyio
+async def test_unified_search_explains_when_no_provider_returns_a_job(application) -> None:
+    class EmptyProvider:
+        provider_key = "empty"
+        display_name = "Fonte vazia"
+
+        async def search(self, params, cancellation=None):
+            return SourceSearchResult(())
+
+    application.state.aggregated_providers = [EmptyProvider()]
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/api/search",
+            json={"query": "Cargo inexistente", "limit": 5},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["outcome"] == "no_results"
+    assert response.json()["message"] == "Nenhuma vaga encontrada para estes filtros."
 
 
 @pytest.mark.anyio

@@ -250,6 +250,81 @@
   padding-bottom: 1.5rem;
 }
 
+.aggregated-search-summary {
+  align-items: baseline;
+  border-left: 3px solid var(--success);
+  display: flex;
+  gap: 0.8rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding: 0.8rem 1rem;
+}
+
+.aggregated-search-summary strong {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.aggregated-search-summary > span {
+  color: var(--ink-soft);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.65rem;
+  white-space: nowrap;
+}
+
+.aggregated-search-summary.is-not_configured,
+.aggregated-search-summary.is-failed,
+.aggregated-search-summary.is-rate_limited {
+  border-left-color: #8a3024;
+}
+
+.aggregated-search-summary.is-partial {
+  border-left-color: var(--accent);
+}
+
+.aggregated-diagnostics {
+  border-top: 1px solid var(--ink-faint);
+  color: var(--ink-soft);
+  margin-top: 1.25rem;
+  padding-top: 0.8rem;
+}
+
+.aggregated-diagnostics summary {
+  color: var(--ink);
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.aggregated-diagnostics ul {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.aggregated-diagnostics li {
+  align-items: baseline;
+  border-bottom: 1px solid var(--ink-faint);
+  display: flex;
+  font-size: 0.72rem;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.55rem 0;
+}
+
+.aggregated-diagnostics li span:last-child {
+  text-align: right;
+}
+
+.aggregated-diagnostics p {
+  color: #8a3024;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  margin: 0.75rem 0 0;
+}
+
 .aggregated-job-list {
   display: grid;
   gap: 0.75rem;
@@ -496,6 +571,18 @@
   .aggregated-job-actions {
     align-items: flex-start;
     text-align: left;
+  }
+
+  .aggregated-search-summary,
+  .aggregated-diagnostics li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .aggregated-search-summary > span,
+  .aggregated-diagnostics li span:last-child {
+    text-align: left;
+    white-space: normal;
   }
 }
 

@@ -189,6 +189,14 @@ type AggregatedJob = {
 type AggregatedSearchResponse = {
   cache_hit: boolean;
   jobs: AggregatedJob[];
+  message: string;
+  outcome:
+    | 'results'
+    | 'no_results'
+    | 'partial'
+    | 'not_configured'
+    | 'rate_limited'
+    | 'failed';
   partial: boolean;
   provider_runs: {
     candidates: number;
@@ -328,6 +336,17 @@ function sourceRunStatusLabel(status: SearchRun['status']): string {
     partial: 'PARCIAL',
     failed: 'FALHOU',
     cancelled: 'CANCELADA',
+  }[status];
+}
+
+function providerRunStatusLabel(
+  status: AggregatedSearchResponse['provider_runs'][number]['status'],
+): string {
+  return {
+    empty: 'sem resultados',
+    failed: 'falhou',
+    skipped: 'não configurado',
+    success: 'respondeu',
   }[status];
 }
 
@@ -1959,6 +1978,17 @@ function App() {
               className="aggregated-results"
               role="region"
             >
+              <div
+                className={`aggregated-search-summary is-${aggregatedResults.outcome}`}
+              >
+                <strong>{aggregatedResults.message}</strong>
+                <span>
+                  {aggregatedResults.provider_runs.length}{' '}
+                  {aggregatedResults.provider_runs.length === 1
+                    ? 'fonte consultada'
+                    : 'fontes consultadas'}
+                </span>
+              </div>
               <div className="source-list-heading">
                 <span className="meta-label">
                   {aggregatedResults.jobs.length} VAGAS ENCONTRADAS
@@ -1971,8 +2001,8 @@ function App() {
               </div>
               {aggregatedResults.jobs.length === 0 ? (
                 <p className="sources-empty">
-                  Nenhuma vaga correspondeu a esses critérios. Tente ampliar a
-                  localização ou a modalidade.
+                  Tente ampliar a localização, trocar a modalidade ou revisar as
+                  credenciais opcionais abaixo.
                 </p>
               ) : (
                 <ul className="aggregated-job-list">
@@ -2031,13 +2061,26 @@ function App() {
                   ))}
                 </ul>
               )}
-              {aggregatedResults.partial &&
-                aggregatedResults.warnings.length > 0 && (
-                  <p className="sources-feedback" role="status">
-                    Algumas fontes não responderam; mostramos o que foi possível
-                    encontrar.
-                  </p>
+              <details className="aggregated-diagnostics">
+                <summary>Ver detalhes da busca e do log</summary>
+                <ul>
+                  {aggregatedResults.provider_runs.map((run) => (
+                    <li key={run.provider}>
+                      <span>
+                        <strong>{run.display_name}</strong> ·{' '}
+                        {providerRunStatusLabel(run.status)}
+                      </span>
+                      <span>
+                        {run.candidates} vaga(s) · {run.duration_ms} ms
+                        {run.error ? ` · ${run.error}` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {aggregatedResults.warnings.length > 0 && (
+                  <p role="status">{aggregatedResults.warnings.join(' · ')}</p>
                 )}
+              </details>
             </div>
           )}
 

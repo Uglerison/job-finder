@@ -18,6 +18,7 @@ from job_finder.source_adapters import (
     SafeHttpClient,
     SourceAdapterError,
     SourceCandidate,
+    SourceRateLimitError,
     SourceSearchResult,
 )
 
@@ -181,6 +182,40 @@ async def test_aggregator_falls_back_only_when_needed_and_caches() -> None:
     assert first.candidates[0].source_key == "backup"
     assert second.cache_hit is True
     assert backup.calls == 1
+
+
+@pytest.mark.anyio
+async def test_aggregator_explains_empty_search_and_configuration_state() -> None:
+    class EmptyProvider:
+        provider_key = "empty"
+        display_name = "Fonte vazia"
+
+        async def search(self, params, cancellation=None):
+            return SourceSearchResult(())
+
+    result = await SearchAggregator([EmptyProvider()]).search(
+        JobSearchParams(query="Cargo inexistente", limit=5),
+    )
+    assert result.outcome == "no_results"
+    assert result.message == "Nenhuma vaga encontrada para estes filtros."
+    assert result.partial is False
+
+
+@pytest.mark.anyio
+async def test_aggregator_distinguishes_rate_limit_from_no_results() -> None:
+    class LimitedProvider:
+        provider_key = "limited"
+        display_name = "Fonte limitada"
+
+        async def search(self, params, cancellation=None):
+            raise SourceRateLimitError("limite", retry_after=60)
+
+    result = await SearchAggregator([LimitedProvider()]).search(
+        JobSearchParams(query="Python"),
+    )
+    assert result.outcome == "rate_limited"
+    assert "limite de consultas" in result.message
+    assert result.provider_runs[0].error == "limite de consultas atingido"
 
 
 def test_deduplication_merges_source_metadata() -> None:

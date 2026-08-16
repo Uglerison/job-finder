@@ -600,7 +600,8 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: cada busca permite diagnosticar a estratégia usada sem registrar chaves, conteúdo
     desnecessário ou dados pessoais.
   - Evidência: resposta `provider_runs` informa provider, status, duração, contagem, fallback e erro
-    seguro; cache hit é explicitado.
+    seguro; cache hit é explicitado. A interface mostra o resumo acionável e o painel “detalhes da
+    busca e do log”, distinguindo sem resultados, provider não configurado, limite, falha e parcial.
 
 - [x] **JF-336 — Criar formulário único de busca no frontend**
   - Depende de: JF-334.

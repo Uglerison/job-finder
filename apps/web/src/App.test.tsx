@@ -98,6 +98,8 @@ describe('App', () => {
                   work_model: 'hybrid',
                 },
               ],
+              message: 'Encontramos 1 vaga para estes filtros.',
+              outcome: 'results',
               partial: false,
               provider_runs: [],
               warnings: [],
@@ -184,6 +186,64 @@ describe('App', () => {
       api_key: 'jsearch-local-key',
       vault_password: 'senha local com doze',
     });
+  });
+
+  it('explica quando a busca termina sem vagas e mostra o log dos providers', async () => {
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/ai/settings') {
+          return Promise.resolve({
+            json: async () => ({
+              configured: false,
+              unlocked: false,
+              model: 'gpt-5.6-luna',
+              storage: 'not_configured',
+            }),
+            ok: true,
+          });
+        }
+        if (input === '/api/search' && init?.method === 'POST') {
+          return Promise.resolve({
+            json: async () => ({
+              cache_hit: false,
+              jobs: [],
+              message: 'Nenhuma vaga encontrada para estes filtros.',
+              outcome: 'no_results',
+              partial: false,
+              provider_runs: [
+                {
+                  candidates: 0,
+                  display_name: 'Fonte vazia',
+                  duration_ms: 24,
+                  error: null,
+                  fallback: false,
+                  provider: 'empty',
+                  status: 'empty',
+                },
+              ],
+              warnings: [],
+            }),
+            ok: true,
+          });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Cargo ou palavra-chave'), {
+      target: { value: 'Cargo inexistente' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar vagas' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Nenhuma vaga encontrada para estes filtros.'),
+      ).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByText('Ver detalhes da busca e do log'));
+    expect(screen.getByText(/Fonte vazia/)).toBeInTheDocument();
+    expect(screen.getByText(/sem resultados/)).toBeInTheDocument();
   });
 
   it('abre o onboarding e salva critérios válidos no perfil local', async () => {
@@ -778,6 +838,8 @@ describe('App', () => {
                   work_model: 'remote',
                 },
               ],
+              message: 'Encontramos 1 vaga para estes filtros.',
+              outcome: 'results',
               partial: false,
               provider_runs: [],
               warnings: [],

@@ -1,5 +1,6 @@
 """Provider-agnostic job search with deterministic normalization and ranking."""
 
+import logging
 import unicodedata
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -20,11 +21,22 @@ from job_finder.source_adapters import (
     SourceAdapter,
     SourceAdapterError,
     SourceCandidate,
+    SourceRateLimitError,
     SourceSearchRequest,
     SourceSearchResult,
 )
 
 WorkModel = Literal["remote", "hybrid", "on_site", "unknown"]
+SearchOutcome = Literal[
+    "results",
+    "no_results",
+    "partial",
+    "not_configured",
+    "rate_limited",
+    "failed",
+]
+
+logger = logging.getLogger(__name__)
 
 
 class JobSearchParams(BaseModel):
@@ -76,6 +88,8 @@ class AggregatedSearchResult:
     partial: bool
     warnings: tuple[str, ...] = ()
     cache_hit: bool = False
+    outcome: SearchOutcome = "no_results"
+    message: str = "Nenhuma vaga encontrada."
 
 
 class JobProvider(Protocol):
@@ -293,6 +307,8 @@ class SearchCache:
             partial=result.partial,
             warnings=result.warnings,
             cache_hit=True,
+            outcome=result.outcome,
+            message=result.message,
         )
 
     def put(self, key: str, result: AggregatedSearchResult) -> None:
@@ -327,6 +343,8 @@ class SearchAggregator:
         collected: list[SourceCandidate] = []
         runs: list[ProviderRun] = []
         warnings: list[str] = []
+        rate_limited = 0
+        failed = 0
         for index, provider in enumerate(self.providers):
             if cancellation:
                 cancellation.raise_if_cancelled()
@@ -345,6 +363,15 @@ class SearchAggregator:
                         fallback=index > 0,
                     ),
                 )
+                logger.info(
+                    "aggregated_search provider=%s status=%s duration_ms=%d "
+                    "candidates=%d fallback=%s",
+                    provider.provider_key,
+                    runs[-1].status,
+                    runs[-1].duration_ms,
+                    runs[-1].candidates,
+                    runs[-1].fallback,
+                )
             except ProviderNotConfigured:
                 runs.append(
                     ProviderRun(
@@ -356,7 +383,34 @@ class SearchAggregator:
                         fallback=index > 0,
                     ),
                 )
+                logger.info(
+                    "aggregated_search provider=%s status=skipped "
+                    "reason=not_configured fallback=%s",
+                    provider.provider_key,
+                    index > 0,
+                )
+            except SourceRateLimitError:
+                rate_limited += 1
+                safe_error = "limite de consultas atingido"
+                warnings.append(f"{provider.display_name}: {safe_error}")
+                runs.append(
+                    ProviderRun(
+                        provider=provider.provider_key,
+                        display_name=provider.display_name,
+                        status="failed",
+                        duration_ms=round((monotonic() - started) * 1000),
+                        candidates=0,
+                        fallback=index > 0,
+                        error=safe_error,
+                    ),
+                )
+                logger.warning(
+                    "aggregated_search provider=%s status=rate_limited fallback=%s",
+                    provider.provider_key,
+                    index > 0,
+                )
             except SourceAdapterError as error:
+                failed += 1
                 safe_error = str(error)
                 warnings.append(f"{provider.display_name}: {safe_error}")
                 runs.append(
@@ -370,15 +424,29 @@ class SearchAggregator:
                         error=safe_error,
                     ),
                 )
+                logger.warning(
+                    "aggregated_search provider=%s status=failed fallback=%s error=%s",
+                    provider.provider_key,
+                    index > 0,
+                    safe_error,
+                )
             if len(deduplicate_candidates(collected)) >= min(params.limit, self.minimum_results):
                 break
 
         ranked = rank_candidates(deduplicate_candidates(collected), params)
+        outcome, message = _search_outcome(
+            len(ranked),
+            runs,
+            rate_limited=rate_limited,
+            failed=failed,
+        )
         result = AggregatedSearchResult(
             candidates=tuple(ranked[: params.limit]),
             provider_runs=tuple(runs),
-            partial=bool(warnings) or not ranked,
+            partial=outcome == "partial",
             warnings=tuple(warnings[:5]),
+            outcome=outcome,
+            message=message,
         )
         self.cache.put(cache_key, result)
         return result
@@ -553,6 +621,47 @@ def _cache_key(params: JobSearchParams) -> str:
             str(params.limit),
         ),
     )
+
+
+def _search_outcome(
+    result_count: int,
+    runs: Sequence[ProviderRun],
+    *,
+    rate_limited: int,
+    failed: int,
+) -> tuple[SearchOutcome, str]:
+    """Translate provider runs into a user-facing, actionable outcome."""
+
+    if result_count:
+        label = "vaga" if result_count == 1 else "vagas"
+        if failed or rate_limited:
+            return (
+                "partial",
+                f"Encontramos {result_count} {label}, mas algumas fontes não responderam.",
+            )
+        return "results", f"Encontramos {result_count} {label} para estes filtros."
+    if not runs or all(run.status == "skipped" for run in runs):
+        return (
+            "not_configured",
+            "Nenhum provider está configurado. Cadastre uma credencial na seção "
+            "técnica para buscar vagas.",
+        )
+    if rate_limited and not any(run.status == "success" for run in runs):
+        return (
+            "rate_limited",
+            "As fontes atingiram o limite de consultas. Aguarde e tente novamente.",
+        )
+    if failed and not any(run.status in {"success", "empty"} for run in runs):
+        return (
+            "failed",
+            "As fontes não responderam. Verifique credenciais ou conexão e tente novamente.",
+        )
+    if failed or rate_limited:
+        return (
+            "partial",
+            "Nenhuma vaga foi encontrada e algumas fontes não responderam.",
+        )
+    return "no_results", "Nenhuma vaga encontrada para estes filtros."
 
 
 def _is_duplicate(left: SourceCandidate, right: SourceCandidate) -> bool:
