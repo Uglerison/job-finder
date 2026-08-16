@@ -80,16 +80,16 @@ def test_explanation_checks_the_declared_title_and_metadata_sources_too() -> Non
     analysis.assessment.evidence = [
         AnalysisEvidence.model_validate(
             {
-            "claim": "O cargo é de analista de dados.",
-            "quote": "Data Analyst",
-            "source": "job_title",
+                "claim": "O cargo é de analista de dados.",
+                "quote": "Data Analyst",
+                "source": "job_title",
             }
         ),
         AnalysisEvidence.model_validate(
             {
-            "claim": "A empresa é Example Labs.",
-            "quote": "Example Labs",
-            "source": "job_metadata",
+                "claim": "A empresa é Example Labs.",
+                "quote": "Example Labs",
+                "source": "job_metadata",
             }
         ),
     ]

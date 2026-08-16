@@ -96,9 +96,7 @@ def test_job_content_is_redacted_and_sent_with_a_strict_complete_schema() -> Non
         title="Data Analyst",
         company="Example Labs",
         location="Brazil",
-        raw_content=(
-            "Strong SQL skills are required. Contact recruiter@example.com for details."
-        ),
+        raw_content=("Strong SQL skills are required. Contact recruiter@example.com for details."),
         mode="batch",
     )
 

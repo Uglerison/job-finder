@@ -323,16 +323,120 @@ describe('App', () => {
       await screen.findByRole('heading', { name: 'Backend Engineer' }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('Selecionar Backend Engineer'));
-    fireEvent.click(screen.getByRole('button', { name: 'Analisar selecionadas' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Analisar selecionadas' }),
+    );
 
     expect(confirmMock).toHaveBeenCalledWith('Analisar 1 vaga com a IA?');
     expect(
-      await screen.findByText('1 análise concluída.'),
+      await screen.findByText('Análise concluída para: Backend Engineer.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', {
+        name: 'Análise concluída: Backend Engineer',
+      }),
+    ).toHaveTextContent('Acme');
+    expect(screen.getByText('Boa aderência.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: 'Abrir análise completa de Backend Engineer',
+      }),
     ).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/jobs/1/analysis',
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+
+  it('apresenta o painel com cartões, funil e séries semanais', async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (input === '/api/jobs') {
+        return Promise.resolve({
+          json: async () => ({
+            items: [
+              {
+                canonical_url: 'https://example.com/dashboard-job',
+                company: 'Acme',
+                created_at: '2026-08-15T10:00:00Z',
+                id: 1,
+                location: 'Remoto',
+                origin_count: 1,
+                status: 'found',
+                status_label: 'ENCONTRADA',
+                title: 'Backend Engineer',
+              },
+            ],
+          }),
+          ok: true,
+        });
+      }
+      if (
+        typeof input === 'string' &&
+        input.startsWith('/api/dashboard/summary')
+      ) {
+        return Promise.resolve({
+          json: async () => ({
+            agenda: { overdue: 1, upcoming: 2 },
+            cards: {
+              active_pipeline: 1,
+              applications: 1,
+              hired: 0,
+              interviews: 1,
+              jobs_found: 1,
+              offers: 0,
+              rejected: 0,
+            },
+            funnel: [
+              {
+                conversion_percent: 100,
+                count: 1,
+                denominator: 1,
+                key: 'found',
+                label: 'Encontradas',
+              },
+            ],
+            period: {
+              from_: '2026-08-01T00:00:00Z',
+              source_key: null,
+              timezone: 'America/Sao_Paulo',
+              to: '2026-08-31T00:00:00Z',
+            },
+            series: [
+              {
+                applications: 1,
+                interviews: 1,
+                jobs: 1,
+                period_start: '2026-08-10',
+              },
+            ],
+            sources: [
+              {
+                application_rate_percent: 100,
+                applications: 1,
+                errors: 0,
+                interviews: 1,
+                jobs: 1,
+                source_key: 'manual',
+              },
+            ],
+          }),
+          ok: true,
+        });
+      }
+      return Promise.resolve({ json: async () => null, ok: true });
+    });
+
+    render(<App />);
+    expect(
+      await screen.findByRole('heading', { name: 'O movimento da sua busca' }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('Vagas encontradas')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Funil de conversão' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', { name: 'Semana' }),
+    ).toBeInTheDocument();
   });
 
   it('envia a chave somente ao backend local e nunca a exibe novamente', async () => {

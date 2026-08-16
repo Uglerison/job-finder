@@ -15,6 +15,7 @@ from job_finder.ai_discovery_api import router as ai_discovery_router
 from job_finder.ai_settings_api import router as ai_settings_router
 from job_finder.ai_usage_api import router as ai_usage_router
 from job_finder.applications_api import router as applications_router
+from job_finder.dashboard_api import router as dashboard_router
 from job_finder.database import create_database_engine, create_session_factory, run_migrations
 from job_finder.export_api import router as export_router
 from job_finder.filters_api import router as filters_router
@@ -27,6 +28,7 @@ from job_finder.preferences_api import router as preferences_router
 from job_finder.privacy_api import router as privacy_router
 from job_finder.process_events_api import router as process_events_router
 from job_finder.profile_api import router as profile_router
+from job_finder.saved_filters_api import router as saved_filters_router
 from job_finder.scheduler import PersistentScheduler
 from job_finder.search_runs import SearchTaskRegistry
 from job_finder.secret_store import EncryptedDatabaseVault
@@ -93,6 +95,8 @@ def create_app(
     application.include_router(ai_settings_router)
     application.include_router(ai_analysis_router)
     application.include_router(ai_usage_router)
+    application.include_router(dashboard_router)
+    application.include_router(saved_filters_router)
     application.include_router(ai_discovery_router)
     application.include_router(preferences_router)
     application.include_router(filters_router)

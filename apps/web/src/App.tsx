@@ -174,6 +174,57 @@ type SearchRun = {
   current_cursor: string | null;
 };
 
+type DashboardSummary = {
+  agenda: { overdue: number; upcoming: number };
+  cards: {
+    active_pipeline: number;
+    applications: number;
+    hired: number;
+    interviews: number;
+    jobs_found: number;
+    offers: number;
+    rejected: number;
+  };
+  funnel: {
+    conversion_percent: number | null;
+    count: number;
+    denominator: number;
+    key: string;
+    label: string;
+  }[];
+  period: {
+    from_: string;
+    source_key: string | null;
+    timezone: string;
+    to: string;
+  };
+  series: {
+    applications: number;
+    interviews: number;
+    jobs: number;
+    period_start: string;
+  }[];
+  sources: {
+    application_rate_percent: number | null;
+    applications: number;
+    errors: number;
+    interviews: number;
+    jobs: number;
+    source_key: string;
+  }[];
+};
+
+type SavedFilter = {
+  id: number;
+  name: string;
+  query: {
+    days?: string | null;
+    q?: string | null;
+    source_key?: string | null;
+    status?: string | null;
+  };
+};
+
 type AnalysisUsage = {
   estimated_cost_usd: number | null;
   fallback: boolean;
@@ -503,7 +554,9 @@ function App() {
   const [jobMessage, setJobMessage] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<JobDetail | null>(null);
   const [selectedJobIds, setSelectedJobIds] = useState<number[]>([]);
-  const [jobAnalyses, setJobAnalyses] = useState<Record<number, JobAnalysisResponse>>({});
+  const [jobAnalyses, setJobAnalyses] = useState<
+    Record<number, JobAnalysisResponse>
+  >({});
   const [isAnalyzingJob, setIsAnalyzingJob] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -537,6 +590,17 @@ function App() {
   const [selectedSourceKey, setSelectedSourceKey] = useState('remoteok');
   const [isStartingSourceRun, setIsStartingSourceRun] = useState(false);
   const [sourceMessage, setSourceMessage] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [dashboardDays, setDashboardDays] = useState('30');
+  const [isJobsPayloadReady, setIsJobsPayloadReady] = useState(false);
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+  const [savedFilterName, setSavedFilterName] = useState('');
+  const [selectedSavedFilter, setSelectedSavedFilter] = useState('');
+  const [savedFilterMessage, setSavedFilterMessage] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -583,6 +647,87 @@ function App() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!isJobsPayloadReady) {
+      setIsLoadingDashboard(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+    const loadDashboard = async () => {
+      setIsLoadingDashboard(true);
+      try {
+        const to = new Date();
+        const from = new Date(to);
+        from.setDate(to.getDate() - Number(dashboardDays));
+        const params = new URLSearchParams({
+          from: from.toISOString().slice(0, 10),
+          to: to.toISOString().slice(0, 10),
+          timezone: preferences.timezone,
+        });
+        const response = await fetch(
+          `/api/dashboard/summary?${params.toString()}`,
+        );
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar o painel.');
+        }
+        const payload = (await response.json()) as DashboardSummary | null;
+        if (isMounted) {
+          setDashboard(
+            payload &&
+              typeof payload === 'object' &&
+              'cards' in payload &&
+              'funnel' in payload &&
+              'series' in payload
+              ? payload
+              : null,
+          );
+          setDashboardError(null);
+        }
+      } catch {
+        if (isMounted) {
+          setDashboardError('Não foi possível carregar as métricas locais.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingDashboard(false);
+        }
+      }
+    };
+    void loadDashboard();
+    return () => {
+      isMounted = false;
+    };
+  }, [dashboardDays, isJobsPayloadReady, preferences.timezone]);
+
+  useEffect(() => {
+    if (!isJobsPayloadReady) {
+      return;
+    }
+    let isMounted = true;
+    void fetch('/api/saved-filters')
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar filtros salvos.');
+        }
+        return (await response.json()) as SavedFilter[];
+      })
+      .then((payload) => {
+        if (isMounted) {
+          setSavedFilters(Array.isArray(payload) ? payload : []);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setSavedFilterMessage('Não foi possível carregar os filtros salvos.');
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [isJobsPayloadReady]);
 
   useEffect(() => {
     let isMounted = true;
@@ -838,7 +983,9 @@ function App() {
           items?: JobListItem[];
         } | null;
         if (isMounted) {
-          setJobs(Array.isArray(payload?.items) ? payload.items : []);
+          const hasItems = Array.isArray(payload?.items);
+          setJobs(hasItems ? (payload?.items ?? []) : []);
+          setIsJobsPayloadReady(hasItems);
         }
       } catch {
         if (isMounted) {
@@ -1236,7 +1383,11 @@ function App() {
       setAnalysisError('Selecione ao menos uma vaga para analisar.');
       return;
     }
-    if (!window.confirm(`Analisar ${jobIds.length} vaga${jobIds.length === 1 ? '' : 's'} com a IA?`)) {
+    if (
+      !window.confirm(
+        `Analisar ${jobIds.length} vaga${jobIds.length === 1 ? '' : 's'} com a IA?`,
+      )
+    ) {
       return;
     }
     setIsAnalyzingJob(true);
@@ -1250,13 +1401,11 @@ function App() {
           method: 'POST',
         });
         const payload = (await response.json().catch(() => null)) as
-          | JobAnalysisResponse
-          | { detail?: string }
-          | null;
+          JobAnalysisResponse | { detail?: string } | null;
         if (!response.ok || !payload || !('analysis_version' in payload)) {
           throw new Error(
             payload && 'detail' in payload
-              ? payload.detail ?? 'Falha na análise.'
+              ? (payload.detail ?? 'Falha na análise.')
               : 'Falha na análise.',
           );
         }
@@ -1264,19 +1413,32 @@ function App() {
       }),
     );
     const successes = results.filter(
-      (result): result is PromiseFulfilledResult<readonly [number, JobAnalysisResponse]> =>
-        result.status === 'fulfilled',
+      (
+        result,
+      ): result is PromiseFulfilledResult<
+        readonly [number, JobAnalysisResponse]
+      > => result.status === 'fulfilled',
     );
     setJobAnalyses((current) => ({
       ...current,
       ...Object.fromEntries(successes.map((result) => result.value)),
     }));
     const failures = results.filter((result) => result.status === 'rejected');
-    setAnalysisMessage(
-      `${successes.length} análise${successes.length === 1 ? '' : 's'} concluída${successes.length === 1 ? '' : 's'}${failures.length ? `; ${failures.length} falhou` : ''}.`,
-    );
+    const analyzedTitles = successes.map((result) => {
+      const [jobId] = result.value;
+      return jobs.find((job) => job.id === jobId)?.title ?? `vaga #${jobId}`;
+    });
+    const completionMessage =
+      successes.length === 0
+        ? 'Nenhuma análise foi concluída.'
+        : successes.length === 1
+          ? `Análise concluída para: ${analyzedTitles[0]}.`
+          : `${successes.length} análises concluídas para: ${analyzedTitles.join(', ')}.`;
+    setAnalysisMessage(completionMessage);
     if (failures.length) {
-      setAnalysisError('Algumas vagas não puderam ser analisadas; as demais foram preservadas.');
+      setAnalysisError(
+        'Algumas vagas não puderam ser analisadas; as demais foram preservadas.',
+      );
     }
     setIsAnalyzingJob(false);
   };
@@ -1288,6 +1450,55 @@ function App() {
     }
     const payload = (await response.json()) as { items?: JobListItem[] } | null;
     setJobs(Array.isArray(payload?.items) ? payload.items : []);
+  };
+
+  const saveCurrentFilter = async () => {
+    const name = savedFilterName.trim();
+    if (!name) {
+      setSavedFilterMessage('Dê um nome ao filtro antes de salvar.');
+      return;
+    }
+    try {
+      const response = await fetch('/api/saved-filters', {
+        body: JSON.stringify({
+          name,
+          query: { days: dashboardDays, q: jobSearch.trim() || null },
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+      const payload = (await response.json().catch(() => null)) as
+        SavedFilter | { detail?: string } | null;
+      if (!response.ok || !payload || !('id' in payload)) {
+        throw new Error(
+          payload && 'detail' in payload
+            ? payload.detail
+            : 'Não foi possível salvar o filtro.',
+        );
+      }
+      setSavedFilters((current) => [...current, payload]);
+      setSavedFilterName('');
+      setSavedFilterMessage('Filtro salvo localmente.');
+    } catch (error) {
+      setSavedFilterMessage(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível salvar o filtro.',
+      );
+    }
+  };
+
+  const applySavedFilter = (filterId: string) => {
+    setSelectedSavedFilter(filterId);
+    const saved = savedFilters.find((filter) => String(filter.id) === filterId);
+    if (!saved) {
+      return;
+    }
+    setJobSearch(saved.query.q ?? '');
+    if (saved.query.days) {
+      setDashboardDays(saved.query.days);
+    }
+    setSavedFilterMessage(`Filtro “${saved.name}” aplicado.`);
   };
 
   const refreshSourceRuns = async () => {
@@ -1537,6 +1748,7 @@ function App() {
             <a href="#agenda">Agenda</a>
             <a href="#lixeira">Lixeira</a>
             <a href="#ia">IA</a>
+            <a href="#dashboard">Painel</a>
             <a href="#preferencias">Preferências</a>
           </nav>
 
@@ -2488,6 +2700,198 @@ function App() {
       </section>
 
       <section
+        className="dashboard-section"
+        id="dashboard"
+        aria-labelledby="dashboard-title"
+      >
+        <div className="dashboard-intro">
+          <p className="eyebrow">PAINEL OPERACIONAL</p>
+          <h2 id="dashboard-title">O movimento da sua busca</h2>
+          <p>
+            Métricas locais, com denominadores visíveis e crédito de fonte
+            definido.
+          </p>
+        </div>
+        <div className="dashboard-workspace">
+          <div className="dashboard-toolbar">
+            <label htmlFor="dashboard-period">Período do painel</label>
+            <select
+              id="dashboard-period"
+              onChange={(event) => setDashboardDays(event.target.value)}
+              value={dashboardDays}
+            >
+              <option value="30">Últimos 30 dias</option>
+              <option value="90">Últimos 90 dias</option>
+              <option value="365">Último ano</option>
+            </select>
+          </div>
+          {isLoadingDashboard && (
+            <p className="dashboard-feedback" role="status">
+              Calculando métricas…
+            </p>
+          )}
+          {!isLoadingDashboard && dashboardError && (
+            <p className="dashboard-feedback is-error" role="status">
+              {dashboardError}
+            </p>
+          )}
+          {!isLoadingDashboard && !dashboardError && dashboard && (
+            <>
+              <div className="dashboard-cards" aria-label="Resumo do período">
+                {(
+                  [
+                    ['jobs_found', 'Vagas encontradas'],
+                    ['applications', 'Candidaturas'],
+                    ['interviews', 'Entrevistas'],
+                    ['offers', 'Ofertas'],
+                    ['hired', 'Contratações'],
+                    ['active_pipeline', 'Pipeline ativo'],
+                  ] as [keyof DashboardSummary['cards'], string][]
+                ).map(([key, label]) => (
+                  <article className="dashboard-card" key={key}>
+                    <span className="meta-label">{label}</span>
+                    <strong>{dashboard.cards[key]}</strong>
+                  </article>
+                ))}
+              </div>
+              <div className="dashboard-grid">
+                <section
+                  className="dashboard-panel"
+                  aria-labelledby="dashboard-funnel-title"
+                >
+                  <div className="dashboard-panel-heading">
+                    <h3 id="dashboard-funnel-title">Funil de conversão</h3>
+                    <span className="mono-note">denominador visível</span>
+                  </div>
+                  <ol className="dashboard-funnel">
+                    {dashboard.funnel.map((stage) => (
+                      <li key={stage.key}>
+                        <div>
+                          <span>{stage.label}</span>
+                          <strong>{stage.count}</strong>
+                        </div>
+                        <progress
+                          aria-label={`${stage.label}: ${stage.count} de ${stage.denominator}`}
+                          max={stage.denominator || 1}
+                          value={stage.count}
+                        />
+                        <small>
+                          {stage.conversion_percent == null
+                            ? 'sem base'
+                            : `${stage.conversion_percent}% de ${stage.denominator}`}
+                        </small>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+                <section
+                  className="dashboard-panel"
+                  aria-labelledby="dashboard-agenda-title"
+                >
+                  <div className="dashboard-panel-heading">
+                    <h3 id="dashboard-agenda-title">Agenda</h3>
+                    <a className="card-link" href="#agenda">
+                      Abrir agenda
+                    </a>
+                  </div>
+                  <div className="dashboard-agenda-summary">
+                    <strong>{dashboard.agenda.upcoming}</strong>
+                    <span>próximos</span>
+                    <strong
+                      className={
+                        dashboard.agenda.overdue > 0 ? 'is-warning' : ''
+                      }
+                    >
+                      {dashboard.agenda.overdue}
+                    </strong>
+                    <span>atrasados</span>
+                  </div>
+                </section>
+              </div>
+              <div className="dashboard-grid">
+                <section
+                  className="dashboard-panel"
+                  aria-labelledby="dashboard-series-title"
+                >
+                  <div className="dashboard-panel-heading">
+                    <h3 id="dashboard-series-title">Evolução semanal</h3>
+                    <span className="mono-note">
+                      vagas · candidaturas · entrevistas
+                    </span>
+                  </div>
+                  <div className="dashboard-table-wrap">
+                    <table>
+                      <caption className="visually-hidden">
+                        Evolução semanal da busca
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Semana</th>
+                          <th scope="col">Vagas</th>
+                          <th scope="col">Candidaturas</th>
+                          <th scope="col">Entrevistas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dashboard.series.map((point) => (
+                          <tr key={point.period_start}>
+                            <th scope="row">{point.period_start}</th>
+                            <td>{point.jobs}</td>
+                            <td>{point.applications}</td>
+                            <td>{point.interviews}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+                <section
+                  className="dashboard-panel"
+                  aria-labelledby="dashboard-sources-title"
+                >
+                  <div className="dashboard-panel-heading">
+                    <h3 id="dashboard-sources-title">Desempenho por fonte</h3>
+                    <span className="mono-note">
+                      crédito na primeira origem
+                    </span>
+                  </div>
+                  <div className="dashboard-table-wrap">
+                    <table>
+                      <caption className="visually-hidden">
+                        Desempenho por fonte
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Fonte</th>
+                          <th scope="col">Vagas</th>
+                          <th scope="col">Aplicação</th>
+                          <th scope="col">Erros</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dashboard.sources.map((source) => (
+                          <tr key={source.source_key}>
+                            <th scope="row">{source.source_key}</th>
+                            <td>{source.jobs}</td>
+                            <td>
+                              {source.application_rate_percent == null
+                                ? '—'
+                                : `${source.application_rate_percent}%`}
+                            </td>
+                            <td>{source.errors}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      <section
         className="pipeline-section"
         id="pipeline"
         aria-labelledby="pipeline-title"
@@ -2623,6 +3027,42 @@ function App() {
               Adicionar vaga
             </button>
           </div>
+          <div className="saved-filter-toolbar">
+            <label htmlFor="saved-filter-select">Filtro salvo</label>
+            <select
+              id="saved-filter-select"
+              onChange={(event) => applySavedFilter(event.target.value)}
+              value={selectedSavedFilter}
+            >
+              <option value="">Nenhum filtro salvo</option>
+              {savedFilters.map((filter) => (
+                <option key={filter.id} value={filter.id}>
+                  {filter.name}
+                </option>
+              ))}
+            </select>
+            <label className="saved-filter-name" htmlFor="saved-filter-name">
+              Nome
+              <input
+                id="saved-filter-name"
+                onChange={(event) => setSavedFilterName(event.target.value)}
+                placeholder="ex.: Backend remoto"
+                value={savedFilterName}
+              />
+            </label>
+            <button
+              className="card-link"
+              onClick={() => void saveCurrentFilter()}
+              type="button"
+            >
+              Salvar filtro atual
+            </button>
+          </div>
+          {savedFilterMessage && (
+            <p className="form-message" role="status">
+              {savedFilterMessage}
+            </p>
+          )}
 
           {isLoadingJobDetail && (
             <p className="jobs-feedback" role="status">
@@ -2676,10 +3116,15 @@ function App() {
                   <strong>
                     Aderência: {jobAnalyses[selectedJob.id].fit.score}/100
                   </strong>
-                  <p>{jobAnalyses[selectedJob.id].analysis.assessment.summary}</p>
-                  {jobAnalyses[selectedJob.id].analysis.assessment.warnings.length > 0 && (
+                  <p>
+                    {jobAnalyses[selectedJob.id].analysis.assessment.summary}
+                  </p>
+                  {jobAnalyses[selectedJob.id].analysis.assessment.warnings
+                    .length > 0 && (
                     <p className="mono-note">
-                      {jobAnalyses[selectedJob.id].analysis.assessment.warnings.join(' · ')}
+                      {jobAnalyses[
+                        selectedJob.id
+                      ].analysis.assessment.warnings.join(' · ')}
                     </p>
                   )}
                 </div>
@@ -2859,7 +3304,9 @@ function App() {
           {!isLoadingJobs && !jobsError && visibleJobs.length > 0 && (
             <>
               <div className="job-bulk-actions">
-                <span className="mono-note">{selectedJobIds.length} selecionada(s)</span>
+                <span className="mono-note">
+                  {selectedJobIds.length} selecionada(s)
+                </span>
                 <button
                   className="header-action"
                   disabled={isAnalyzingJob || selectedJobIds.length === 0}
@@ -2869,62 +3316,107 @@ function App() {
                   Analisar selecionadas
                 </button>
               </div>
-              {(analysisMessage || analysisError) && (
-                <p className={`form-message${analysisError ? ' is-error' : ' is-success'}`} role="status">
-                  {analysisError || analysisMessage}
+              {analysisMessage && (
+                <p className="form-message is-success" role="status">
+                  {analysisMessage}
                 </p>
               )}
-            <ul className="job-list">
-              {visibleJobs.map((job) => (
-                <li className="job-row" key={job.id}>
-                  <label className="job-select-control">
-                    <input
-                      aria-label={`Selecionar ${job.title}`}
-                      checked={selectedJobIds.includes(job.id)}
-                      onChange={(event) =>
-                        setSelectedJobIds((current) =>
-                          event.target.checked
-                            ? [...current, job.id]
-                            : current.filter((id) => id !== job.id),
-                        )
-                      }
-                      type="checkbox"
-                    />
-                  </label>
-                  <div className="job-row-main">
-                    <span className="job-status">{job.status_label}</span>
-                    <h3>{job.title}</h3>
-                    <p>
-                      {job.company}
-                      {job.location ? ` · ${job.location}` : ''}
-                    </p>
-                  </div>
-                  <div className="job-row-meta">
-                    <span className="mono-note">
-                      {job.origin_count} origem
-                      {job.origin_count === 1 ? '' : 'ns'}
-                    </span>
-                    {job.canonical_url && (
-                      <a
-                        className="card-link"
-                        href={job.canonical_url}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        Abrir origem <span aria-hidden="true">↗</span>
-                      </a>
-                    )}
-                    <button
-                      className="card-link"
-                      onClick={() => void openJobDetail(job.id)}
-                      type="button"
-                    >
-                      Ver detalhes
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+              {analysisError && (
+                <p className="form-message is-error" role="status">
+                  {analysisError}
+                </p>
+              )}
+              <ul className="job-list">
+                {visibleJobs.map((job) => {
+                  const analysis = jobAnalyses[job.id];
+                  return (
+                    <li className="job-row" key={job.id}>
+                      <div className="job-row-content">
+                        <label className="job-select-control">
+                          <input
+                            aria-label={`Selecionar ${job.title}`}
+                            checked={selectedJobIds.includes(job.id)}
+                            onChange={(event) =>
+                              setSelectedJobIds((current) =>
+                                event.target.checked
+                                  ? [...current, job.id]
+                                  : current.filter((id) => id !== job.id),
+                              )
+                            }
+                            type="checkbox"
+                          />
+                        </label>
+                        <div className="job-row-main">
+                          <span className="job-status">{job.status_label}</span>
+                          <h3>{job.title}</h3>
+                          <p>
+                            {job.company}
+                            {job.location ? ` · ${job.location}` : ''}
+                          </p>
+                        </div>
+                        <div className="job-row-meta">
+                          <span className="mono-note">
+                            {job.origin_count} origem
+                            {job.origin_count === 1 ? '' : 'ns'}
+                          </span>
+                          {job.canonical_url && (
+                            <a
+                              className="card-link"
+                              href={job.canonical_url}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              Abrir origem <span aria-hidden="true">↗</span>
+                            </a>
+                          )}
+                          <button
+                            className="card-link"
+                            onClick={() => void openJobDetail(job.id)}
+                            type="button"
+                          >
+                            Ver detalhes
+                          </button>
+                        </div>
+                      </div>
+                      {analysis && (
+                        <section
+                          aria-label={`Análise concluída: ${job.title}`}
+                          className="job-row-analysis"
+                          role="region"
+                        >
+                          <div className="job-row-analysis-heading">
+                            <span className="meta-label">
+                              ANÁLISE CONCLUÍDA
+                            </span>
+                            <span className="mono-note">
+                              Versão {analysis.analysis_version}
+                            </span>
+                          </div>
+                          <div className="job-row-analysis-identity">
+                            <strong>{job.title}</strong>
+                            <span>{job.company}</span>
+                          </div>
+                          <div className="job-row-analysis-score">
+                            <strong>Aderência {analysis.fit.score}/100</strong>
+                            <span>
+                              Confiança{' '}
+                              {analysis.analysis.assessment.confidence}%
+                            </span>
+                          </div>
+                          <p>{analysis.analysis.assessment.summary}</p>
+                          <button
+                            className="card-link"
+                            onClick={() => void openJobDetail(job.id)}
+                            type="button"
+                          >
+                            Abrir análise completa de {job.title}
+                          </button>
+                        </section>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
             </>
           )}
         </div>
