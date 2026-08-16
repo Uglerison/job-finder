@@ -1,6 +1,7 @@
 """Explicit local API action for one transient structured job analysis."""
 
 from collections.abc import Iterator
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -17,6 +18,12 @@ from job_finder.ai_settings_api import (
     OpenAiStructuredClientDependency,
     translate_openai_error,
     translate_vault_error,
+)
+from job_finder.job_analyses import (
+    JobAnalysisVersion,
+    JobAnalysisVersionDraft,
+    create_job_analysis_version,
+    get_job_analysis_versions,
 )
 from job_finder.jobs import JobContentVersion, get_job, get_job_content_versions, get_job_origins
 from job_finder.openai_client import OpenAiClientError
@@ -40,11 +47,29 @@ class JobAnalysisResponse(BaseModel):
 
     job_id: int
     job_content_version_id: int
+    analysis_id: int
+    analysis_version: int
     analysis: StructuredJobAnalysis
     fit: HybridFitScore
     explanation: JobExplanation
     model: str
     prompt_version: str
+
+
+class JobAnalysisVersionResponse(BaseModel):
+    """An immutable provenance-rich historical analysis returned by the local API."""
+
+    id: int
+    job_id: int
+    job_content_version_id: int
+    profile_version_id: int
+    version_number: int
+    model: str
+    prompt_version: str
+    analysis: StructuredJobAnalysis
+    fit: HybridFitScore
+    explanation: JobExplanation
+    created_at: datetime
 
 
 def get_session(request: Request) -> Iterator[Session]:
@@ -128,16 +153,46 @@ def analyze_job(
         location=job.location,
         raw_content=latest_content.raw_content,
     )
+    record = create_job_analysis_version(
+        session,
+        JobAnalysisVersionDraft(
+            profile_version_id=profile_version.id,
+            job_id=job.id,
+            job_content_version_id=latest_content.id,
+            model=execution.model,
+            prompt_version=execution.prompt_version,
+            analysis=execution.analysis.model_dump(mode="json"),
+            fit=fit.model_dump(mode="json"),
+            explanation=explanation.model_dump(mode="json"),
+        ),
+    )
+    session.commit()
+    session.refresh(record)
 
     return JobAnalysisResponse(
         job_id=job.id,
         job_content_version_id=latest_content.id,
+        analysis_id=record.id,
+        analysis_version=record.version_number,
         analysis=execution.analysis,
         fit=fit,
         explanation=explanation,
         model=execution.model,
         prompt_version=execution.prompt_version,
     )
+
+
+@router.get("/jobs/{job_id}/analyses", response_model=list[JobAnalysisVersionResponse])
+def list_job_analysis_history(
+    job_id: int,
+    session: SessionDependency,
+) -> list[JobAnalysisVersionResponse]:
+    """Return all immutable analyses for a known local job in generation order."""
+
+    if get_job(session, job_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vaga não encontrada.")
+    records = get_job_analysis_versions(session, job_id)
+    return [_analysis_version_response(record) for record in records]
 
 
 def _latest_job_content(session: Session, job_id: int) -> JobContentVersion | None:
@@ -149,3 +204,19 @@ def _latest_job_content(session: Session, job_id: int) -> JobContentVersion | No
         for version in get_job_content_versions(session, origin.id)
     ]
     return max(versions, key=lambda version: (version.captured_at, version.id), default=None)
+
+
+def _analysis_version_response(record: JobAnalysisVersion) -> JobAnalysisVersionResponse:
+    return JobAnalysisVersionResponse(
+        id=record.id,
+        job_id=record.job_id,
+        job_content_version_id=record.job_content_version_id,
+        profile_version_id=record.profile_version_id,
+        version_number=record.version_number,
+        model=record.model,
+        prompt_version=record.prompt_version,
+        analysis=StructuredJobAnalysis.model_validate(record.analysis),
+        fit=HybridFitScore.model_validate(record.fit),
+        explanation=JobExplanation.model_validate(record.explanation),
+        created_at=record.created_at,
+    )

@@ -91,8 +91,9 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:<porta-exibida>/api/jobs/1/
 
 Ela envia somente o perfil e o anúncio após a redação de dados pessoais
 detectáveis, pede JSON estrito à Responses API e valida cargo, requisitos,
-local, regime, salário e evidências antes de responder. O resultado ainda é
-transitório; o histórico imutável de análises será introduzido na JF-406.
+local, regime, salário e evidências antes de responder. Cada chamada explícita
+cria uma versão imutável, associada ao perfil, conteúdo, modelo e prompt usados;
+consulte o histórico com `GET /api/jobs/1/analyses`.
 
 A resposta também inclui `fit`: filtros obrigatórios têm precedência e zeram a
 nota quando uma restrição é incompatível. Para vagas aceitas, os pesos

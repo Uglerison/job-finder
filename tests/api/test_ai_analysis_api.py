@@ -155,6 +155,28 @@ async def test_job_analysis_uses_the_current_profile_and_returns_validated_extra
 
 
 @pytest.mark.anyio
+async def test_job_analysis_persists_immutable_history_for_each_explicit_reanalysis(
+    application,
+) -> None:
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        job_id = await create_profile_and_job(client)
+        first = await client.post(f"/api/jobs/{job_id}/analysis")
+        second = await client.post(f"/api/jobs/{job_id}/analysis", json={"mode": "detailed"})
+        history = await client.get(f"/api/jobs/{job_id}/analyses")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["analysis_version"] == 1
+    assert second.json()["analysis_version"] == 2
+    assert [record["version_number"] for record in history.json()] == [1, 2]
+    assert history.json()[0]["profile_version_id"] == 1
+    assert history.json()[0]["model"] == "gpt-5.6-luna"
+    assert history.json()[0]["prompt_version"] == "2026-08-15.1"
+    assert history.json()[0]["job_content_version_id"] == first.json()["job_content_version_id"]
+
+
+@pytest.mark.anyio
 async def test_job_analysis_requires_a_profile_and_returns_safe_validation_errors(
     application,
 ) -> None:

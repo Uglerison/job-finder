@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-406 — histórico imutável de análises`.
+**Próxima tarefa pronta:** `JF-407 — métricas de tokens, latência e custo`.
 
 ## Marcos
 
@@ -491,10 +491,13 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
     anúncio. Itens sem citação exata recebem `needs_review`; somente evidências
     verificadas são retornadas como fatos suportados.
 
-- [ ] **JF-406 — Persistir versão da análise**
+- [x] **JF-406 — Persistir versão da análise**
   - Depende de: JF-100 e JF-405.
   - Teste primeiro: perfil/modelo/prompt usados, reanálise e histórico imutável.
   - Aceite: análise antiga permanece auditável.
+  - Evidência: migração `0014_job_analysis_versions` retém análise, score, explicação,
+    perfil, conteúdo, modelo e prompt de cada execução. `GET /api/jobs/{id}/analyses`
+    devolve as versões em ordem; atualizações e exclusões pelo modelo ORM são bloqueadas.
 
 - [ ] **JF-407 — Medir tokens, latência e custo**
   - Depende de: JF-400.
@@ -740,6 +743,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-403 | Concluída com exceção explícita | Rota de análise por vaga usa Structured Outputs estrito, redige perfil e anúncio, seleciona o conteúdo mais recente e devolve campos/evidências validados; JF-009 continua pendente de seleção e rótulos humanos. |
 | 15/08/2026 | JF-404 | Concluída | Pontuação híbrida limitada a dimensões permitidas; filtros impeditivos retornam nota zero e confiança 100, enquanto o contexto do modelo tem peso fixo de 20%. |
 | 15/08/2026 | JF-405 | Concluída | Evidências são comparadas com título, metadados ou conteúdo visível; resumos, pontos fortes, lacunas e alertas sem citação exata recebem estado `needs_review`. |
+| 15/08/2026 | JF-406 | Concluída | Migração `0014_job_analysis_versions` cria histórico append-only com versão da vaga e perfil, modelo, prompt, análise, score e explicação; a API lista reanálises em ordem. |
 
 ## Bloqueios e decisões pendentes
 
