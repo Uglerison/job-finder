@@ -110,6 +110,10 @@ class ProviderNotConfigured(SourceAdapterError):
     """Raised when a provider has no credential available."""
 
 
+class ProviderResponseFormatError(SourceAdapterError):
+    """Raised when a provider returns JSON without a recognizable job collection."""
+
+
 class _JsonProvider:
     provider_key = ""
     display_name = ""
@@ -162,7 +166,7 @@ class JSearchProvider(_JsonProvider):
             },
             cancellation=cancellation,
         )
-        items = payload.get("data", []) if isinstance(payload, dict) else []
+        items = _jsearch_items(payload)
         candidates = [
             candidate
             for item in items[: params.limit]
@@ -647,6 +651,33 @@ def _jsearch_language(language: str) -> str:
     """JSearch expects an ISO 639-1 language code, not a locale string."""
 
     return language.split("-", 1)[0].casefold()
+
+
+def _jsearch_items(payload: object) -> list[dict[str, object]]:
+    """Extract job rows from the current and nested JSearch response variants."""
+
+    if not isinstance(payload, dict):
+        raise ProviderResponseFormatError("JSearch retornou uma resposta sem lista de vagas.")
+
+    data = payload.get("data")
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+    if not isinstance(data, dict):
+        raise ProviderResponseFormatError("JSearch retornou uma resposta sem lista de vagas.")
+
+    for key in ("jobs", "results", "data"):
+        nested = data.get(key)
+        if isinstance(nested, list):
+            return [item for item in nested if isinstance(item, dict)]
+
+    if any(key in data for key in ("job_id", "job_title", "employer_name")):
+        return [data]
+
+    mapped_items = [item for item in data.values() if isinstance(item, dict)]
+    if mapped_items and len(mapped_items) == len(data):
+        return mapped_items
+
+    raise ProviderResponseFormatError("JSearch retornou uma resposta sem lista de vagas.")
 
 
 def _canonical_jsearch_endpoint(endpoint: str) -> str:

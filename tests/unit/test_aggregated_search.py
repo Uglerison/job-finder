@@ -11,6 +11,7 @@ from job_finder.aggregated_search import (
     JoobleProvider,
     JSearchProvider,
     ProviderNotConfigured,
+    ProviderResponseFormatError,
     SearchAggregator,
     SearchCache,
     deduplicate_candidates,
@@ -102,6 +103,50 @@ async def test_jsearch_maps_brazilian_payload_and_headers() -> None:
     assert dict(seen[0].url.params)["num_pages"] == "1"
     assert dict(seen[0].url.params)["country"] == "br"
     assert dict(seen[0].url.params)["language"] == "pt"
+
+
+@pytest.mark.anyio
+async def test_jsearch_accepts_a_nested_jobs_list() -> None:
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "data": {
+                    "jobs": [
+                        {
+                            "job_id": "j-2",
+                            "job_apply_link": "https://jobs.example/j-2",
+                            "job_title": "Analista de Dados",
+                            "employer_name": "Dados Brasil",
+                            "job_description": "Python e SQL",
+                        },
+                    ],
+                },
+            },
+        )
+
+    provider = JSearchProvider(
+        api_key="secret",
+        client=SafeHttpClient(transport=httpx.MockTransport(handler), jitter=lambda: 0.0),
+    )
+
+    result = await provider.search(JobSearchParams(query="Analista de Dados"))
+
+    assert [candidate.external_id for candidate in result.candidates] == ["j-2"]
+
+
+@pytest.mark.anyio
+async def test_jsearch_reports_an_invalid_object_payload_without_crashing_search() -> None:
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"data": {"notice": "format changed"}})
+
+    provider = JSearchProvider(
+        api_key="secret",
+        client=SafeHttpClient(transport=httpx.MockTransport(handler), jitter=lambda: 0.0),
+    )
+
+    with pytest.raises(ProviderResponseFormatError, match="sem lista de vagas"):
+        await provider.search(JobSearchParams(query="Analista de Dados"))
 
 
 def test_jsearch_endpoint_is_canonical_and_rejects_unknown_paths() -> None:
