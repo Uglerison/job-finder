@@ -101,6 +101,7 @@ async def test_http_client_retries_429_then_succeeds_and_honors_cancellation() -
         return httpx.Response(200, json={"ok": True})
 
     sleeps: list[float] = []
+
     async def no_wait(delay: float) -> None:
         sleeps.append(delay)
 

@@ -227,8 +227,7 @@ def _refresh_origin(session: Session, job: Job, candidate: SourceCandidate) -> N
     existing_versions = get_job_content_versions(session, origin.id)
     candidate_hash = content_hash(candidate.description)
     if not any(
-        content_hash(version.raw_content) == candidate_hash
-        for version in existing_versions
+        content_hash(version.raw_content) == candidate_hash for version in existing_versions
     ):
         add_job_content_version(
             session,

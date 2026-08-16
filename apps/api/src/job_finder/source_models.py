@@ -49,10 +49,13 @@ class SourceConfigData(BaseModel):
         str,
         StringConstraints(strip_whitespace=True, min_length=1, max_length=2048),
     ]
-    terms_url: Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, max_length=2048),
-    ] | None = None
+    terms_url: (
+        Annotated[
+            str,
+            StringConstraints(strip_whitespace=True, max_length=2048),
+        ]
+        | None
+    ) = None
     data_format: Literal["json"] = "json"
     enabled: bool = True
     schedule_enabled: bool = False

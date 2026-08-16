@@ -112,9 +112,7 @@ class SourceCandidate:
         return cls(
             source_key=str(payload.get("source_key", "unknown")),
             external_id=(
-                str(payload["external_id"])
-                if payload.get("external_id") is not None
-                else None
+                str(payload["external_id"]) if payload.get("external_id") is not None else None
             ),
             url=str(payload.get("url", "")),
             title=str(payload.get("title", "")),
@@ -269,9 +267,10 @@ class JsonSourceAdapter:
                 f"{candidate.title} {candidate.description}".casefold()
             ):
                 continue
-            if request.location and request.location.casefold() not in (
-                candidate.location or ""
-            ).casefold():
+            if (
+                request.location
+                and request.location.casefold() not in (candidate.location or "").casefold()
+            ):
                 continue
             candidates.append(candidate)
             if len(candidates) >= request.limit:
