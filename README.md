@@ -94,6 +94,12 @@ detectáveis, pede JSON estrito à Responses API e valida cargo, requisitos,
 local, regime, salário e evidências antes de responder. O resultado ainda é
 transitório; o histórico imutável de análises será introduzido na JF-406.
 
+A resposta também inclui `fit`: filtros obrigatórios têm precedência e zeram a
+nota quando uma restrição é incompatível. Para vagas aceitas, os pesos
+reconhecidos do perfil calculam a parte determinística e o contexto do modelo
+tem influência fixa de 20%; idade, gênero, raça, religião, deficiência,
+estado civil, nacionalidade e rótulos desconhecidos não participam do score.
+
 ## Qualidade de código
 
 No backend, execute as verificações com o ambiente virtual do projeto:

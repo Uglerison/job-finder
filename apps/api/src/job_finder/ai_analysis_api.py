@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from job_finder.ai_analysis import StructuredJobAnalysis
 from job_finder.ai_extraction import JobAnalysisError, analyze_job_content
 from job_finder.ai_prompts import AnalysisMode
+from job_finder.ai_scoring import HybridFitScore, calculate_hybrid_fit
 from job_finder.ai_settings_api import (
     AiSettingsDependency,
     OpenAiStructuredClientDependency,
@@ -39,6 +40,7 @@ class JobAnalysisResponse(BaseModel):
     job_id: int
     job_content_version_id: int
     analysis: StructuredJobAnalysis
+    fit: HybridFitScore
     model: str
     prompt_version: str
 
@@ -112,10 +114,17 @@ def analyze_job(
     except OpenAiClientError as error:
         raise translate_openai_error(error) from error
 
+    fit = calculate_hybrid_fit(
+        ProfileCriteria.model_validate(profile_version.criteria),
+        execution.analysis,
+        description=latest_content.raw_content,
+    )
+
     return JobAnalysisResponse(
         job_id=job.id,
         job_content_version_id=latest_content.id,
         analysis=execution.analysis,
+        fit=fit,
         model=execution.model,
         prompt_version=execution.prompt_version,
     )

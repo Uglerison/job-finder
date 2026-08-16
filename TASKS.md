@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-404 — pontuação híbrida de aderência`.
+**Próxima tarefa pronta:** `JF-405 — explicação e evidências verificáveis`.
 
 ## Marcos
 
@@ -475,10 +475,13 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
     validação Pydantic antes de retornar o resultado transitório. Coberto por testes
     unitários e de API; JF-009 permanece pendente de rotulagem humana.
 
-- [ ] **JF-404 — Implementar pontuação híbrida de aderência**
+- [x] **JF-404 — Implementar pontuação híbrida de aderência**
   - Depende de: JF-106, JF-401 e JF-403.
   - Teste primeiro: pesos, filtros impeditivos, score 0–100 e confiança.
   - Aceite: nenhum atributo sensível participa da pontuação.
+  - Evidência: score combina dimensões determinísticas permitidas pelos pesos do perfil
+    com influência fixa de 20% do contexto do modelo; filtros obrigatórios zeram a
+    aderência. O allowlist não inclui atributos sensíveis nem pesos desconhecidos.
 
 - [ ] **JF-405 — Implementar explicação e evidências**
   - Depende de: JF-404.
@@ -732,6 +735,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-401 | Concluída | Contratos Pydantic para extração, aderência, score, confiança e evidências; validações cobrem campos ausentes, faixas inválidas, evidência inválida e salário inconsistente. |
 | 15/08/2026 | JF-402 | Concluída | Prompt `2026-08-15.1` é determinístico, redige PII detectável do perfil e define `low` para lote e `medium` para revisão detalhada. |
 | 15/08/2026 | JF-403 | Concluída com exceção explícita | Rota de análise por vaga usa Structured Outputs estrito, redige perfil e anúncio, seleciona o conteúdo mais recente e devolve campos/evidências validados; JF-009 continua pendente de seleção e rótulos humanos. |
+| 15/08/2026 | JF-404 | Concluída | Pontuação híbrida limitada a dimensões permitidas; filtros impeditivos retornam nota zero e confiança 100, enquanto o contexto do modelo tem peso fixo de 20%. |
 
 ## Bloqueios e decisões pendentes
 
