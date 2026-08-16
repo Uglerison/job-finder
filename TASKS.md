@@ -28,6 +28,18 @@ Toda tarefa que altera comportamento seguirá **Red → Green → Refactor**:
 
 Tarefas puramente documentais, configuração mecânica e protótipos descartáveis podem não ter teste automatizado, mas precisam de validação objetiva. Código de protótipo só entra no produto depois de refeito com TDD.
 
+## Diretriz visual registrada
+
+A interface seguirá a linguagem editorial do [Prepara AI](https://sepreparai.com.br/):
+
+- fundo papel claro (`#f8f8f4`), superfícies brancas e azul-tinta profundo (`#042440`);
+- tipografia serifada de destaque para mensagens principais, sans-serif para leitura e monoespaçada para rótulos operacionais;
+- navegação compacta, largura de leitura controlada, divisórias finas e cartões planos;
+- acento dourado discreto para estados de atenção, sem gradientes ou sombras pesadas;
+- responsividade, foco visível e conteúdo funcional mesmo sem baixar fontes ou imagens externas.
+
+O objetivo é reproduzir a hierarquia, o ritmo e o contraste da referência sem copiar ativos proprietários. A validação visual deve permanecer offline-friendly.
+
 ## Definition of Ready
 
 Uma tarefa está pronta para começar quando:
@@ -55,16 +67,16 @@ Uma tarefa só pode ser marcada como concluída quando:
 | Épico | Faixa | Estado | Marco de saída |
 |---|---|---|---|
 | E0 — Governança e decisões | JF-001–JF-009 | Em andamento | Escopo operacional fechado |
-| E1 — Fundação local | JF-010–JF-022 | Pendente | Aplicação local abre e persiste dados |
+| E1 — Fundação local | JF-010–JF-022 | Concluído | Aplicação local abre e persiste dados |
 | E2 — Perfil | JF-100–JF-107 | Pendente | Perfil editável e versionado |
-| E3 — Vagas e candidaturas | JF-200–JF-216 | Pendente | Fluxo manual completo |
-| E4 — Busca e fontes | JF-300–JF-313 | Pendente | Vagas coletadas e deduplicadas |
+| E3 — Vagas e candidaturas | JF-200–JF-216 | Em andamento | Fluxo manual completo |
+| E4 — Busca e fontes | JF-300–JF-313 | Concluído | Vagas coletadas, auditadas e deduplicadas |
 | E5 — GPT-5.6 Luna | JF-400–JF-412 | Pendente | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Pendente | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-010 — Criar a estrutura do monorepo`.
+**Próxima tarefa pronta:** `E5 — integração controlada do gpt-5.6-luna`.
 
 ## Marcos
 
@@ -125,264 +137,317 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 
 ## E1 — Fundação local
 
-- [ ] **JF-010 — Criar a estrutura do monorepo**
+- [x] **JF-010 — Criar a estrutura do monorepo**
   - Aceite: diretórios `apps/api`, `apps/web`, `tests`, `scripts` e `docs/adr` criados, sem artefatos gerados.
+  - Evidência: estrutura inicial versionada; artefatos locais ignorados por `.gitignore`.
 
-- [ ] **JF-011 — Configurar o projeto Python do backend**
+- [x] **JF-011 — Configurar o projeto Python do backend**
   - Depende de: JF-010.
   - Aceite: `pyproject.toml`, ambiente reproduzível, pacote importável e comando de testes funcional.
+  - Evidência: Python 3.10, instalação editável e Pytest validados.
 
-- [ ] **JF-012 — Configurar React, TypeScript e Vite**
+- [x] **JF-012 — Configurar React, TypeScript e Vite**
   - Depende de: JF-010.
   - Aceite: frontend inicia em desenvolvimento, compila assets estáticos e executa teste mínimo.
+  - Evidência: React/TypeScript/Vite com pnpm, Vitest, lint e build validados.
 
-- [ ] **JF-013 — Configurar qualidade de código**
+- [x] **JF-013 — Configurar qualidade de código**
   - Depende de: JF-011 e JF-012.
   - Aceite: formatter, lint e análise de tipos reproduzíveis para backend e frontend.
+  - Evidência: Ruff, Mypy, Prettier, Oxlint e TypeScript verificados e documentados; frontend usa pnpm.
 
-- [ ] **JF-014 — Configurar CI inicial**
+- [x] **JF-014 — Configurar CI inicial**
   - Depende de: JF-013.
   - Aceite: workflow executa testes, lint, tipos e build sem segredos.
+  - Evidência: workflow Windows separa backend e frontend, com instalação pnpm congelada e verificações locais equivalentes validadas.
 
-- [ ] **JF-015 — Implementar endpoint de saúde com TDD**
+- [x] **JF-015 — Implementar endpoint de saúde com TDD**
   - Depende de: JF-011.
   - Teste primeiro: resposta `200` com versão e estado esperado.
   - Aceite: `GET /api/health` validado por teste de API.
+  - Evidência: Red por ausência de `job_finder.main`; Green em `tests/api/test_health.py`.
 
-- [ ] **JF-016 — Implementar configuração tipada**
+- [x] **JF-016 — Implementar configuração tipada**
   - Depende de: JF-011.
   - Teste primeiro: defaults, overrides válidos e rejeição de configuração inválida.
   - Aceite: configuração sem segredos expostos e separada por ambiente.
+  - Evidência: `Settings` valida ambiente, logs, diretório local e segredo mascarado.
 
-- [ ] **JF-017 — Configurar SQLite, ORM e migrações**
+- [x] **JF-017 — Configurar SQLite, ORM e migrações**
   - Depende de: JF-011 e JF-016.
   - Teste primeiro: criação isolada do banco e aplicação idempotente da migração inicial.
   - Aceite: sessão transacional, WAL e Alembic funcionais.
+  - Evidência: SQLite em WAL, chaves estrangeiras e revisão Alembic `0001_initial_schema` validados.
 
-- [ ] **JF-018 — Implementar o ciclo de vida do servidor local**
+- [x] **JF-018 — Implementar o ciclo de vida do servidor local**
   - Depende de: JF-015 e JF-016.
   - Teste primeiro: início, detecção de porta, prontidão e encerramento controlado.
   - Aceite: servidor escuta apenas em `127.0.0.1` e encerra sem corromper estado.
+  - Evidência: teste de loopback valida porta livre, migração no startup, health e shutdown.
 
-- [ ] **JF-019 — Servir o frontend compilado pelo backend**
+- [x] **JF-019 — Servir o frontend compilado pelo backend**
   - Depende de: JF-012 e JF-018.
   - Teste primeiro: rota raiz e fallback de SPA retornam assets corretos.
   - Aceite: uma única URL local entrega API e interface.
+  - Evidência: testes de API e loopback validam raiz, fallback SPA, assets e `/api/health`.
 
-- [ ] **JF-020 — Abrir o navegador e impedir instância duplicada**
+- [x] **JF-020 — Abrir o navegador e impedir instância duplicada**
   - Depende de: JF-018 e JF-019.
   - Teste primeiro: trava de instância, reuso da URL e liberação após encerramento.
   - Aceite: executar duas vezes não cria dois servidores.
+  - Evidência: trava exclusiva armazena URL loopback, reusa a instância e é liberada no shutdown.
 
-- [ ] **JF-021 — Implementar logs locais seguros**
+- [x] **JF-021 — Implementar logs locais seguros**
   - Depende de: JF-016.
   - Teste primeiro: rotação, níveis e redação de padrões sensíveis.
   - Aceite: logs em `%LOCALAPPDATA%\JobFinder` sem chaves ou dados pessoais.
+  - Evidência: handler rotativo local redige segredos, e-mail e telefone; lifecycle registra início e fim.
 
-- [ ] **JF-022 — Criar smoke test da fundação Windows**
+- [x] **JF-022 — Criar smoke test da fundação Windows**
   - Depende de: JF-017 a JF-021.
   - Aceite: script inicia, verifica saúde/interface/persistência e encerra a aplicação.
+  - Evidência: `scripts/smoke_test.py` passou contra o build real e o teste confirma a porta liberada no shutdown.
 
 ## E2 — Perfil
 
-- [ ] **JF-100 — Modelar perfil e versões**
+- [x] **JF-100 — Modelar perfil e versões**
   - Depende de: JF-017.
   - Teste primeiro: criação, nova versão, consulta da versão ativa e imutabilidade histórica.
   - Aceite: schema e migração preservam histórico.
+  - Evidência: migração `0002_profile_versions` e testes cobrem criação, versão ativa e bloqueio de atualização histórica.
 
-- [ ] **JF-101 — Implementar validação dos critérios do perfil**
+- [x] **JF-101 — Implementar validação dos critérios do perfil**
   - Depende de: JF-100.
   - Teste primeiro: cargos, pesos, salário, idiomas e restrições válidos/inválidos.
   - Aceite: erros de domínio claros e pesos consistentes.
+  - Evidência: schemas Pydantic rejeitam critérios inválidos e exigem pesos totalizando 100%.
 
-- [ ] **JF-102 — Implementar API do perfil**
+- [x] **JF-102 — Implementar API do perfil**
   - Depende de: JF-100 e JF-101.
   - Teste primeiro: `GET` vazio, `PUT` válido, atualização versionada e payload inválido.
   - Aceite: contratos tipados para leitura e atualização.
+  - Evidência: rotas `/api/profile` retornam estado vazio, criam versões imutáveis e rejeitam critérios inválidos.
 
-- [ ] **JF-103 — Criar onboarding do perfil**
+- [x] **JF-103 — Criar onboarding do perfil e aplicar a identidade visual**
   - Depende de: JF-012 e JF-102.
   - Teste primeiro: fluxo obrigatório, validações e salvamento bem-sucedido.
-  - Aceite: perfil completo configurável sem editar arquivos.
+  - Diretriz visual: usar a composição editorial registrada acima na tela inicial e no onboarding.
+  - Aceite: perfil completo configurável sem editar arquivos; interface responsiva, acessível e coerente com a referência visual.
+  - Evidência: commit `266a44d`; Vitest cobre carregamento, abertura, preenchimento e `PUT /api/profile`; lint, Prettier, TypeScript/build e suíte backend verdes.
 
-- [ ] **JF-104 — Implementar edição e visualização de versões**
+- [x] **JF-104 — Implementar edição e visualização de versões**
   - Depende de: JF-103.
   - Teste primeiro: carregar versão atual e exibir histórico sem mutá-lo.
   - Aceite: usuário entende quando e por que a análise ficou desatualizada.
+  - Evidência: commit `34fa427`; endpoint `/api/profile/versions`, histórico visual com versão ativa e testes de imutabilidade aprovados.
 
-- [ ] **JF-105 — Implementar redação de dados pessoais**
+- [x] **JF-105 — Implementar redação de dados pessoais**
   - Depende de: JF-101.
   - Teste primeiro: e-mail, telefone, endereço e identificadores em fixtures.
   - Aceite: prévia mostra exatamente o texto que poderá ser enviado à IA.
+  - Evidência: commit `1708bec`; redação determinística, endpoint `/api/privacy/redact`, prévia na UI e contagem por categoria testados.
 
-- [ ] **JF-106 — Implementar filtros obrigatórios determinísticos**
+- [x] **JF-106 — Implementar filtros obrigatórios determinísticos**
   - Depende de: JF-101.
   - Teste primeiro: país, regime, contrato, salário e palavras bloqueadas.
   - Aceite: cada exclusão inclui motivo rastreável.
+  - Evidência: commit `1708bec`; critérios suportam país/contrato e endpoint `/api/filters/evaluate` retorna todas as razões em ordem estável.
 
-- [ ] **JF-107 — Implementar preferências gerais**
+- [x] **JF-107 — Implementar preferências gerais**
   - Depende de: JF-017.
   - Teste primeiro: locale, moeda, fuso, retenção e defaults.
   - Aceite: preferências persistem e são aplicadas na API/UI.
+  - Evidência: commit `1708bec`; migração `0003_preferences`, API `/api/preferences`, defaults locais e painel de preferências testados.
 
 ## E3 — Vagas e candidaturas
 
-- [ ] **JF-200 — Modelar vaga e suas origens**
+- [x] **JF-200 — Modelar vaga e suas origens**
   - Depende de: JF-017.
   - Teste primeiro: vaga normalizada com múltiplas origens e conteúdo versionado.
   - Aceite: schema e migração suportam URL canônica, conteúdo bruto e validade.
+  - Evidência: migração `0004_jobs`, modelos `Job`/`JobOrigin`/`JobContentVersion`, histórico imutável e 3 testes unitários novos.
 
-- [ ] **JF-201 — Implementar normalização determinística**
+- [x] **JF-201 — Implementar normalização determinística**
   - Depende de: JF-200.
   - Teste primeiro: URLs, cargos, empresas, locais, datas e espaços inconsistentes.
   - Aceite: mesma entrada produz sempre a mesma representação.
+  - Evidência: normalizador remove rastreadores, ordena query, normaliza textos/datas e migração `0005_job_dates`.
 
-- [ ] **JF-202 — Implementar inclusão manual de vaga**
+- [x] **JF-202 — Implementar inclusão manual de vaga**
   - Depende de: JF-200 e JF-201.
   - Teste primeiro: formulário válido, URL inválida e campos obrigatórios ausentes.
   - Aceite: vaga manual aparece como `ENCONTRADA` com origem auditável.
+  - Evidência: `POST /api/jobs` normaliza, persiste origem `manual`, conteúdo inicial e status `found` (`ENCONTRADA`); 4 testes de API verdes.
 
-- [ ] **JF-203 — Implementar importação de vaga por URL**
+- [x] **JF-203 — Implementar importação de vaga por URL**
   - Depende de: JF-202 e JF-602.
   - Teste primeiro: URL pública permitida, redirecionamento limitado e destino bloqueado.
   - Aceite: conteúdo sanitizado e falhas explicadas sem travar a aplicação.
+  - Evidência: importador HTTP com bloqueio de rede local, limite de 3 redirecionamentos, conteúdo seguro em texto e testes com cliente injetado; JF-602 permanece como endurecimento completo posterior.
 
-- [ ] **JF-204 — Implementar API de listagem e detalhe**
+- [x] **JF-204 — Implementar API de listagem e detalhe**
   - Depende de: JF-200.
   - Teste primeiro: paginação, filtros, ordenação, ausência e detalhe.
   - Aceite: contratos estáveis e consultas sem N+1 relevante.
+  - Evidência: `GET /api/jobs` com paginação, busca, status e ordenação; `GET /api/jobs/{id}` com detalhe e 404 explícito; 2 testes de API verdes.
 
-- [ ] **JF-205 — Criar caixa de entrada de vagas**
+- [x] **JF-205 — Criar caixa de entrada de vagas**
   - Depende de: JF-012 e JF-204.
   - Teste primeiro: estados vazio/erro/carregamento e ações rápidas.
   - Aceite: vagas novas podem ser revisadas e filtradas.
+  - Evidência: caixa de entrada editorial com busca local, estados de carregamento/erro/vazio, inclusão manual rápida e 7 testes Vitest; pnpm lint, format e build verdes.
 
-- [ ] **JF-206 — Criar tela de detalhe da vaga**
+- [x] **JF-206 — Criar tela de detalhe da vaga**
   - Depende de: JF-204 e JF-205.
   - Teste primeiro: descrição segura, origem, metadados e histórico.
   - Aceite: nenhum HTML externo executável é renderizado.
+  - Evidência: detalhe sob demanda com origem, conteúdo versionado e renderização em texto puro; 8 testes Vitest verdes.
 
-- [ ] **JF-207 — Implementar notas e tags**
+- [x] **JF-207 — Implementar notas e tags**
   - Depende de: JF-200.
   - Teste primeiro: criar, editar, filtrar e remover vínculo sem perder a vaga.
   - Aceite: notas e tags disponíveis na API e interface.
+  - Evidência: migração `0007_job_metadata`, notas editáveis, tags idempotentes e removíveis, detalhe inclui metadados; 8 testes de API focados verdes.
 
-- [ ] **JF-208 — Modelar candidatura e eventos de fase**
+- [x] **JF-208 — Modelar candidatura e eventos de fase**
   - Depende de: JF-017 e JF-200.
   - Teste primeiro: candidatura única por vaga, estado atual e eventos imutáveis.
   - Aceite: migração preserva histórico completo.
+  - Evidência: migração `0008_applications`, unicidade por vaga, evento inicial e bloqueio de alteração/remoção do histórico; teste unitário verde.
 
-- [ ] **JF-209 — Implementar máquina de estados do pipeline**
+- [x] **JF-209 — Implementar máquina de estados do pipeline**
   - Depende de: JF-208.
   - Teste primeiro: todas as transições permitidas, proibidas e correções auditáveis.
   - Aceite: backend rejeita transição inválida independentemente da UI.
+  - Evidência: mapa explícito de transições, terminais e correções marcadas como evento `correction`; testes unitários verdes.
 
-- [ ] **JF-210 — Implementar API de candidaturas e fases**
+- [x] **JF-210 — Implementar API de candidaturas e fases**
   - Depende de: JF-209.
   - Teste primeiro: criar candidatura, avançar, corrigir e consultar histórico.
   - Aceite: operações transacionais com erros de domínio claros.
+  - Evidência: `POST/GET /api/jobs/{id}/application`, `GET /api/applications/{id}` e transição transacional com `409` para conflito; testes de API verdes.
 
-- [ ] **JF-211 — Criar quadro visual do pipeline**
+- [x] **JF-211 — Criar quadro visual do pipeline**
   - Depende de: JF-210.
   - Teste primeiro: mover por ação acessível, erro de transição e atualização otimista revertida.
   - Aceite: pipeline utilizável com mouse e teclado.
+  - Evidência: quadro editorial responsivo, carregamento por vaga, select e ação acessíveis, rollback otimista em `409`; 10 testes Vitest, lint, Prettier, TypeScript e build verdes.
 
-- [ ] **JF-212 — Modelar entrevistas, desafios e prazos**
+- [x] **JF-212 — Modelar entrevistas, desafios e prazos**
   - Depende de: JF-208 e JF-107.
   - Teste primeiro: fuso, conflito, prazo vencido e vínculo ao processo.
   - Aceite: eventos persistem com data, participantes, link e notas.
+  - Evidência: migração `0009_process_events`, modelo de entrevistas/desafios/prazos com timezone, detecção de sobreposição e helper de vencimento; API de criação/listagem; 61 testes backend verdes.
 
-- [ ] **JF-213 — Implementar agenda de processo seletivo**
+- [x] **JF-213 — Implementar agenda de processo seletivo**
   - Depende de: JF-212.
   - Teste primeiro: próximos eventos, vencidos e filtros por período.
   - Aceite: agenda disponível na API e interface.
+  - Evidência: `GET /api/events` filtra por período/status com validação de timezone; agenda editorial separa próximos e vencidos; 11 testes Vitest, 62 testes backend, lint, tipos e builds verdes.
 
-- [ ] **JF-214 — Implementar motivos de encerramento**
+- [x] **JF-214 — Implementar motivos de encerramento**
   - Depende de: JF-209.
   - Teste primeiro: reprovação, desistência, expiração e motivo opcional/obrigatório.
   - Aceite: dados alimentam relatórios sem apagar histórico.
+  - Evidência: migração `0010_closure_reasons`, motivos obrigatórios para `rejected/withdrawn/expired`, fechamento persistido e motivo copiado para o evento imutável; 64 testes backend verdes.
 
-- [ ] **JF-215 — Implementar exportação CSV/JSON**
+- [x] **JF-215 — Implementar exportação CSV/JSON**
   - Depende de: JF-204 e JF-210.
   - Teste primeiro: codificação, campos, filtros e neutralização de fórmulas em CSV.
   - Aceite: exportação abre corretamente e não contém a chave da API.
+  - Evidência: endpoints `jobs/applications.(csv|json)`, filtro de status, UTF-8 com BOM e neutralização de células iniciadas por `=+-@`; teste de exportação verde sem segredos.
 
-- [ ] **JF-216 — Implementar lixeira recuperável**
+- [x] **JF-216 — Implementar lixeira recuperável**
   - Depende de: JF-200 e JF-208.
   - Teste primeiro: arquivar, restaurar e expirar após retenção.
   - Aceite: exclusão definitiva exige confirmação e respeita vínculos.
+  - Evidência: migração `0011_recoverable_trash`, soft-delete com retenção das preferências, restauração, purge de expirados e `confirm=true` para remoção definitiva; candidaturas vinculadas bloqueiam a remoção; lixeira visual com restauração e confirmação no navegador; 68 testes backend e 12 testes Vitest verdes.
 
 ## E4 — Busca e fontes
 
-- [ ] **JF-300 — Definir contrato de adaptadores**
+- [x] **JF-300 — Definir contrato de adaptadores**
   - Depende de: JF-005 e JF-200.
   - Teste primeiro: adaptador bem-sucedido, parcial, vazio, cancelado e com erro.
   - Aceite: interface tipada não acopla domínio a uma fonte específica.
+  - Evidência: `SourceAdapter`, `SourceSearchRequest`, `SourceSearchResult` e token de cancelamento em `source_adapters.py`; fixtures cobrem sucesso, parcial/vazio, cancelado e erro.
 
-- [ ] **JF-301 — Modelar configuração de fonte**
+- [x] **JF-301 — Modelar configuração de fonte**
   - Depende de: JF-017 e JF-300.
   - Teste primeiro: ativação, frequência, limites e configuração inválida.
   - Aceite: segredos não são persistidos em texto simples.
+  - Evidência: migração `0012_search_sources`, `SourceConfigRecord` e `SourceConfigData`; três fontes públicas sem credenciais são semeadas com agendamento desligado e a API nunca retorna `secret_ref`.
 
-- [ ] **JF-302 — Implementar API e UI de fontes**
+- [x] **JF-302 — Implementar API e UI de fontes**
   - Depende de: JF-301.
   - Teste primeiro: criar, testar conexão, pausar e editar uma fonte.
   - Aceite: configuração e último estado visíveis ao usuário.
+  - Evidência: `/api/sources`, `PUT /api/sources/{source_key}`, teste de conexão e seção editorial “Fontes e execuções” com ativação/pausa, limites e último erro.
 
-- [ ] **JF-303 — Modelar e executar `search_run`**
+- [x] **JF-303 — Modelar e executar `search_run`**
   - Depende de: JF-300 e JF-301.
   - Teste primeiro: ciclo pendente/em execução/concluído/falhou/cancelado.
   - Aceite: contadores, duração e erros ficam auditáveis.
+  - Evidência: migração `0012_search_sources`, `execute_search_run`, estados pendente/em execução/concluído/parcial/falhou/cancelado e painel de execuções; API E4 cobre contadores e deduplicação.
 
-- [ ] **JF-304 — Implementar cancelamento cooperativo**
+- [x] **JF-304 — Implementar cancelamento cooperativo**
   - Depende de: JF-303.
   - Teste primeiro: cancelar antes, durante e após conclusão.
   - Aceite: nenhuma tarefa fica órfã nem grava resultado após cancelamento.
+  - Evidência: `CancellationToken`, `SearchTaskRegistry`, `POST /api/search-runs/{id}/cancel` e teste que confirma zero candidato persistido após cancelamento.
 
-- [ ] **JF-305 — Implementar agendador persistente**
+- [x] **JF-305 — Implementar agendador persistente**
   - Depende de: JF-301 e JF-303.
   - Teste primeiro: próxima execução, reinício, janela e tarefa perdida.
   - Aceite: automático desativado por padrão e fuso respeitado.
+  - Evidência: `PersistentScheduler`, `next_run_at`, recuperação de execuções interrompidas e `/api/scheduler/tick`; defaults desligam o automático e calculam janelas em UTC local.
 
-- [ ] **JF-306 — Implementar cliente HTTP seguro e resiliente**
+- [x] **JF-306 — Implementar cliente HTTP seguro e resiliente**
   - Depende de: JF-016 e JF-602.
   - Teste primeiro: timeout, limite, redirecionamento, retry e domínio bloqueado.
   - Aceite: políticas comuns aplicadas a todos os conectores.
+  - Evidência: `SafeHttpClient` valida esquema/destino público, limita bytes e redirects, aplica timeout e retries; fixture MockTransport cobre respostas inválidas.
 
-- [ ] **JF-307 — Implementar limite e backoff por fonte**
+- [x] **JF-307 — Implementar limite e backoff por fonte**
   - Depende de: JF-303 e JF-306.
   - Teste primeiro: `429`, erro transitório, teto e pausa automática.
   - Aceite: repetição limitada com jitter e diagnóstico visível.
+  - Evidência: tratamento de `429`, `Retry-After`, jitter limitado, teto diário/por execução, `backoff_until` e erro persistido; teste confirma pausa após rate limit.
 
-- [ ] **JF-308 — Implementar conector da fonte 1**
+- [x] **JF-308 — Implementar conector da fonte 1**
   - Depende de: JF-005, JF-300 e JF-306.
   - Teste primeiro: fixtures de sucesso, paginação, alteração e erro.
   - Aceite: vagas entram normalizadas com origem e evidência.
+  - Evidência: `RemoteOkAdapter` com fixture de JSON, origem `remoteok`, conteúdo sanitizado e normalização determinística.
 
-- [ ] **JF-309 — Implementar conector da fonte 2**
+- [x] **JF-309 — Implementar conector da fonte 2**
   - Depende de: JF-308.
   - Teste primeiro: fixtures específicas e contrato comum.
   - Aceite: mesmos indicadores operacionais da fonte 1.
+  - Evidência: `ArbeitnowAdapter` usa o contrato comum e fixture de payload `{data: [...]}`; contadores do run são compartilhados.
 
-- [ ] **JF-310 — Implementar conector da fonte 3**
+- [x] **JF-310 — Implementar conector da fonte 3**
   - Depende de: JF-309.
   - Teste primeiro: fixtures específicas e contrato comum.
   - Aceite: mesmos indicadores operacionais das fontes anteriores.
+  - Evidência: `JobicyAdapter` usa o contrato comum e fixture de payload `{jobs: [...]}`; falhas e limites seguem a mesma política.
 
-- [ ] **JF-311 — Implementar deduplicação exata**
+- [x] **JF-311 — Implementar deduplicação exata**
   - Depende de: JF-201 e JF-303.
   - Teste primeiro: URL canônica, ID externo, hash e múltiplas origens.
   - Aceite: duplicata exata não cria uma segunda vaga.
+  - Evidência: URL canônica, `(source, external_id)` e hash de conteúdo em `source_dedup.py`; origens múltiplas são preservadas e teste do segundo run mantém uma única vaga.
 
-- [ ] **JF-312 — Implementar sugestão de duplicata aproximada**
+- [x] **JF-312 — Implementar sugestão de duplicata aproximada**
   - Depende de: JF-311.
   - Teste primeiro: cargo/empresa/local semelhantes e falsos positivos conhecidos.
   - Aceite: união aproximada exige confirmação do usuário.
+  - Evidência: similaridade explicável de cargo/empresa/local em `duplicate_suggestions`; endpoints `/api/duplicates/{id}/confirm|dismiss` e teste de confirmação que anexa a origem sem duplicar a vaga.
 
-- [ ] **JF-313 — Criar painel de execuções e erros**
+- [x] **JF-313 — Criar painel de execuções e erros**
   - Depende de: JF-302 a JF-307.
   - Teste primeiro: progresso, cancelamento, falha parcial e reexecução.
   - Aceite: resultado de cada fonte pode ser diagnosticado sem abrir logs.
+  - Evidência: `/api/search-runs`, cancelamento e seção visual com status, duração, vagas encontradas, novas, duplicatas, aproximações e erro por fonte.
 
 ## E5 — GPT-5.6 Luna
 
@@ -618,6 +683,45 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-001 | Concluída | `eb4ab11` — planejamento inicial |
 | 15/08/2026 | JF-002 | Concluída | `3c2a839` — TDD obrigatório |
 | 15/08/2026 | JF-003 | Concluída | Quadro criado neste documento |
+| 15/08/2026 | JF-010 | Concluída | Estrutura inicial criada e artefatos locais ignorados |
+| 15/08/2026 | JF-011 | Concluída | `pyproject.toml`, instalação editável e Pytest configurados |
+| 15/08/2026 | JF-015 | Concluída | TDD Red → Green para `GET /api/health` |
+| 15/08/2026 | JF-012 | Concluída | React/Vite, Vitest, lint e build configurados exclusivamente com pnpm |
+| 15/08/2026 | JF-016 | Concluída | Settings tipados, secret mascarado e variáveis `JOB_FINDER_*` validados |
+| 15/08/2026 | JF-017 | Concluída | SQLite WAL, SQLAlchemy e migração idempotente validados |
+| 15/08/2026 | JF-018 | Concluída | Servidor loopback com startup, migração, health e shutdown validados |
+| 15/08/2026 | JF-019 | Concluída | Frontend Vite compilado, assets e fallback SPA entregues na mesma origem da API |
+| 15/08/2026 | JF-020 | Concluída | Navegador abre URL local e trava exclusiva evita servidor duplicado |
+| 15/08/2026 | JF-021 | Concluída | Logs locais rotativos com nível configurável e redação de dados sensíveis |
+| 15/08/2026 | JF-022 | Concluída | Script Windows valida health, interface, SQLite e liberação de recursos |
+| 15/08/2026 | JF-013 | Concluída | Formatter, lint e tipos reproduzíveis validados para backend e frontend |
+| 15/08/2026 | JF-014 | Concluída | Workflow Windows valida testes, qualidade, tipos e build sem segredos |
+| 15/08/2026 | JF-100 | Concluída | Perfil versionado em SQLite com histórico imutável e consulta da versão ativa |
+| 15/08/2026 | JF-101 | Concluída | Critérios tipados validam cargos, pesos, remuneração, idiomas e restrições |
+| 15/08/2026 | JF-102 | Concluída | API local cria e lê versões validadas do perfil |
+| 15/08/2026 | JF-103 | Concluída | `266a44d` — onboarding local com validação, salvamento versionado e shell editorial; 3 testes Vitest, lint, formatação, build e 26 testes backend verdes |
+| 15/08/2026 | JF-104 | Concluída | `34fa427` — histórico de versões na API e interface, com versão ativa destacada; 4 testes Vitest e 27 testes backend verdes |
+| 15/08/2026 | JF-105 | Concluída | `1708bec` — redação de e-mail, telefone, endereço e identificadores com prévia segura; 1 teste unitário, 1 teste API e 6 testes frontend |
+| 15/08/2026 | JF-106 | Concluída | `1708bec` — filtros de país, regime, contrato, salário e palavras bloqueadas com razões rastreáveis; 2 testes unitários e 1 teste API |
+| 15/08/2026 | JF-107 | Concluída | `1708bec` — preferências de locale, moeda, fuso e retenção persistidas na migração `0003_preferences` e painel local |
+| 15/08/2026 | JF-200 | Concluída | Migração `0004_jobs`, vaga normalizada com múltiplas origens, conteúdo bruto versionado com validade e 39 testes backend verdes |
+| 15/08/2026 | JF-201 | Concluída | Normalização determinística de URL, textos, espaços e datas; 7 testes focados verdes |
+| 15/08/2026 | JF-202 | Concluída | Inclusão manual transacional via `POST /api/jobs`, origem auditável e status inicial `ENCONTRADA` |
+| 15/08/2026 | JF-203 | Concluída | Importação por URL com política pública mínima, redirects limitados, sanitização e origem `url_import` |
+| 15/08/2026 | JF-204 | Concluída | Listagem paginada com filtros/ordenação e detalhe com origens, conteúdo e 404 explícito |
+| 15/08/2026 | JF-205 | Concluída | Caixa de entrada visual com busca, estados de UI e inclusão manual rápida integrada a `POST /api/jobs` |
+| 15/08/2026 | JF-206 | Concluída | Detalhe sob demanda com origem, histórico de conteúdo e proteção contra execução de HTML externo |
+| 15/08/2026 | JF-207 | Concluída | Notas editáveis e tags reutilizáveis disponíveis por API e no contrato de detalhe da vaga |
+| 15/08/2026 | JF-208 | Concluída | Migração `0008_applications`, candidatura única por vaga e eventos de fase imutáveis; 57 testes backend verdes |
+| 15/08/2026 | JF-209 | Concluída | Máquina de estados com transições permitidas, terminais e correções auditáveis; testes unitários verdes |
+| 15/08/2026 | JF-210 | Concluída | API transacional para criar, consultar, avançar e corrigir candidaturas; conflitos retornam `409` |
+| 15/08/2026 | JF-211 | Concluída | Quadro visual responsivo com ações acessíveis e rollback de transição rejeitada; 10 testes Vitest e build frontend verdes |
+| 15/08/2026 | JF-212 | Concluída | Eventos de entrevista, desafio e prazo com timezone, conflito e vencimento auditáveis; migração `0009_process_events` e 61 testes backend verdes |
+| 15/08/2026 | JF-213 | Concluída | Agenda API com filtros por período/status e interface de próximos/vencidos; 11 testes Vitest e 62 testes backend verdes |
+| 15/08/2026 | JF-214 | Concluída | Motivos de encerramento obrigatórios quando aplicável e auditados nos eventos sem apagar histórico; 64 testes backend verdes |
+| 15/08/2026 | JF-215 | Concluída | Exportação CSV/JSON filtrável, codificação Excel-friendly e neutralização de fórmulas; 65 testes backend verdes |
+| 15/08/2026 | JF-216 | Concluída | Lixeira com soft-delete, restauração, expiração por retenção e proteção de candidaturas vinculadas; migração `0011_recoverable_trash`, UI de restauração/confirmação, 68 testes backend e 12 Vitest verdes |
+| 15/08/2026 | JF-300–JF-313 | Concluída | E4 completa: contrato de adaptadores, três fontes públicas, configuração sem segredos, runs auditáveis, cancelamento, scheduler persistente, cliente HTTP resiliente, limites/backoff, deduplicação exata/aproximada e painel; 49 testes unitários backend, 2 testes API E4, Ruff e Mypy verdes |
 
 ## Bloqueios e decisões pendentes
 
@@ -626,6 +730,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-004 | Falta consolidar o perfil profissional de referência | Usuário | Fornecer currículo ou preencher critérios no onboarding quando disponível |
 | 15/08/2026 | JF-005 | Fontes dependem de países, cargos e regime desejados | Projeto | Selecionar após JF-004 |
 | 15/08/2026 | JF-006 | Orçamento mensal ainda não definido | Usuário | Definir antes de ativar buscas automáticas |
+| 15/08/2026 | JF-005/JF-006 | E4 foi implementada com Remote OK, Arbeitnow e Jobicy, agendamento desligado e limites padrão de 50 execuções/dia e 50 vagas/run para não bloquear o desenvolvimento | Projeto | Usuário pode substituir fontes, termos, frequência e limites em `/api/sources` antes de ativar automação |
 
 ## Ideias fora do MVP
 

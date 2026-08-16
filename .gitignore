@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+htmlcov/
+
+# Node.js
+node_modules/
+apps/web/dist/
+npm-debug.log*
+
+# Local application data and secrets
+.env
+.env.*
+!.env.example
+data/
+logs/
+backups/
+
+# Builds and IDEs
+build/
+dist/
+.idea/
+.vscode/
+*.code-workspace
