@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-405 — explicação e evidências verificáveis`.
+**Próxima tarefa pronta:** `JF-406 — histórico imutável de análises`.
 
 ## Marcos
 
@@ -483,10 +483,13 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
     com influência fixa de 20% do contexto do modelo; filtros obrigatórios zeram a
     aderência. O allowlist não inclui atributos sensíveis nem pesos desconhecidos.
 
-- [ ] **JF-405 — Implementar explicação e evidências**
+- [x] **JF-405 — Implementar explicação e evidências**
   - Depende de: JF-404.
   - Teste primeiro: pontos fortes, lacunas, alertas e citações presentes no anúncio.
   - Aceite: afirmação sem evidência é sinalizada, não apresentada como fato.
+  - Evidência: cada citação é verificada no título, metadados ou texto visível do
+    anúncio. Itens sem citação exata recebem `needs_review`; somente evidências
+    verificadas são retornadas como fatos suportados.
 
 - [ ] **JF-406 — Persistir versão da análise**
   - Depende de: JF-100 e JF-405.
@@ -736,6 +739,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-402 | Concluída | Prompt `2026-08-15.1` é determinístico, redige PII detectável do perfil e define `low` para lote e `medium` para revisão detalhada. |
 | 15/08/2026 | JF-403 | Concluída com exceção explícita | Rota de análise por vaga usa Structured Outputs estrito, redige perfil e anúncio, seleciona o conteúdo mais recente e devolve campos/evidências validados; JF-009 continua pendente de seleção e rótulos humanos. |
 | 15/08/2026 | JF-404 | Concluída | Pontuação híbrida limitada a dimensões permitidas; filtros impeditivos retornam nota zero e confiança 100, enquanto o contexto do modelo tem peso fixo de 20%. |
+| 15/08/2026 | JF-405 | Concluída | Evidências são comparadas com título, metadados ou conteúdo visível; resumos, pontos fortes, lacunas e alertas sem citação exata recebem estado `needs_review`. |
 
 ## Bloqueios e decisões pendentes
 

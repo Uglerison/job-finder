@@ -36,6 +36,7 @@ def test_analysis_prompt_is_deterministic_versioned_and_redacts_profile_data() -
     assert "contato@example.com" not in first
     assert "[E-MAIL REMOVIDO]" in first
     assert "Não use atributos sensíveis" in first
+    assert "citação exata" in first
 
 
 def test_analysis_configuration_uses_low_for_volume_and_medium_for_detailed_reviews() -> None:

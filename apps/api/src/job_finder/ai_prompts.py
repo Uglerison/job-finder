@@ -49,6 +49,7 @@ def render_analysis_instructions(profile: ProfileCriteria) -> str:
             "deficiência, estado civil, nacionalidade ou qualquer proxy desses atributos.",
             "Não use atributos sensíveis; quando faltar informação, informe como não especificada.",
             "Toda afirmação sobre a vaga deve ter evidência textual curta do anúncio.",
+            "Para tratar um ponto como fato, repita no ponto uma citação exata da evidência.",
             "Retorne somente o objeto JSON compatível com o schema fornecido.",
             f"Perfil redigido: {redacted_profile}",
         )

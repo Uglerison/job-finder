@@ -100,6 +100,11 @@ reconhecidos do perfil calculam a parte determinística e o contexto do modelo
 tem influência fixa de 20%; idade, gênero, raça, religião, deficiência,
 estado civil, nacionalidade e rótulos desconhecidos não participam do score.
 
+Em `explanation`, cada citação é conferida localmente no título, metadados ou
+texto visível da vaga. Somente itens com uma citação exata existente ficam como
+`supported`; resumos, pontos fortes, lacunas, alertas e alegações sem essa
+prova aparecem como `needs_review` para revisão humana.
+
 ## Qualidade de código
 
 No backend, execute as verificações com o ambiente virtual do projeto:

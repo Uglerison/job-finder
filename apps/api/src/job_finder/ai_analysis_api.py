@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session, sessionmaker
 
 from job_finder.ai_analysis import StructuredJobAnalysis
+from job_finder.ai_explanation import JobExplanation, build_explanation
 from job_finder.ai_extraction import JobAnalysisError, analyze_job_content
 from job_finder.ai_prompts import AnalysisMode
 from job_finder.ai_scoring import HybridFitScore, calculate_hybrid_fit
@@ -41,6 +42,7 @@ class JobAnalysisResponse(BaseModel):
     job_content_version_id: int
     analysis: StructuredJobAnalysis
     fit: HybridFitScore
+    explanation: JobExplanation
     model: str
     prompt_version: str
 
@@ -119,12 +121,20 @@ def analyze_job(
         execution.analysis,
         description=latest_content.raw_content,
     )
+    explanation = build_explanation(
+        execution.analysis,
+        title=job.title,
+        company=job.company,
+        location=job.location,
+        raw_content=latest_content.raw_content,
+    )
 
     return JobAnalysisResponse(
         job_id=job.id,
         job_content_version_id=latest_content.id,
         analysis=execution.analysis,
         fit=fit,
+        explanation=explanation,
         model=execution.model,
         prompt_version=execution.prompt_version,
     )

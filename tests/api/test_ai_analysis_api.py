@@ -142,6 +142,10 @@ async def test_job_analysis_uses_the_current_profile_and_returns_validated_extra
     assert body["analysis"]["assessment"]["score"] == 82
     assert body["fit"]["accepted"] is True
     assert 0 <= body["fit"]["score"] <= 100
+    assert (
+        body["explanation"]["supported_evidence"][0]["quote"]
+        == "Strong SQL skills are required."
+    )
     assert body["model"] == "gpt-5.6-luna"
     assert body["prompt_version"] == "2026-08-15.1"
     assert fake_client.received_reasoning_effort == "low"
