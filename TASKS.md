@@ -461,7 +461,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Teste primeiro: respostas válidas, ausentes, fora de faixa e com evidência inválida.
   - Aceite: extração e aderência validadas antes de persistir.
 
-- [ ] **JF-402 — Versionar prompts e configuração de raciocínio**
+- [x] **JF-402 — Versionar prompts e configuração de raciocínio**
   - Depende de: JF-400 e JF-401.
   - Teste primeiro: renderização determinística, perfil redigido e versão registrada.
   - Aceite: `low` padrão e `medium` somente para análise detalhada solicitada.
@@ -726,6 +726,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
 | 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |
 | 15/08/2026 | JF-401 | Concluída | Contratos Pydantic para extração, aderência, score, confiança e evidências; validações cobrem campos ausentes, faixas inválidas, evidência inválida e salário inconsistente. |
+| 15/08/2026 | JF-402 | Concluída | Prompt `2026-08-15.1` é determinístico, redige PII detectável do perfil e define `low` para lote e `medium` para revisão detalhada. |
 
 ## Bloqueios e decisões pendentes
 
