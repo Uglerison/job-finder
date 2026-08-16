@@ -1244,6 +1244,193 @@
   scroll-margin-top: 5rem;
 }
 
+.dashboard-section {
+  border-top: 1px solid var(--ink-faint);
+  display: grid;
+  gap: clamp(2.5rem, 7vw, 6rem);
+  grid-template-columns: minmax(12rem, 0.72fr) minmax(0, 1.28fr);
+  margin: 0 auto;
+  max-width: 64rem;
+  padding: clamp(4rem, 8vw, 7rem) 1.5rem;
+  scroll-margin-top: 5rem;
+}
+
+.dashboard-intro {
+  max-width: 20rem;
+}
+
+.dashboard-intro h2 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2rem, 3.8vw, 3rem);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+  margin: 0;
+}
+
+.dashboard-intro > p:last-child {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin: 1.25rem 0 0;
+}
+
+.dashboard-workspace {
+  min-width: 0;
+}
+
+.dashboard-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 0.7rem;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+.dashboard-toolbar label,
+.dashboard-toolbar select {
+  font-size: 0.75rem;
+}
+
+.dashboard-cards {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dashboard-card,
+.dashboard-panel {
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-faint);
+  padding: 0.9rem;
+}
+
+.dashboard-card {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.dashboard-card strong {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 2rem;
+  font-weight: 400;
+}
+
+.dashboard-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0.8rem;
+}
+
+.dashboard-panel-heading {
+  align-items: center;
+  border-bottom: 1px solid var(--ink-faint);
+  display: flex;
+  gap: 0.8rem;
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.6rem;
+}
+
+.dashboard-panel-heading h3 {
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.dashboard-funnel {
+  display: grid;
+  gap: 0.7rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard-funnel li > div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.dashboard-funnel progress {
+  accent-color: var(--accent);
+  display: block;
+  height: 0.45rem;
+  margin: 0.25rem 0;
+  width: 100%;
+}
+
+.dashboard-funnel small {
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+}
+
+.dashboard-agenda-summary {
+  align-items: baseline;
+  display: grid;
+  gap: 0.2rem 0.8rem;
+  grid-template-columns: auto 1fr;
+}
+
+.dashboard-agenda-summary strong {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 2rem;
+  font-weight: 400;
+}
+
+.dashboard-agenda-summary strong.is-warning {
+  color: var(--brand-error, #a32a1c);
+}
+
+.dashboard-agenda-summary span {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.dashboard-table-wrap {
+  overflow-x: auto;
+}
+
+.dashboard-panel table {
+  border-collapse: collapse;
+  font-size: 0.72rem;
+  width: 100%;
+}
+
+.dashboard-panel th,
+.dashboard-panel td {
+  border-bottom: 1px solid var(--ink-faint);
+  padding: 0.45rem 0.35rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.dashboard-panel th:first-child,
+.dashboard-panel td:first-child {
+  text-align: left;
+}
+
+.dashboard-feedback {
+  background: var(--paper-sunken);
+  border-left: 2px solid var(--accent);
+  color: var(--ink-soft);
+  padding: 0.8rem;
+}
+
+.dashboard-feedback.is-error {
+  border-left-color: var(--brand-error, #a32a1c);
+  color: var(--brand-error, #a32a1c);
+}
+
+.visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 .pipeline-intro {
   max-width: 20rem;
 }
@@ -2030,6 +2217,13 @@
     padding-right: 1rem;
   }
 
+  .dashboard-section {
+    gap: 3rem;
+    grid-template-columns: 1fr;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
   .jobs-section {
     gap: 3rem;
     grid-template-columns: 1fr;
@@ -2039,6 +2233,16 @@
 }
 
 @media (max-width: 34rem) {
+  .dashboard-cards,
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .redaction-heading {
     align-items: start;
     flex-direction: column;

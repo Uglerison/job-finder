@@ -72,11 +72,11 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E3 — Vagas e candidaturas | JF-200–JF-216 | Em andamento | Fluxo manual completo |
 | E4 — Busca e fontes | JF-300–JF-313 | Concluído | Vagas coletadas, auditadas e deduplicadas |
 | E5 — GPT-5.6 Luna | JF-400–JF-412 | Concluída | Análise explicável e controlada |
-| E6 — Dashboard e agenda | JF-500–JF-508 | Pendente | Métricas operacionais consistentes |
+| E6 — Dashboard e agenda | JF-500–JF-508 | Em andamento | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima etapa:** E6 — dashboard e agenda (`JF-500`).
+**Próxima etapa:** `JF-506 — Implementar filtros salvos`.
 
 ## Marcos
 
@@ -550,45 +550,60 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 
 ## E6 — Dashboard e agenda
 
-- [ ] **JF-500 — Definir métricas e denominadores**
+- [x] **JF-500 — Definir métricas e denominadores**
   - Depende de: JF-208, JF-209 e JF-303.
   - Teste primeiro: fixtures pequenas com valores calculados manualmente.
   - Aceite: fórmulas documentadas e duplicatas excluídas.
+  - Evidência: `dashboard_metrics.py` define cartões, funil, denominadores, crédito pela
+    primeira origem e exclusão de vagas removidas; testes cobrem fixtures pequenas,
+    semanas vazias, fuso e erros de fontes.
 
-- [ ] **JF-501 — Implementar agregações de resumo**
+- [x] **JF-501 — Implementar agregações de resumo**
   - Depende de: JF-500.
   - Teste primeiro: período vazio, fronteira de datas, fuso e filtros.
   - Aceite: cartões retornam números consistentes.
+  - Evidência: `GET /api/dashboard/summary` retorna cartões de vagas, candidaturas,
+    entrevistas, ofertas, contratações, rejeições e pipeline ativo com período e fuso.
 
-- [ ] **JF-502 — Implementar funil de conversão**
+- [x] **JF-502 — Implementar funil de conversão**
   - Depende de: JF-500.
   - Teste primeiro: avanço, regressão corrigida, desistência e divisão por zero.
   - Aceite: conversão entre fases com denominador visível.
+  - Evidência: estágios Encontradas → Aplicadas → Entrevistas → Ofertas → Contratadas
+    retornam `count`, `denominator` e `conversion_percent`, incluindo divisão segura por zero.
 
-- [ ] **JF-503 — Implementar séries temporais**
+- [x] **JF-503 — Implementar séries temporais**
   - Depende de: JF-500 e JF-107.
   - Teste primeiro: agrupamento semanal, fuso e semanas sem eventos.
   - Aceite: evolução de vagas, candidaturas e entrevistas disponível.
+  - Evidência: séries semanais incluem semanas sem movimento, agrupam no fuso solicitado e
+    contabilizam transições para entrevista pelo histórico imutável.
 
-- [ ] **JF-504 — Implementar desempenho por fonte**
+- [x] **JF-504 — Implementar desempenho por fonte**
   - Depende de: JF-500 e JF-303.
   - Teste primeiro: múltiplas origens e crédito de conversão definido.
   - Aceite: volume, qualidade, avanço e erros comparáveis.
+  - Evidência: cada vaga recebe crédito da primeira origem, com volume, aplicações,
+    entrevistas, taxa de aplicação e erros de execuções da fonte.
 
-- [ ] **JF-505 — Criar dashboard visual**
+- [x] **JF-505 — Criar dashboard visual**
   - Depende de: JF-501 a JF-504.
   - Teste primeiro: carregamento, erro, vazio, filtros e valores acessíveis.
   - Aceite: cartões, funil e séries acompanham resumo textual/tabela.
+  - Evidência: seção `#dashboard` com período, cartões, `<progress>` acessível, funil,
+    tabela semanal, tabela por fonte e resumo de agenda; cobertura Vitest adicionada.
 
 - [ ] **JF-506 — Implementar filtros salvos**
   - Depende de: JF-204 e JF-505.
   - Teste primeiro: criar, aplicar, renomear, excluir e filtro inválido após migração.
   - Aceite: filtros funcionam em vagas e dashboard.
 
-- [ ] **JF-507 — Criar painel de agenda e prazos**
+- [x] **JF-507 — Criar painel de agenda e prazos**
   - Depende de: JF-213 e JF-505.
   - Teste primeiro: hoje, próximos, atrasados, fuso e estado vazio.
   - Aceite: entrevistas e desafios próximos ficam destacados.
+  - Evidência: agenda existente separa próximos e atrasados, com links para eventos e
+    resumo de contadores no dashboard; eventos de entrevista, desafio e prazo são exibidos.
 
 - [ ] **JF-508 — Validar acessibilidade das telas principais**
   - Depende de: JF-103, JF-205, JF-211 e JF-505.

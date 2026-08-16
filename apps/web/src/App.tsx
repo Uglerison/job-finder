@@ -174,6 +174,36 @@ type SearchRun = {
   current_cursor: string | null;
 };
 
+type DashboardSummary = {
+  agenda: { overdue: number; upcoming: number };
+  cards: {
+    active_pipeline: number;
+    applications: number;
+    hired: number;
+    interviews: number;
+    jobs_found: number;
+    offers: number;
+    rejected: number;
+  };
+  funnel: {
+    conversion_percent: number | null;
+    count: number;
+    denominator: number;
+    key: string;
+    label: string;
+  }[];
+  period: { from_: string; source_key: string | null; timezone: string; to: string };
+  series: { applications: number; interviews: number; jobs: number; period_start: string }[];
+  sources: {
+    application_rate_percent: number | null;
+    applications: number;
+    errors: number;
+    interviews: number;
+    jobs: number;
+    source_key: string;
+  }[];
+};
+
 type AnalysisUsage = {
   estimated_cost_usd: number | null;
   fallback: boolean;
@@ -537,6 +567,11 @@ function App() {
   const [selectedSourceKey, setSelectedSourceKey] = useState('remoteok');
   const [isStartingSourceRun, setIsStartingSourceRun] = useState(false);
   const [sourceMessage, setSourceMessage] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [dashboardDays, setDashboardDays] = useState('30');
+  const [isJobsPayloadReady, setIsJobsPayloadReady] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -583,6 +618,58 @@ function App() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!isJobsPayloadReady) {
+      setIsLoadingDashboard(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+    const loadDashboard = async () => {
+      setIsLoadingDashboard(true);
+      try {
+        const to = new Date();
+        const from = new Date(to);
+        from.setDate(to.getDate() - Number(dashboardDays));
+        const params = new URLSearchParams({
+          from: from.toISOString().slice(0, 10),
+          to: to.toISOString().slice(0, 10),
+          timezone: preferences.timezone,
+        });
+        const response = await fetch(`/api/dashboard/summary?${params.toString()}`);
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar o painel.');
+        }
+        const payload = (await response.json()) as DashboardSummary | null;
+        if (isMounted) {
+          setDashboard(
+            payload &&
+              typeof payload === 'object' &&
+              'cards' in payload &&
+              'funnel' in payload &&
+              'series' in payload
+              ? payload
+              : null,
+          );
+          setDashboardError(null);
+        }
+      } catch {
+        if (isMounted) {
+          setDashboardError('Não foi possível carregar as métricas locais.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingDashboard(false);
+        }
+      }
+    };
+    void loadDashboard();
+    return () => {
+      isMounted = false;
+    };
+  }, [dashboardDays, isJobsPayloadReady, preferences.timezone]);
 
   useEffect(() => {
     let isMounted = true;
@@ -838,7 +925,9 @@ function App() {
           items?: JobListItem[];
         } | null;
         if (isMounted) {
-          setJobs(Array.isArray(payload?.items) ? payload.items : []);
+          const hasItems = Array.isArray(payload?.items);
+          setJobs(hasItems ? payload?.items ?? [] : []);
+          setIsJobsPayloadReady(hasItems);
         }
       } catch {
         if (isMounted) {
@@ -1537,6 +1626,7 @@ function App() {
             <a href="#agenda">Agenda</a>
             <a href="#lixeira">Lixeira</a>
             <a href="#ia">IA</a>
+            <a href="#dashboard">Painel</a>
             <a href="#preferencias">Preferências</a>
           </nav>
 
@@ -2483,6 +2573,145 @@ function App() {
                 </li>
               ))}
             </ul>
+          )}
+        </div>
+      </section>
+
+      <section
+        className="dashboard-section"
+        id="dashboard"
+        aria-labelledby="dashboard-title"
+      >
+        <div className="dashboard-intro">
+          <p className="eyebrow">PAINEL OPERACIONAL</p>
+          <h2 id="dashboard-title">O movimento da sua busca</h2>
+          <p>
+            Métricas locais, com denominadores visíveis e crédito de fonte definido.
+          </p>
+        </div>
+        <div className="dashboard-workspace">
+          <div className="dashboard-toolbar">
+            <label htmlFor="dashboard-period">Período do painel</label>
+            <select
+              id="dashboard-period"
+              onChange={(event) => setDashboardDays(event.target.value)}
+              value={dashboardDays}
+            >
+              <option value="30">Últimos 30 dias</option>
+              <option value="90">Últimos 90 dias</option>
+              <option value="365">Último ano</option>
+            </select>
+          </div>
+          {isLoadingDashboard && (
+            <p className="dashboard-feedback" role="status">
+              Calculando métricas…
+            </p>
+          )}
+          {!isLoadingDashboard && dashboardError && (
+            <p className="dashboard-feedback is-error" role="status">
+              {dashboardError}
+            </p>
+          )}
+          {!isLoadingDashboard && !dashboardError && dashboard && (
+            <>
+              <div className="dashboard-cards" aria-label="Resumo do período">
+                {(
+                  [
+                    ['jobs_found', 'Vagas encontradas'],
+                    ['applications', 'Candidaturas'],
+                    ['interviews', 'Entrevistas'],
+                    ['offers', 'Ofertas'],
+                    ['hired', 'Contratações'],
+                    ['active_pipeline', 'Pipeline ativo'],
+                  ] as [keyof DashboardSummary['cards'], string][]
+                ).map(([key, label]) => (
+                  <article className="dashboard-card" key={key}>
+                    <span className="meta-label">{label}</span>
+                    <strong>{dashboard.cards[key]}</strong>
+                  </article>
+                ))}
+              </div>
+              <div className="dashboard-grid">
+                <section className="dashboard-panel" aria-labelledby="dashboard-funnel-title">
+                  <div className="dashboard-panel-heading">
+                    <h3 id="dashboard-funnel-title">Funil de conversão</h3>
+                    <span className="mono-note">denominador visível</span>
+                  </div>
+                  <ol className="dashboard-funnel">
+                    {dashboard.funnel.map((stage) => (
+                      <li key={stage.key}>
+                        <div>
+                          <span>{stage.label}</span>
+                          <strong>{stage.count}</strong>
+                        </div>
+                        <progress
+                          aria-label={`${stage.label}: ${stage.count} de ${stage.denominator}`}
+                          max={stage.denominator || 1}
+                          value={stage.count}
+                        />
+                        <small>
+                          {stage.conversion_percent == null
+                            ? 'sem base'
+                            : `${stage.conversion_percent}% de ${stage.denominator}`}
+                        </small>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+                <section className="dashboard-panel" aria-labelledby="dashboard-agenda-title">
+                  <div className="dashboard-panel-heading">
+                    <h3 id="dashboard-agenda-title">Agenda</h3>
+                    <a className="card-link" href="#agenda">Abrir agenda</a>
+                  </div>
+                  <div className="dashboard-agenda-summary">
+                    <strong>{dashboard.agenda.upcoming}</strong>
+                    <span>próximos</span>
+                    <strong className={dashboard.agenda.overdue > 0 ? 'is-warning' : ''}>
+                      {dashboard.agenda.overdue}
+                    </strong>
+                    <span>atrasados</span>
+                  </div>
+                </section>
+              </div>
+              <div className="dashboard-grid">
+                <section className="dashboard-panel" aria-labelledby="dashboard-series-title">
+                  <div className="dashboard-panel-heading">
+                    <h3 id="dashboard-series-title">Evolução semanal</h3>
+                    <span className="mono-note">vagas · candidaturas · entrevistas</span>
+                  </div>
+                  <div className="dashboard-table-wrap">
+                    <table>
+                      <caption className="visually-hidden">Evolução semanal da busca</caption>
+                      <thead>
+                        <tr><th scope="col">Semana</th><th scope="col">Vagas</th><th scope="col">Candidaturas</th><th scope="col">Entrevistas</th></tr>
+                      </thead>
+                      <tbody>
+                        {dashboard.series.map((point) => (
+                          <tr key={point.period_start}><th scope="row">{point.period_start}</th><td>{point.jobs}</td><td>{point.applications}</td><td>{point.interviews}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+                <section className="dashboard-panel" aria-labelledby="dashboard-sources-title">
+                  <div className="dashboard-panel-heading">
+                    <h3 id="dashboard-sources-title">Desempenho por fonte</h3>
+                    <span className="mono-note">crédito na primeira origem</span>
+                  </div>
+                  <div className="dashboard-table-wrap">
+                    <table>
+                      <caption className="visually-hidden">Desempenho por fonte</caption>
+                      <thead><tr><th scope="col">Fonte</th><th scope="col">Vagas</th><th scope="col">Aplicação</th><th scope="col">Erros</th></tr></thead>
+                      <tbody>
+                        {dashboard.sources.map((source) => (
+                          <tr key={source.source_key}><th scope="row">{source.source_key}</th><td>{source.jobs}</td><td>{source.application_rate_percent == null ? '—' : `${source.application_rate_percent}%`}</td><td>{source.errors}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            </>
           )}
         </div>
       </section>

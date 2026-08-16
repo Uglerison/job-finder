@@ -129,6 +129,14 @@ não envia candidaturas. Se a OpenAI estiver indisponível ou o orçamento acaba
 como `fallback`, sem inventar fatos. Na interface, use as caixas de seleção da
 caixa de entrada para confirmar e reanalisar somente as vagas escolhidas.
 
+## Dashboard E6
+
+O painel local consulta `GET /api/dashboard/summary`, aceitando `from`, `to`,
+`timezone` e `source_key`. Ele exibe cartões, funil com denominadores, séries
+semanais, desempenho por fonte e contadores de agenda. Vagas removidas não
+entram nos denominadores; quando uma vaga possui várias origens, a primeira
+origem registrada recebe o crédito de conversão.
+
 ## Qualidade de código
 
 No backend, execute as verificações com o ambiente virtual do projeto:
