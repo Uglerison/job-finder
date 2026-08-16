@@ -323,11 +323,24 @@ describe('App', () => {
       await screen.findByRole('heading', { name: 'Backend Engineer' }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('Selecionar Backend Engineer'));
-    fireEvent.click(screen.getByRole('button', { name: 'Analisar selecionadas' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Analisar selecionadas' }),
+    );
 
     expect(confirmMock).toHaveBeenCalledWith('Analisar 1 vaga com a IA?');
     expect(
-      await screen.findByText('1 análise concluída.'),
+      await screen.findByText('Análise concluída para: Backend Engineer.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', {
+        name: 'Análise concluída: Backend Engineer',
+      }),
+    ).toHaveTextContent('Acme');
+    expect(screen.getByText('Boa aderência.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: 'Abrir análise completa de Backend Engineer',
+      }),
     ).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/jobs/1/analysis',
@@ -357,7 +370,10 @@ describe('App', () => {
           ok: true,
         });
       }
-      if (typeof input === 'string' && input.startsWith('/api/dashboard/summary')) {
+      if (
+        typeof input === 'string' &&
+        input.startsWith('/api/dashboard/summary')
+      ) {
         return Promise.resolve({
           json: async () => ({
             agenda: { overdue: 1, upcoming: 2 },
@@ -386,7 +402,12 @@ describe('App', () => {
               to: '2026-08-31T00:00:00Z',
             },
             series: [
-              { applications: 1, interviews: 1, jobs: 1, period_start: '2026-08-10' },
+              {
+                applications: 1,
+                interviews: 1,
+                jobs: 1,
+                period_start: '2026-08-10',
+              },
             ],
             sources: [
               {

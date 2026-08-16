@@ -1700,12 +1700,17 @@
 }
 
 .job-row {
-  align-items: start;
   border-bottom: 1px solid var(--ink-faint);
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.25rem 0;
+}
+
+.job-row-content {
+  align-items: start;
   display: flex;
   gap: 1.5rem;
   justify-content: space-between;
-  padding: 1.25rem 0;
 }
 
 .job-row-main {
@@ -1755,6 +1760,57 @@
   flex-direction: column;
   gap: 0.65rem;
   white-space: nowrap;
+}
+
+.job-row-analysis {
+  background: var(--paper-sunken);
+  border-left: 2px solid var(--success);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-left: 2.15rem;
+  padding: 0.85rem 1rem;
+}
+
+.job-row-analysis-heading,
+.job-row-analysis-score,
+.job-row-analysis-identity {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  justify-content: space-between;
+}
+
+.job-row-analysis-identity strong {
+  font-size: 0.88rem;
+}
+
+.job-row-analysis-identity span,
+.job-row-analysis-score span {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+}
+
+.job-row-analysis-score strong {
+  color: var(--success);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.job-row-analysis p {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.job-row-analysis .card-link {
+  align-self: flex-start;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .job-detail {
@@ -2313,11 +2369,19 @@
   }
 
   .job-row {
+    gap: 0.75rem;
+  }
+
+  .job-row-content {
     flex-direction: column;
   }
 
   .job-row-meta {
     align-items: start;
+  }
+
+  .job-row-analysis {
+    margin-left: 0;
   }
 
   .job-detail-grid {
