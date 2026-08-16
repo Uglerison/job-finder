@@ -69,15 +69,15 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E0 — Governança e decisões | JF-001–JF-009 | Em andamento | Escopo operacional fechado |
 | E1 — Fundação local | JF-010–JF-022 | Concluído | Aplicação local abre e persiste dados |
 | E2 — Perfil | JF-100–JF-107 | Concluído | Perfil editável e versionado |
-| E3 — Vagas e candidaturas | JF-200–JF-216 | Concluído | Fluxo manual completo |
+| E3 — Vagas e candidaturas | JF-200–JF-221 | Em andamento | Marcação de aplicada disponível diretamente na vaga |
 | E4 — Busca e fontes | JF-300–JF-313 | Concluído | Vagas coletadas, auditadas e deduplicadas |
-| E4.1 — Busca agregada e foco Brasil | JF-320–JF-344 | Em validação | Buscador único, resiliente e independente de provider |
+| E4.1 — Busca agregada e foco Brasil | JF-320–JF-350 | Em andamento | Busca manual e agendada persistida para consulta posterior |
 | E5 — GPT-5.6 Luna | JF-400–JF-412 | Concluída | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Em andamento | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima etapa:** `JF-340 — Validar a migração agregada de ponta a ponta`.
+**Próxima etapa:** `JF-217 — Criar comando atômico para marcar uma vaga como aplicada`.
 
 ## Marcos
 
@@ -100,7 +100,8 @@ Concluído quando três fontes aprovadas executarem com agendamento, limites, au
 ### M4.1 — Busca agregada para o Brasil
 
 Concluído quando uma única pesquisa consultar providers de forma seletiva, normalizar, deduplicar e
-ranquear vagas brasileiras sem expor APIs técnicas ao usuário.
+ranquear vagas brasileiras sem expor APIs técnicas ao usuário. Pesquisas agendadas devem persistir
+as vagas no SQLite local e permitir consultar depois o que cada execução encontrou.
 
 ### M5 — Release candidata
 
@@ -368,6 +369,52 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Teste primeiro: arquivar, restaurar e expirar após retenção.
   - Aceite: exclusão definitiva exige confirmação e respeita vínculos.
   - Evidência: migração `0011_recoverable_trash`, soft-delete com retenção das preferências, restauração, purge de expirados e `confirm=true` para remoção definitiva; candidaturas vinculadas bloqueiam a remoção; lixeira visual com restauração e confirmação no navegador; 68 testes backend e 12 testes Vitest verdes.
+
+- [ ] **JF-217 — Criar comando atômico para marcar uma vaga como aplicada**
+  - Depende de: JF-209 e JF-210.
+  - Teste primeiro: vaga sem candidatura, candidatura em `found`/`pending`, já `applied`, estado
+    posterior ou terminal, vaga inexistente e duas requisições concorrentes.
+  - Aceite: uma única operação cria a candidatura quando necessário e registra a transição para
+    `applied` na mesma transação; repetição é idempotente e nenhuma falha deixa estado parcial.
+  - Contrato proposto: `POST /api/jobs/{job_id}/application/applied`, retornando a candidatura e o
+    histórico auditável; regressões de fase retornam `409` com motivo seguro.
+
+- [ ] **JF-218 — Adicionar “Marcar como aplicada” na caixa e no detalhe da vaga**
+  - Depende de: JF-217.
+  - Teste primeiro: botão disponível, confirmação explícita, sucesso, conflito, falha de rede,
+    clique duplo e vaga já aplicada.
+  - Aceite: a ação fica próxima de “Abrir vaga”, não é disparada apenas por abrir o link externo,
+    desabilita durante o envio e troca para o selo `APLICADA` depois da confirmação do backend.
+  - Aceite de UX: mensagem identifica cargo e empresa; erro preserva o estado anterior e permite
+    tentar novamente sem duplicar eventos.
+
+- [ ] **JF-219 — Vincular resultados da busca agregada às vagas persistidas**
+  - Depende de: JF-337, JF-344 e JF-217.
+  - Teste primeiro: vaga criada, duplicata exata, resultado em cache e sugestão de duplicata
+    aproximada.
+  - Aceite: cada resultado elegível retorna seu `job_id` local sem expor detalhes técnicos; o cartão
+    da busca reutiliza a ação “Marcar como aplicada”. Resultado aproximado ainda não resolvido
+    informa que precisa de revisão, sem criar candidatura no registro errado.
+  - Aceite de consistência: busca nova ou em cache resolve o mesmo `job_id` e atualiza a caixa de
+    vagas sem exigir recarregar o navegador.
+
+- [ ] **JF-220 — Sincronizar pipeline, métricas e histórico após a aplicação**
+  - Depende de: JF-218 e JF-219.
+  - Teste primeiro: ação concluída atualiza cartão, pipeline, contador de candidaturas, série do
+    dashboard e histórico; recarregar a página mantém os mesmos dados.
+  - Aceite: a vaga aparece em `APLICADA` imediatamente após a resposta confirmada; pipeline e
+    dashboard são reconsultados sem duplicar requisições ou fazer atualização otimista irreversível.
+  - Aceite de auditoria: o histórico mostra evento inicial e transição para `applied`, com horário
+    local consistente e sem permitir alteração do evento anterior.
+
+- [ ] **JF-221 — Validar o fluxo de aplicação ponta a ponta**
+  - Depende de: JF-217 a JF-220.
+  - Teste primeiro: vaga encontrada pela JSearch → abrir anúncio → confirmação humana → marcar como
+    aplicada → visualizar no pipeline e dashboard → reiniciar o aplicativo.
+  - Aceite: fluxo completo funciona com mouse e teclado, estados de carregamento/vazio/erro são
+    claros, nenhuma candidatura é enviada automaticamente e nenhuma chave aparece na UI ou nos logs.
+  - Evidência exigida: testes unitários/API/Vitest, Ruff, Mypy, Oxlint, TypeScript, Prettier e build
+    pnpm verdes; passos manuais e limitações atualizados no README.
 
 ## E4 — Busca e fontes
 
@@ -686,6 +733,63 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
     criação e atualização da origem; o teste reproduz a resposta real da JSearch e persiste sem
     `ValidationError`.
 
+- [ ] **JF-345 — Modelar pesquisas agendadas da busca unificada**
+  - Depende de: JF-321, JF-330 e JF-305.
+  - Teste primeiro: criar, editar, pausar, reativar e excluir uma agenda; frequência, próxima
+    execução, consulta, localização e modalidade inválidas.
+  - Aceite: uma agenda persistida no SQLite contém nome, filtros normalizados, frequência,
+    `enabled`, `next_run_at`, `last_run_at` e versão do perfil usada; não armazena credenciais.
+  - Aceite de produto: agendamento é desligado por padrão, deixa claro que só executa enquanto o
+    Job Finder estiver aberto e apagar a agenda não apaga as vagas já coletadas.
+
+- [ ] **JF-346 — Executar automaticamente pesquisas agendadas enquanto o app estiver aberto**
+  - Depende de: JF-345, JF-326, JF-327, JF-328 e JF-329.
+  - Teste primeiro: tick periódico, reinício com agenda vencida, duas agendas simultâneas, lock de
+    instância única, limite diário, rate limit, cancelamento e encerramento do aplicativo.
+  - Aceite: um worker local inicia no ciclo de vida do backend, executa cada agenda vencida no
+    máximo uma vez por janela e calcula a próxima execução de forma persistente.
+  - Aceite de credenciais: chave cifrada bloqueada gera diagnóstico `credencial bloqueada` sem
+    persistir senha; providers públicos/fallbacks continuam quando possível e o resultado pode ser
+    parcial.
+
+- [ ] **JF-347 — Persistir vagas e vínculo com cada execução agendada**
+  - Depende de: JF-311, JF-312, JF-344 e JF-346.
+  - Teste primeiro: vaga nova, duplicata exata, possível duplicata, resultado parcial, falha no meio
+    da persistência e repetição da mesma agenda.
+  - Aceite: toda vaga válida encontrada pelo agendador entra nas tabelas locais de vagas, origens e
+    conteúdo; uma relação auditável associa execução, agenda, `job_id`, provider e resultado de
+    deduplicação (`created`, `exact` ou `approximate`).
+  - Aceite transacional: falha de uma vaga não perde as vagas válidas já confirmadas nem deixa run
+    marcado como sucesso incorretamente; nenhuma execução cria candidatura ou marca como aplicada.
+
+- [ ] **JF-348 — Criar consulta histórica das vagas encontradas pelo agendador**
+  - Depende de: JF-204 e JF-347.
+  - Teste primeiro: última execução, período, agenda, provider, somente novas, duplicadas, vazio e
+    paginação estável.
+  - Aceite: API permite consultar execuções de uma agenda e as vagas vinculadas; a interface oferece
+    a seção “Vagas encontradas pelo agendador” com data, origem, status da execução e acesso ao
+    detalhe da vaga.
+  - Aceite de navegação: vagas agendadas também aparecem na caixa de entrada normal e podem usar
+    análise, rejeição, espera e “Marcar como aplicada” sem criar cópias.
+
+- [ ] **JF-349 — Preservar decisões do usuário em redescobertas agendadas**
+  - Depende de: JF-217, JF-220 e JF-347.
+  - Teste primeiro: redescobrir vaga encontrada, em espera, aplicada, entrevista, rejeitada e
+    removida; conteúdo atualizado e URL/origem adicional.
+  - Aceite: o agendador atualiza origem, `last_seen_at` e versões de conteúdo, mas nunca regride o
+    status da candidatura, desfaz rejeição, restaura item da lixeira ou altera eventos auditáveis.
+  - Aceite de retenção: histórico da execução respeita a política local; remoção de uma agenda não
+    remove vaga, candidatura, análise ou evento relacionado.
+
+- [ ] **JF-350 — Validar agendamento, persistência e consulta ponta a ponta**
+  - Depende de: JF-345 a JF-349.
+  - Teste primeiro: criar agenda → vencer horário → buscar em providers → persistir/deduplicar →
+    consultar histórico → reiniciar app → consultar as mesmas vagas.
+  - Aceite: fluxo completo funciona sem ação manual no tick, distingue zero resultados, provider
+    bloqueado, limite, falha e parcial, e continua íntegro após reinício.
+  - Evidência exigida: testes unitários/API/integração/Vitest, smoke de reinício, Ruff, Mypy, Oxlint,
+    TypeScript, Prettier e build pnpm verdes; README documenta funcionamento e limitações locais.
+
 ## E5 — GPT-5.6 Luna
 
 - [x] **JF-400 — Integrar o cliente OpenAI no backend**
@@ -963,6 +1067,10 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 7. JF-020 → JF-022 e JF-607 para validar o primeiro executável.
 8. E4 para ampliar da importação manual às buscas automáticas.
 9. JF-320 → JF-340 para substituir a escolha de fonte por busca agregada com foco Brasil.
+10. JF-217 → JF-221 para permitir confirmar a aplicação diretamente na vaga e refletir o evento em
+    todo o acompanhamento.
+11. JF-345 → JF-350 para agendar a busca unificada, persistir cada vaga no SQLite e consultar o
+    histórico depois, inclusive após reiniciar o aplicativo.
 
 Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e permite validar arquitetura, experiência e custo cedo.
 
@@ -1019,6 +1127,8 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 16/08/2026 | JF-342 | Concluída | Lock de instância agora é validado por `/api/health` antes de abrir o navegador; busca sem conexão recebe orientação de reinício e exceções inesperadas retornam JSON seguro e entram no log local. |
 | 16/08/2026 | JF-343 | Concluída | A resposta real da JSearch continha `data` como objeto; o parser agora aceita coleções aninhadas e converte formatos desconhecidos em falha isolada da fonte, preservando os fallbacks. |
 | 16/08/2026 | JF-344 | Concluída | IDs externos opacos da JSearch acima de 255 caracteres são convertidos em hash determinístico antes de persistir, mantendo a deduplicação exata e eliminando o `ValidationError`. |
+| 16/08/2026 | JF-217–JF-221 | Planejadas | Fluxo “Marcar como aplicada” dividido em comando atômico, ações na vaga e busca, sincronização de pipeline/dashboard e validação ponta a ponta com TDD. |
+| 16/08/2026 | JF-345–JF-350 | Planejadas | Agendador unificado dividido em agenda persistida, worker local, vínculo execução-vaga, consulta histórica, preservação das decisões humanas e validação após reinício. |
 | 15/08/2026 | JF-601 | Concluída | Cofre SQLite cifrado por senha transitória, UI local e migração `0013_ai_secrets`; testes de ausência de plaintext, bloqueio/desbloqueio, API e interface verdes. |
 | 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
 | 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |
