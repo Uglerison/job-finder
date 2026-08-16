@@ -76,6 +76,11 @@ automaticamente: ela apenas deixa a futura triagem pronta para ser ativada. A
 senha do cofre e a chave nunca são devolvidas pela API, mostradas novamente na
 interface ou gravadas nos logs.
 
+O botão **Testar conexão** faz uma chamada mínima e sem dados de perfil ou
+vagas pelo backend local. O cliente usa a [Responses API](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.6),
+`gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; o navegador nunca
+chama a OpenAI diretamente.
+
 ## Qualidade de código
 
 No backend, execute as verificações com o ambiente virtual do projeto:

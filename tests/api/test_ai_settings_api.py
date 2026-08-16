@@ -2,8 +2,10 @@ from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from pydantic import SecretStr
 
 from job_finder.main import create_app
+from job_finder.openai_client import OpenAiTextResponse, OpenAiUnavailableError
 from job_finder.secret_store import SecretStoreError
 from job_finder.settings import Settings
 
@@ -45,6 +47,24 @@ class FakeEncryptedVault:
         self.unlocked_value = None
 
 
+class FakeOpenAiClient:
+    def __init__(self) -> None:
+        self.error: Exception | None = None
+        self.received_key: SecretStr | None = None
+        self.received_input: str | None = None
+
+    def create_text_response(self, api_key: SecretStr, input_text: str) -> OpenAiTextResponse:
+        if self.error:
+            raise self.error
+        self.received_key = api_key
+        self.received_input = input_text
+        return OpenAiTextResponse(
+            response_id="resp_test_123",
+            model="gpt-5.6-luna",
+            output_text="conexão local confirmada",
+        )
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
@@ -54,6 +74,7 @@ def anyio_backend() -> str:
 def application(tmp_path: Path):
     app = create_app(Settings(data_dir=tmp_path, environment="test"))
     app.state.secret_vault = FakeEncryptedVault()
+    app.state.openai_client = FakeOpenAiClient()
     return app
 
 
@@ -146,3 +167,49 @@ async def test_ai_settings_api_returns_safe_error_when_encrypted_storage_is_unav
 
     assert response.status_code == 503
     assert response.json() == {"detail": "O cofre local está indisponível."}
+
+
+@pytest.mark.anyio
+async def test_ai_connection_test_uses_the_unlocked_key_only_in_the_backend(application) -> None:
+    secret = "sk-test-only-12345678901234567890"
+    vault = application.state.secret_vault
+    vault.value = secret
+    vault.unlocked_value = secret
+    openai_client = application.state.openai_client
+    transport = ASGITransport(app=application)
+
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post("/api/ai/connection/test")
+
+    assert response.json() == {"status": "connected", "model": "gpt-5.6-luna"}
+    assert openai_client.received_key is not None
+    assert openai_client.received_key.get_secret_value() == secret
+    assert openai_client.received_input == "Responda apenas: conexão local confirmada."
+    assert secret not in response.text
+
+
+@pytest.mark.anyio
+async def test_ai_connection_test_requires_an_unlocked_key_and_maps_provider_failure(
+    application,
+) -> None:
+    transport = ASGITransport(app=application)
+    openai_client = application.state.openai_client
+
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        locked = await client.post("/api/ai/connection/test")
+
+    assert locked.status_code == 409
+    assert locked.json() == {
+        "detail": "Configure e desbloqueie a chave OpenAI para testar a conexão."
+    }
+
+    vault = application.state.secret_vault
+    vault.value = "sk-test-only-12345678901234567890"
+    vault.unlocked_value = vault.value
+    openai_client.error = OpenAiUnavailableError("A OpenAI está indisponível no momento.")
+
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        unavailable = await client.post("/api/ai/connection/test")
+
+    assert unavailable.status_code == 503
+    assert unavailable.json() == {"detail": "A OpenAI está indisponível no momento."}

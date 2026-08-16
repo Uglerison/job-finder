@@ -286,6 +286,12 @@ describe('App', () => {
             ok: true,
           });
         }
+        if (input === '/api/ai/connection/test' && init?.method === 'POST') {
+          return Promise.resolve({
+            json: async () => ({ model: 'gpt-5.6-luna', status: 'connected' }),
+            ok: true,
+          });
+        }
         return Promise.resolve({ json: async () => null, ok: true });
       },
     );
@@ -322,6 +328,10 @@ describe('App', () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText(apiKey)).not.toBeInTheDocument();
     expect(screen.queryByText(vaultPassword)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Testar conexão' }));
+    expect(
+      await screen.findByText('Conexão com gpt-5.6-luna confirmada.'),
+    ).toBeInTheDocument();
     const [, options] = fetchMock.mock.calls.find(
       ([calledInput, init]) =>
         calledInput === '/api/ai/api-key' && init?.method === 'PUT',
@@ -330,6 +340,12 @@ describe('App', () => {
       api_key: apiKey,
       vault_password: vaultPassword,
     });
+    expect(
+      fetchMock.mock.calls.some(
+        ([calledInput, init]) =>
+          calledInput === '/api/ai/connection/test' && init?.method === 'POST',
+      ),
+    ).toBe(true);
   });
 
   it('carrega a caixa de entrada e adiciona uma vaga manual rapidamente', async () => {

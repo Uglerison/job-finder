@@ -5,10 +5,17 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, SecretStr, field_validator
 
+from job_finder.openai_client import (
+    DEFAULT_OPENAI_MODEL,
+    OpenAiAuthenticationError,
+    OpenAiClientError,
+    OpenAiResponsesClient,
+    OpenAiTextClient,
+    OpenAiTimeoutError,
+    OpenAiUnavailableError,
+)
 from job_finder.secret_store import CredentialVault, EncryptedDatabaseVault, SecretStoreError
 from job_finder.settings import Settings
-
-DEFAULT_OPENAI_MODEL: Literal["gpt-5.6-luna"] = "gpt-5.6-luna"
 
 router = APIRouter(prefix="/api/ai", tags=["ai-settings"])
 
@@ -56,6 +63,13 @@ class VaultPasswordRequest(BaseModel):
         if len(value.get_secret_value()) < 12:
             raise ValueError("A senha do cofre deve ter pelo menos 12 caracteres.")
         return value
+
+
+class ConnectionTestResponse(BaseModel):
+    """Safe confirmation that the backend can reach the configured OpenAI model."""
+
+    status: Literal["connected"]
+    model: Literal["gpt-5.6-luna"] = DEFAULT_OPENAI_MODEL
 
 
 class OpenAiCredentialSettings:
@@ -121,7 +135,18 @@ def get_ai_settings(request: Request) -> OpenAiCredentialSettings:
     return OpenAiCredentialSettings(vault, settings.openai_api_key)
 
 
+def get_openai_client(request: Request) -> OpenAiTextClient:
+    """Return the backend-only OpenAI client, allowing tests to inject a fake."""
+
+    client = getattr(request.app.state, "openai_client", None)
+    if client is None:
+        client = OpenAiResponsesClient()
+        request.app.state.openai_client = client
+    return client
+
+
 AiSettingsDependency = Annotated[OpenAiCredentialSettings, Depends(get_ai_settings)]
+OpenAiClientDependency = Annotated[OpenAiTextClient, Depends(get_openai_client)]
 
 
 def translate_vault_error(error: SecretStoreError) -> HTTPException:
@@ -131,6 +156,18 @@ def translate_vault_error(error: SecretStoreError) -> HTTPException:
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail=str(error),
     )
+
+
+def translate_openai_error(error: OpenAiClientError) -> HTTPException:
+    """Map provider errors to safe local HTTP statuses without leaking key material."""
+
+    if isinstance(error, OpenAiAuthenticationError):
+        response_status = status.HTTP_401_UNAUTHORIZED
+    elif isinstance(error, (OpenAiTimeoutError, OpenAiUnavailableError)):
+        response_status = status.HTTP_503_SERVICE_UNAVAILABLE
+    else:
+        response_status = status.HTTP_502_BAD_GATEWAY
+    return HTTPException(status_code=response_status, detail=str(error))
 
 
 @router.get("/settings", response_model=AiSettingsResponse)
@@ -164,6 +201,26 @@ def unlock_api_key(
         return settings.unlock(payload.vault_password)
     except SecretStoreError as error:
         raise translate_vault_error(error) from error
+
+
+@router.post("/connection/test", response_model=ConnectionTestResponse)
+def test_openai_connection(
+    settings: AiSettingsDependency,
+    client: OpenAiClientDependency,
+) -> ConnectionTestResponse:
+    """Verify backend access to GPT-5.6 Luna without forwarding profile or job data."""
+
+    api_key = settings.get_api_key()
+    if api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Configure e desbloqueie a chave OpenAI para testar a conexão.",
+        )
+    try:
+        client.create_text_response(api_key, "Responda apenas: conexão local confirmada.")
+    except OpenAiClientError as error:
+        raise translate_openai_error(error) from error
+    return ConnectionTestResponse(status="connected")
 
 
 @router.post("/lock", response_model=AiSettingsResponse)

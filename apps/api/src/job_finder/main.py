@@ -18,6 +18,7 @@ from job_finder.frontend import frontend_dist_path, mount_frontend
 from job_finder.jobs_api import router as jobs_router
 from job_finder.logging import close_logging, configure_logging
 from job_finder.metadata_api import router as metadata_router
+from job_finder.openai_client import OpenAiResponsesClient
 from job_finder.preferences_api import router as preferences_router
 from job_finder.privacy_api import router as privacy_router
 from job_finder.process_events_api import router as process_events_router
@@ -82,6 +83,7 @@ def create_app(
     application.state.settings = settings or get_settings()
     application.state.source_registry = SourceRegistry()
     application.state.search_tasks = SearchTaskRegistry()
+    application.state.openai_client = OpenAiResponsesClient()
     application.include_router(profile_router)
     application.include_router(ai_settings_router)
     application.include_router(preferences_router)

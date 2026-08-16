@@ -52,6 +52,11 @@ type AiSettings = {
   storage: 'encrypted_database' | 'environment' | 'not_configured';
 };
 
+type AiConnectionTest = {
+  model: 'gpt-5.6-luna';
+  status: 'connected';
+};
+
 type JobListItem = {
   canonical_url: string | null;
   company: string;
@@ -453,6 +458,7 @@ function App() {
   const [vaultPasswordConfirmation, setVaultPasswordConfirmation] =
     useState('');
   const [isSavingApiKey, setIsSavingApiKey] = useState(false);
+  const [isTestingAiConnection, setIsTestingAiConnection] = useState(false);
   const [aiSettingsError, setAiSettingsError] = useState<string | null>(null);
   const [aiSettingsMessage, setAiSettingsMessage] = useState<string | null>(
     null,
@@ -1056,6 +1062,34 @@ function App() {
       );
     } finally {
       setIsSavingApiKey(false);
+    }
+  };
+
+  const handleOpenAiConnectionTest = async () => {
+    setIsTestingAiConnection(true);
+    setAiSettingsError(null);
+    setAiSettingsMessage(null);
+    try {
+      const response = await fetch('/api/ai/connection/test', {
+        method: 'POST',
+      });
+      const payload = (await response.json().catch(() => null)) as
+        AiConnectionTest | { detail?: string } | null;
+      if (!response.ok || !payload || !('status' in payload)) {
+        const detail = payload && 'detail' in payload ? payload.detail : null;
+        throw new Error(
+          detail ?? 'Não foi possível testar a conexão com a OpenAI.',
+        );
+      }
+      setAiSettingsMessage(`Conexão com ${payload.model} confirmada.`);
+    } catch (error) {
+      setAiSettingsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível testar a conexão com a OpenAI.',
+      );
+    } finally {
+      setIsTestingAiConnection(false);
     }
   };
 
@@ -1752,14 +1786,26 @@ function App() {
               aiSettings.storage === 'encrypted_database' && (
                 <>
                   {aiSettings.unlocked && (
-                    <button
-                      className="text-button text-button-plain"
-                      disabled={isSavingApiKey}
-                      onClick={() => void handleApiKeyLock()}
-                      type="button"
-                    >
-                      Bloquear cofre
-                    </button>
+                    <>
+                      <button
+                        className="text-button text-button-plain"
+                        disabled={isSavingApiKey || isTestingAiConnection}
+                        onClick={() => void handleOpenAiConnectionTest()}
+                        type="button"
+                      >
+                        {isTestingAiConnection
+                          ? 'Testando conexão…'
+                          : 'Testar conexão'}
+                      </button>
+                      <button
+                        className="text-button text-button-plain"
+                        disabled={isSavingApiKey || isTestingAiConnection}
+                        onClick={() => void handleApiKeyLock()}
+                        type="button"
+                      >
+                        Bloquear cofre
+                      </button>
+                    </>
                   )}
                   <button
                     className="text-button text-button-plain danger-button"

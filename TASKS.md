@@ -451,7 +451,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 
 ## E5 — GPT-5.6 Luna
 
-- [ ] **JF-400 — Integrar o cliente OpenAI no backend**
+- [x] **JF-400 — Integrar o cliente OpenAI no backend**
   - Depende de: JF-016 e JF-601.
   - Teste primeiro: cliente simulado, timeout, autenticação inválida e indisponibilidade.
   - Aceite: modelo padrão `gpt-5.6-luna` e nenhuma chamada pelo frontend.
@@ -724,6 +724,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-300–JF-313 | Concluída | E4 completa: contrato de adaptadores, três fontes públicas, configuração sem segredos, runs auditáveis, cancelamento, scheduler persistente, cliente HTTP resiliente, limites/backoff, deduplicação exata/aproximada e painel; 49 testes unitários backend, 2 testes API E4, Ruff e Mypy verdes |
 | 15/08/2026 | JF-601 | Concluída | Cofre SQLite cifrado por senha transitória, UI local e migração `0013_ai_secrets`; testes de ausência de plaintext, bloqueio/desbloqueio, API e interface verdes. |
 | 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
+| 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |
 
 ## Bloqueios e decisões pendentes
 

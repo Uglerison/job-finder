@@ -1,0 +1,85 @@
+import json
+
+import httpx
+import pytest
+from pydantic import SecretStr
+
+from job_finder.openai_client import (
+    DEFAULT_OPENAI_MODEL,
+    OpenAiAuthenticationError,
+    OpenAiResponsesClient,
+    OpenAiTimeoutError,
+    OpenAiUnavailableError,
+)
+
+
+def test_responses_client_uses_luna_low_reasoning_and_disabled_response_storage() -> None:
+    secret = "sk-test-only-12345678901234567890"
+    received: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        received["headers"] = dict(request.headers)
+        received["payload"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp_test_123",
+                "model": DEFAULT_OPENAI_MODEL,
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [{"type": "output_text", "text": "conexão local confirmada"}],
+                    }
+                ],
+            },
+        )
+
+    client = OpenAiResponsesClient(transport=httpx.MockTransport(handler))
+    result = client.create_text_response(SecretStr(secret), "Teste de conexão local.")
+
+    assert result.response_id == "resp_test_123"
+    assert result.model == DEFAULT_OPENAI_MODEL
+    assert result.output_text == "conexão local confirmada"
+    assert received["headers"]["authorization"] == f"Bearer {secret}"
+    assert received["payload"] == {
+        "input": "Teste de conexão local.",
+        "model": DEFAULT_OPENAI_MODEL,
+        "reasoning": {"effort": "low"},
+        "store": False,
+    }
+
+
+def test_responses_client_maps_auth_timeout_and_service_errors_without_leaking_key() -> None:
+    secret = "sk-live-should-not-leak-1234567890"
+
+    def auth_handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"error": {"message": "invalid key"}})
+
+    with pytest.raises(OpenAiAuthenticationError) as auth_error:
+        OpenAiResponsesClient(transport=httpx.MockTransport(auth_handler)).create_text_response(
+            SecretStr(secret),
+            "Teste",
+        )
+
+    def timeout_handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("network timeout", request=request)
+
+    with pytest.raises(OpenAiTimeoutError) as timeout_error:
+        OpenAiResponsesClient(transport=httpx.MockTransport(timeout_handler)).create_text_response(
+            SecretStr(secret),
+            "Teste",
+        )
+
+    def unavailable_handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"error": {"message": "temporarily unavailable"}})
+
+    with pytest.raises(OpenAiUnavailableError) as unavailable_error:
+        OpenAiResponsesClient(
+            transport=httpx.MockTransport(unavailable_handler)
+        ).create_text_response(
+            SecretStr(secret),
+            "Teste",
+        )
+
+    for error in (auth_error.value, timeout_error.value, unavailable_error.value):
+        assert secret not in str(error)
