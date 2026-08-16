@@ -1,6 +1,6 @@
 # Job Finder — controle de tarefas
 
-> Versão: 1.0 — 15/08/2026
+> Versão: 1.1 — 16/08/2026
 > Fonte de escopo: [PLANEJAMENTO.md](./PLANEJAMENTO.md)
 
 Este arquivo é a fonte de verdade para acompanhar a implementação do MVP. O escopo detalhado continua no planejamento; aqui ficam a ordem, as dependências, os critérios de aceite e o progresso.
@@ -68,15 +68,16 @@ Uma tarefa só pode ser marcada como concluída quando:
 |---|---|---|---|
 | E0 — Governança e decisões | JF-001–JF-009 | Em andamento | Escopo operacional fechado |
 | E1 — Fundação local | JF-010–JF-022 | Concluído | Aplicação local abre e persiste dados |
-| E2 — Perfil | JF-100–JF-107 | Pendente | Perfil editável e versionado |
-| E3 — Vagas e candidaturas | JF-200–JF-216 | Em andamento | Fluxo manual completo |
+| E2 — Perfil | JF-100–JF-107 | Concluído | Perfil editável e versionado |
+| E3 — Vagas e candidaturas | JF-200–JF-216 | Concluído | Fluxo manual completo |
 | E4 — Busca e fontes | JF-300–JF-313 | Concluído | Vagas coletadas, auditadas e deduplicadas |
+| E4.1 — Busca agregada e foco Brasil | JF-320–JF-340 | Pendente | Buscador único, resiliente e independente de provider |
 | E5 — GPT-5.6 Luna | JF-400–JF-412 | Concluída | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Em andamento | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima etapa:** `JF-506 — Implementar filtros salvos`.
+**Próxima etapa:** `JF-320 — Auditar a busca atual e registrar a estratégia de migração`.
 
 ## Marcos
 
@@ -95,6 +96,11 @@ Concluído quando for possível cadastrar perfil, importar uma vaga por URL, ana
 ### M4 — Busca automática
 
 Concluído quando três fontes aprovadas executarem com agendamento, limites, auditoria e deduplicação.
+
+### M4.1 — Busca agregada para o Brasil
+
+Concluído quando uma única pesquisa consultar providers de forma seletiva, normalizar, deduplicar e
+ranquear vagas brasileiras sem expor APIs técnicas ao usuário.
 
 ### M5 — Release candidata
 
@@ -449,6 +455,156 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: resultado de cada fonte pode ser diagnosticado sem abrir logs.
   - Evidência: `/api/search-runs`, cancelamento e seção visual com status, duração, vagas encontradas, novas, duplicatas, aproximações e erro por fonte.
 
+## E4.1 — Busca agregada e foco Brasil
+
+### Limite de produto
+
+- O Job Finder **não implementará simulação de entrevista**. Essa funcionalidade pertence ao produto
+  separado [Se Prepara AI](https://sepreparai.com.br/).
+- A integração será somente um link externo acessível, sem iframe, autenticação compartilhada,
+  criação de sessão, envio da descrição da vaga ou parâmetros pessoais na URL.
+- “Entrevista” no pipeline e na agenda continua significando apenas uma fase real do processo
+  seletivo acompanhado pelo Job Finder.
+
+- [ ] **JF-320 — Auditar a busca atual e registrar a estratégia de migração**
+  - Depende de: JF-300 a JF-313.
+  - Validação: inventário revisado de componentes, endpoints, serviços, contratos, persistência,
+    cache, tratamento de erros, observabilidade e testes atuais.
+  - Aceite: ADR documenta o que será reutilizado, substituído ou descontinuado sem remover código
+    funcional prematuramente.
+
+- [ ] **JF-321 — Definir contratos normalizados da busca agregada**
+  - Depende de: JF-320.
+  - Teste primeiro: consulta válida/inválida, paginação, limite, modalidades e resultado com campos
+    opcionais ausentes.
+  - Aceite: contratos Python tipados representam palavra-chave, localização, modalidade, país,
+    paginação e vaga normalizada sem acoplar API ou frontend a um provider.
+
+- [ ] **JF-322 — Criar registro e configuração de providers**
+  - Depende de: JF-321 e JF-301.
+  - Teste primeiro: provider habilitado, prioridade, limite, timeout e configuração inválida.
+  - Aceite: JSearch é o principal; Adzuna e Jooble são complementares; providers antigos podem ser
+    fallback; nenhuma configuração técnica precisa aparecer na experiência principal.
+
+- [ ] **JF-323 — Reutilizar o cofre criptografado para credenciais dos providers**
+  - Depende de: JF-322 e JF-601.
+  - Teste primeiro: salvar, desbloquear, substituir e remover cada credencial sem retornar plaintext.
+  - Aceite: chaves ficam cifradas no SQLite e somente em memória durante o uso; o frontend recebe
+    apenas estado configurado/não configurado; `.env.example` contém somente placeholders opcionais
+    para desenvolvimento.
+
+- [ ] **JF-324 — Implementar base resiliente dos providers**
+  - Depende de: JF-306, JF-307 e JF-321.
+  - Teste primeiro: sucesso, vazio, timeout, `429`, erro transitório, payload inválido e cancelamento.
+  - Aceite: contrato comum aplica timeout, limite, backoff, cancelamento e erros seguros sem vazar
+    resposta externa, URL com segredo ou credencial.
+
+- [ ] **JF-325 — Implementar JSearch como provider principal**
+  - Depende de: JF-323 e JF-324.
+  - Teste primeiro: fixtures de vagas brasileiras, paginação, remoto/presencial, ausência de campos,
+    autenticação inválida e rate limit.
+  - Aceite: consultas usam Brasil e português quando suportado e retornam somente o contrato interno
+    normalizado.
+
+- [ ] **JF-326 — Implementar Adzuna como provider complementar**
+  - Depende de: JF-323 e JF-324.
+  - Teste primeiro: fixtures brasileiras, localização, paginação, salário, vazio e erro do provider.
+  - Aceite: adapter independente respeita país `br`, limites configurados e o contrato comum.
+
+- [ ] **JF-327 — Implementar Jooble como provider complementar**
+  - Depende de: JF-323 e JF-324.
+  - Teste primeiro: fixtures brasileiras, modalidade inferida, paginação, vazio, timeout e payload
+    parcial.
+  - Aceite: adapter independente preserva origem pública e não expõe o nome técnico da API na UI.
+
+- [ ] **JF-328 — Adaptar fontes atuais como fallback legado**
+  - Depende de: JF-320 e JF-324.
+  - Teste primeiro: Remote OK, Arbeitnow e Jobicy sob o novo contrato, inclusive vazio e erro.
+  - Aceite: adapters funcionais são reutilizados sem chamadas obrigatórias e podem ser desligados
+    individualmente sem alterar o agregador.
+
+- [ ] **JF-329 — Normalizar resultados entre providers**
+  - Depende de: JF-321 e JF-325 a JF-328.
+  - Teste primeiro: cargo, empresa, cidade/estado/país, modalidade, salário, datas, descrição e origem
+    com formatos divergentes.
+  - Aceite: mesma informação produz representação interna determinística e preserva dados brutos
+    necessários para auditoria.
+
+- [ ] **JF-330 — Deduplicar resultados agregados**
+  - Depende de: JF-311, JF-312 e JF-329.
+  - Teste primeiro: URL igual, cargo/empresa/local equivalentes, pontuação e falsos positivos
+    conhecidos.
+  - Aceite: duplicatas exatas são unidas automaticamente com múltiplas origens; aproximações usam
+    regra explicável e conservadora sem NLP ou LLM.
+
+- [ ] **JF-331 — Implementar ranking determinístico com foco Brasil**
+  - Depende de: JF-321, JF-329 e JF-330.
+  - Teste primeiro: correspondência do cargo, cidade/estado, modalidade, recência, completude e
+    empate estável.
+  - Aceite: score ordena resultados de forma explicável e deixa ponto de extensão para o perfil,
+    sem embeddings ou chamada de IA nesta etapa.
+
+- [ ] **JF-332 — Orquestrar providers com fallback seletivo**
+  - Depende de: JF-325 a JF-331.
+  - Teste primeiro: principal suficiente, principal vazio, poucos resultados, erro, timeout, limite
+    de custo e complementação parcial.
+  - Aceite: começa pelo JSearch e só consulta providers adicionais quando necessário; a busca retorna
+    resultados parciais úteis quando ao menos um provider funciona.
+
+- [ ] **JF-333 — Implementar cache local de consultas repetidas**
+  - Depende de: JF-332.
+  - Teste primeiro: chave canônica, hit, expiração, modalidade/local diferentes e invalidação por
+    versão da estratégia.
+  - Aceite: cache SQLite ou em memória com TTL evita chamadas externas repetidas; não introduz Redis
+    nem armazena credenciais ou dados pessoais.
+
+- [ ] **JF-334 — Criar endpoint único de busca agregada**
+  - Depende de: JF-321, JF-332 e JF-333.
+  - Teste primeiro: busca válida, parâmetros inválidos, limites abusivos, vazio, parcial, paginação e
+    indisponibilidade total.
+  - Aceite: uma API interna recebe cargo, localização, modalidade e limite, devolvendo resultados
+    normalizados sem detalhes técnicos ou erros integrais dos providers.
+
+- [ ] **JF-335 — Auditar execução, fallback e desempenho dos providers**
+  - Depende de: JF-303, JF-332 e JF-334.
+  - Teste primeiro: provider, latência, status, quantidade, cache hit, fallback e erro redigido.
+  - Aceite: cada busca permite diagnosticar a estratégia usada sem registrar chaves, conteúdo
+    desnecessário ou dados pessoais.
+
+- [ ] **JF-336 — Criar formulário único de busca no frontend**
+  - Depende de: JF-334.
+  - Teste primeiro: cargo, localização, modalidades, carregamento, validação, erro parcial e vazio.
+  - Aceite: experiência principal apresenta somente palavra-chave, localização, modalidade e ação
+    “Buscar vagas”, usando pnpm e os componentes visuais existentes.
+
+- [ ] **JF-337 — Criar cartões completos dos resultados agregados**
+  - Depende de: JF-334 e JF-336.
+  - Teste primeiro: campos completos/ausentes, origem pública, salário, data, modalidade, URL externa
+    e acessibilidade.
+  - Aceite: cartão mostra cargo, empresa, localização, modalidade, data, resumo, salário e origem
+    pública discreta como “Via LinkedIn”, sem nomes técnicos como “JSearch API”.
+
+- [ ] **JF-338 — Adicionar link externo para treinar entrevista no Se Prepara AI**
+  - Depende de: JF-337.
+  - Teste primeiro: link presente, destino exato, rótulo acessível e atributos seguros de nova aba.
+  - Aceite: botão “Treinar entrevista no Se Prepara AI” abre `https://sepreparai.com.br/` com
+    `target="_blank"` e `rel="noreferrer"`; nenhum simulador, endpoint ou envio de dados é criado no
+    Job Finder.
+
+- [ ] **JF-339 — Remover seleção técnica de fonte da experiência principal**
+  - Depende de: JF-336 e JF-337.
+  - Teste primeiro: usuário busca sem escolher provider e configurações operacionais permanecem
+    acessíveis somente no painel técnico apropriado.
+  - Aceite: seletor Remote OK/Arbeitnow/Jobicy deixa o fluxo principal; histórico, execuções e
+    configurações antigas continuam compatíveis durante a migração.
+
+- [ ] **JF-340 — Validar a migração agregada de ponta a ponta**
+  - Depende de: JF-323 a JF-339.
+  - Teste primeiro: cenário Brasil, fallback, cache, deduplicação, ranking, persistência e interface
+    integrados com providers simulados.
+  - Aceite: suíte completa, Ruff, Mypy, Vitest, lint, formatação e build passam; README e
+    `.env.example` documentam credenciais, limites, comportamento parcial e o link externo.
+
 ## E5 — GPT-5.6 Luna
 
 - [x] **JF-400 — Integrar o cliente OpenAI no backend**
@@ -722,6 +878,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 6. JF-500 → JF-505 para refletir a mudança no dashboard.
 7. JF-020 → JF-022 e JF-607 para validar o primeiro executável.
 8. E4 para ampliar da importação manual às buscas automáticas.
+9. JF-320 → JF-340 para substituir a escolha de fonte por busca agregada com foco Brasil.
 
 Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e permite validar arquitetura, experiência e custo cedo.
 
@@ -771,6 +928,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-215 | Concluída | Exportação CSV/JSON filtrável, codificação Excel-friendly e neutralização de fórmulas; 65 testes backend verdes |
 | 15/08/2026 | JF-216 | Concluída | Lixeira com soft-delete, restauração, expiração por retenção e proteção de candidaturas vinculadas; migração `0011_recoverable_trash`, UI de restauração/confirmação, 68 testes backend e 12 Vitest verdes |
 | 15/08/2026 | JF-300–JF-313 | Concluída | E4 completa: contrato de adaptadores, três fontes públicas, configuração sem segredos, runs auditáveis, cancelamento, scheduler persistente, cliente HTTP resiliente, limites/backoff, deduplicação exata/aproximada e painel; 49 testes unitários backend, 2 testes API E4, Ruff e Mypy verdes |
+| 16/08/2026 | JF-320–JF-340 | Planejada | E4.1 de busca agregada registrada; simulação de entrevista excluída e substituída por link externo ao Se Prepara AI |
 | 15/08/2026 | JF-601 | Concluída | Cofre SQLite cifrado por senha transitória, UI local e migração `0013_ai_secrets`; testes de ausência de plaintext, bloqueio/desbloqueio, API e interface verdes. |
 | 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
 | 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |
@@ -799,6 +957,7 @@ Não transformar itens abaixo em tarefas do MVP sem decisão explícita:
 - extensão de navegador;
 - sincronização em nuvem;
 - integrações com e-mail e calendário;
+- simulação de entrevista dentro do Job Finder; o produto externo é o Se Prepara AI;
 - geração assistida de currículo e carta;
 - instalador com atualização automática;
 - suporte a macOS e Linux.
