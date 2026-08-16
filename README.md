@@ -149,7 +149,9 @@ o status, quantidade e duração de cada provider, sem expor credenciais.
 As credenciais podem ser definidas como variáveis `JOB_FINDER_*` ou salvas no
 SQLite criptografado por senha local através de `/api/search/providers`. A
 senha nunca é persistida. Depois de reiniciar o app, desbloqueie cada provider
-com `POST /api/search/providers/{provider}/unlock`.
+com `POST /api/search/providers/{provider}/unlock` ou pelo botão **Desbloquear**
+que aparece ao lado de um provider bloqueado na seção de credenciais. A busca
+continua sem expor a chave no navegador.
 
 O painel local consulta `GET /api/dashboard/summary`, aceitando `from`, `to`,
 `timezone` e `source_key`. Ele exibe cartões, funil com denominadores, séries
