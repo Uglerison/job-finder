@@ -350,6 +350,27 @@ function providerRunStatusLabel(
   }[status];
 }
 
+function providerRunSummary(
+  runs: AggregatedSearchResponse['provider_runs'],
+): string {
+  const consulted = runs.filter((run) => run.status !== 'skipped').length;
+  const failed = runs.filter((run) => run.status === 'failed').length;
+  const empty = runs.filter((run) => run.status === 'empty').length;
+  const skipped = runs.filter((run) => run.status === 'skipped').length;
+  const parts = [
+    `${consulted} ${consulted === 1 ? 'fonte consultada' : 'fontes consultadas'}`,
+  ];
+  if (failed > 0)
+    parts.push(`${failed} ${failed === 1 ? 'falhou' : 'falharam'}`);
+  if (empty > 0) parts.push(`${empty} sem resultados`);
+  if (skipped > 0) {
+    parts.push(
+      `${skipped} ${skipped === 1 ? 'não configurada' : 'não configuradas'}`,
+    );
+  }
+  return parts.join(' · ');
+}
+
 function formatRunDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -1983,10 +2004,7 @@ function App() {
               >
                 <strong>{aggregatedResults.message}</strong>
                 <span>
-                  {aggregatedResults.provider_runs.length}{' '}
-                  {aggregatedResults.provider_runs.length === 1
-                    ? 'fonte consultada'
-                    : 'fontes consultadas'}
+                  {providerRunSummary(aggregatedResults.provider_runs)}
                 </span>
               </div>
               <div className="source-list-heading">

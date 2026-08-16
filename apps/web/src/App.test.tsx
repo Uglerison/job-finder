@@ -220,6 +220,15 @@ describe('App', () => {
                   provider: 'empty',
                   status: 'empty',
                 },
+                {
+                  candidates: 0,
+                  display_name: 'Fonte sem chave',
+                  duration_ms: 0,
+                  error: null,
+                  fallback: true,
+                  provider: 'unconfigured',
+                  status: 'skipped',
+                },
               ],
               warnings: [],
             }),
@@ -243,7 +252,12 @@ describe('App', () => {
     );
     fireEvent.click(screen.getByText('Ver detalhes da busca e do log'));
     expect(screen.getByText(/Fonte vazia/)).toBeInTheDocument();
-    expect(screen.getByText(/sem resultados/)).toBeInTheDocument();
+    expect(screen.getAllByText(/sem resultados/)).toHaveLength(2);
+    expect(
+      screen.getByText(
+        /1 fonte consultada · 1 sem resultados · 1 não configurada/,
+      ),
+    ).toBeInTheDocument();
   });
 
   it('abre o onboarding e salva critérios válidos no perfil local', async () => {

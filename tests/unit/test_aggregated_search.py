@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 import httpx
@@ -18,6 +19,7 @@ from job_finder.source_adapters import (
     SafeHttpClient,
     SourceAdapterError,
     SourceCandidate,
+    SourceHttpError,
     SourceRateLimitError,
     SourceSearchResult,
 )
@@ -95,7 +97,82 @@ async def test_jsearch_maps_brazilian_payload_and_headers() -> None:
     assert result.candidates[0].location == "Curitiba, PR, BR"
     assert result.candidates[0].salary == "5000–7000 BRL"
     assert seen[0].headers["X-RapidAPI-Key"] == "secret"
+    assert str(seen[0].url).split("?", 1)[0] == "https://jsearch.p.rapidapi.com/search"
+    assert dict(seen[0].url.params)["query"] == "Analista de Dados em Curitiba, PR"
     assert dict(seen[0].url.params)["country"] == "br"
+    assert dict(seen[0].url.params)["language"] == "pt"
+
+
+def test_jsearch_endpoint_is_canonical_and_rejects_unknown_paths() -> None:
+    assert (
+        JSearchProvider(endpoint="https://jsearch.p.rapidapi.com/").endpoint
+        == "https://jsearch.p.rapidapi.com/search"
+    )
+    assert (
+        JSearchProvider(endpoint="https://jsearch.p.rapidapi.com/search/").endpoint
+        == "https://jsearch.p.rapidapi.com/search"
+    )
+    with pytest.raises(ValueError, match="exatamente para /search"):
+        JSearchProvider(endpoint="https://jsearch.p.rapidapi.com/search/search")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("status_code", [401, 403, 404])
+async def test_http_error_keeps_safe_diagnostics_without_secrets(status_code: int) -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            status_code,
+            json={"message": "not found", "api_key": "super-secret"},
+        )
+
+    client = SafeHttpClient(transport=httpx.MockTransport(handler), jitter=lambda: 0.0)
+    with pytest.raises(SourceHttpError) as error:
+        await client.get_json(
+            "https://jsearch.p.rapidapi.com/search",
+            params={"query": "Python"},
+            headers={"X-RapidAPI-Key": "super-secret"},
+            max_attempts=1,
+        )
+    assert error.value.status_code == status_code
+    assert error.value.method == "GET"
+    assert error.value.url == "https://jsearch.p.rapidapi.com/search?query=Python"
+    assert "not found" in error.value.response_excerpt
+    assert "super-secret" not in error.value.response_excerpt
+
+
+@pytest.mark.anyio
+async def test_aggregator_logs_http_diagnostics_and_continues_with_fallback(caplog) -> None:
+    class HttpFailingProvider:
+        provider_key = "jsearch"
+        display_name = "JSearch"
+
+        async def search(self, params, cancellation=None):
+            raise SourceHttpError(
+                "a fonte respondeu com HTTP 404",
+                method="GET",
+                url="https://jsearch.p.rapidapi.com/search?query=Python",
+                status_code=404,
+                duration_ms=687,
+                response_excerpt='{"message":"resource not found"}',
+            )
+
+    class BackupProvider:
+        provider_key = "backup"
+        display_name = "Complementar"
+
+        async def search(self, params, cancellation=None):
+            return SourceSearchResult((candidate(source_key="backup"),))
+
+    with caplog.at_level(logging.WARNING, logger="job_finder.aggregated_search"):
+        result = await SearchAggregator([HttpFailingProvider(), BackupProvider()]).search(
+            JobSearchParams(query="Python", limit=1),
+        )
+
+    assert result.outcome == "partial"
+    assert result.candidates[0].source_key == "backup"
+    assert "method=GET" in caplog.text
+    assert "http_status=404" in caplog.text
+    assert "request_duration_ms=687" in caplog.text
 
 
 @pytest.mark.anyio

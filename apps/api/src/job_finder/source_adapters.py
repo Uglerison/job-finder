@@ -4,11 +4,13 @@ import asyncio
 import ipaddress
 import json
 import random
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from time import monotonic
 from typing import Any, Protocol, cast
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 import httpx
 
@@ -25,12 +27,48 @@ class SourceAdapterError(RuntimeError):
     """Base error shown in a search run without leaking response bodies or secrets."""
 
 
+class SourceHttpError(SourceAdapterError):
+    """HTTP failure with bounded, sanitized diagnostics for the local log."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        method: str,
+        url: str,
+        status_code: int,
+        duration_ms: int,
+        response_excerpt: str,
+    ) -> None:
+        super().__init__(message)
+        self.method = method
+        self.url = url
+        self.status_code = status_code
+        self.duration_ms = duration_ms
+        self.response_excerpt = response_excerpt
+
+
 class SourceRateLimitError(SourceAdapterError):
     """Raised when a source asks the client to slow down."""
 
-    def __init__(self, message: str, retry_after: float | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        retry_after: float | None = None,
+        *,
+        method: str | None = None,
+        url: str | None = None,
+        status_code: int = 429,
+        duration_ms: int | None = None,
+        response_excerpt: str = "",
+    ) -> None:
         super().__init__(message)
         self.retry_after = retry_after
+        self.method = method
+        self.url = url
+        self.status_code = status_code
+        self.duration_ms = duration_ms
+        self.response_excerpt = response_excerpt
 
 
 class SourceCancelledError(SourceAdapterError):
@@ -185,6 +223,7 @@ class SafeHttpClient:
         """GET a bounded JSON response with redirect and retry policy."""
 
         current_url = _validate_public_http_url(url)
+        started = monotonic()
         timeout = httpx.Timeout(float(self.timeout_seconds), connect=min(5.0, self.timeout_seconds))
         request_headers = {"User-Agent": "JobFinder/0.1 (local job research)"}
         if headers:
@@ -223,6 +262,10 @@ class SafeHttpClient:
                         raise SourceRateLimitError(
                             "a fonte solicitou redução de ritmo",
                             retry_after,
+                            method="GET",
+                            url=_redact_diagnostic_url(str(response.request.url)),
+                            duration_ms=round((monotonic() - started) * 1000),
+                            response_excerpt=_redact_diagnostic_body(response.text),
                         )
                     await self._wait(attempt, cancellation, retry_after)
                     attempt += 1
@@ -233,7 +276,12 @@ class SafeHttpClient:
                     attempt += 1
                     continue
                 if response.status_code >= 400:
-                    raise SourceAdapterError(f"a fonte respondeu com HTTP {response.status_code}")
+                    raise _source_http_error(
+                        response,
+                        method="GET",
+                        fallback_url=current_url,
+                        started=started,
+                    )
                 if len(response.content) > MAX_DOCUMENT_BYTES:
                     raise SourceAdapterError("resposta da fonte excede o limite local")
                 content_type = response.headers.get("content-type", "")
@@ -256,6 +304,7 @@ class SafeHttpClient:
         """POST a bounded JSON request for providers such as Jooble."""
 
         current_url = _validate_public_http_url(url)
+        started = monotonic()
         timeout = httpx.Timeout(float(self.timeout_seconds), connect=min(5.0, self.timeout_seconds))
         request_headers = {
             "User-Agent": "JobFinder/0.1 (local job research)",
@@ -285,7 +334,12 @@ class SafeHttpClient:
                     retry_after = _retry_after(response.headers.get("retry-after"))
                     if attempt + 1 >= max_attempts:
                         raise SourceRateLimitError(
-                            "a fonte solicitou redução de ritmo", retry_after
+                            "a fonte solicitou redução de ritmo",
+                            retry_after,
+                            method="POST",
+                            url=_redact_diagnostic_url(str(response.request.url)),
+                            duration_ms=round((monotonic() - started) * 1000),
+                            response_excerpt=_redact_diagnostic_body(response.text),
                         )
                     await self._wait(attempt, cancellation, retry_after)
                     attempt += 1
@@ -295,7 +349,12 @@ class SafeHttpClient:
                     attempt += 1
                     continue
                 if response.status_code >= 400:
-                    raise SourceAdapterError(f"a fonte respondeu com HTTP {response.status_code}")
+                    raise _source_http_error(
+                        response,
+                        method="POST",
+                        fallback_url=current_url,
+                        started=started,
+                    )
                 if len(response.content) > MAX_DOCUMENT_BYTES:
                     raise SourceAdapterError("resposta da fonte excede o limite local")
                 try:
@@ -313,6 +372,78 @@ class SafeHttpClient:
         if cancellation:
             cancellation.raise_if_cancelled()
         await self.sleep(delay)
+
+
+_SENSITIVE_DIAGNOSTIC_KEYS = {
+    "api_key",
+    "app_key",
+    "app_id",
+    "authorization",
+    "password",
+    "secret",
+    "token",
+    "x-rapidapi-key",
+}
+_SENSITIVE_BODY_PATTERN = re.compile(
+    r"(?P<prefix>[\"']?(?:api[_-]?key|app[_-]?(?:id|key)|authorization|password|secret|token|"
+    r"x-rapidapi-key)[\"']?\s*[:=]\s*[\"']?)(?P<value>[^\"'\s,;}]+)",
+    flags=re.IGNORECASE,
+)
+_MAX_DIAGNOSTIC_BODY = 512
+
+
+def _source_http_error(
+    response: httpx.Response,
+    *,
+    method: str,
+    fallback_url: str,
+    started: float,
+) -> SourceHttpError:
+    try:
+        request_url = str(response.request.url)
+    except RuntimeError:
+        request_url = fallback_url
+    try:
+        body = response.text
+    except (UnicodeDecodeError, RuntimeError):
+        body = ""
+    return SourceHttpError(
+        f"a fonte respondeu com HTTP {response.status_code}",
+        method=method,
+        url=_redact_diagnostic_url(request_url),
+        status_code=response.status_code,
+        duration_ms=round((monotonic() - started) * 1000),
+        response_excerpt=_redact_diagnostic_body(body),
+    )
+
+
+def _redact_diagnostic_url(value: str) -> str:
+    """Keep request shape in logs while removing path/query credential material."""
+
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return "[invalid-url]"
+    path_parts = parsed.path.split("/")
+    if len(path_parts) > 2 and path_parts[1].casefold() == "api":
+        path_parts[2] = "[REDACTED]"
+    safe_path = "/".join(path_parts)
+    safe_query = urlencode(
+        [
+            (key, "[REDACTED]" if key.casefold() in _SENSITIVE_DIAGNOSTIC_KEYS else value)
+            for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        ],
+        doseq=True,
+    )
+    return urlunsplit((parsed.scheme, parsed.netloc, safe_path, safe_query, ""))
+
+
+def _redact_diagnostic_body(value: str) -> str:
+    compact = " ".join(value.split())
+    redacted = _SENSITIVE_BODY_PATTERN.sub(r"\g<prefix>[REDACTED]", compact)
+    if len(redacted) <= _MAX_DIAGNOSTIC_BODY:
+        return redacted
+    return f"{redacted[:_MAX_DIAGNOSTIC_BODY]}…"
 
 
 class JsonSourceAdapter:

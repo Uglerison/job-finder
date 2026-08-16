@@ -135,3 +135,6 @@ async def test_http_client_exposes_rate_limit_after_retry_budget() -> None:
     with pytest.raises(SourceRateLimitError) as error:
         await client.get_json("https://source.test/feed", max_attempts=1)
     assert error.value.retry_after == 1.0
+    assert error.value.method == "GET"
+    assert error.value.url == "https://source.test/feed"
+    assert error.value.status_code == 429

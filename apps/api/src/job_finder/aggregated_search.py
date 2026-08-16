@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 from math import ceil
 from time import monotonic
 from typing import Literal, Protocol
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -21,6 +21,7 @@ from job_finder.source_adapters import (
     SourceAdapter,
     SourceAdapterError,
     SourceCandidate,
+    SourceHttpError,
     SourceRateLimitError,
     SourceSearchRequest,
     SourceSearchResult,
@@ -136,7 +137,7 @@ class JSearchProvider(_JsonProvider):
         api_key: str | None = None,
         client: SafeHttpClient | None = None,
     ) -> None:
-        super().__init__(endpoint, client)
+        super().__init__(_canonical_jsearch_endpoint(endpoint), client)
         self.api_key = api_key
 
     async def search(
@@ -153,7 +154,7 @@ class JSearchProvider(_JsonProvider):
                 "page": params.page,
                 "num_pages": max(1, min(3, ceil(params.limit / 10))),
                 "country": params.country,
-                "language": params.language,
+                "language": _jsearch_language(params.language),
                 "date_posted": "all",
             },
             headers={
@@ -389,7 +390,7 @@ class SearchAggregator:
                     provider.provider_key,
                     index > 0,
                 )
-            except SourceRateLimitError:
+            except SourceRateLimitError as error:
                 rate_limited += 1
                 safe_error = "limite de consultas atingido"
                 warnings.append(f"{provider.display_name}: {safe_error}")
@@ -405,8 +406,40 @@ class SearchAggregator:
                     ),
                 )
                 logger.warning(
-                    "aggregated_search provider=%s status=rate_limited fallback=%s",
+                    "aggregated_search provider=%s status=rate_limited method=%s url=%s "
+                    "http_status=%d request_duration_ms=%s response=%s fallback=%s",
                     provider.provider_key,
+                    error.method or "[unknown]",
+                    error.url or "[unknown]",
+                    error.status_code,
+                    error.duration_ms if error.duration_ms is not None else "[unknown]",
+                    error.response_excerpt or "[empty]",
+                    index > 0,
+                )
+            except SourceHttpError as error:
+                failed += 1
+                safe_error = f"HTTP {error.status_code}"
+                warnings.append(f"{provider.display_name}: {safe_error}")
+                runs.append(
+                    ProviderRun(
+                        provider=provider.provider_key,
+                        display_name=provider.display_name,
+                        status="failed",
+                        duration_ms=round((monotonic() - started) * 1000),
+                        candidates=0,
+                        fallback=index > 0,
+                        error=safe_error,
+                    ),
+                )
+                logger.warning(
+                    "aggregated_search provider=%s status=failed method=%s url=%s "
+                    "http_status=%d request_duration_ms=%d response=%s fallback=%s",
+                    provider.provider_key,
+                    error.method,
+                    error.url,
+                    error.status_code,
+                    error.duration_ms,
+                    error.response_excerpt or "[empty]",
                     index > 0,
                 )
             except SourceAdapterError as error:
@@ -606,7 +639,26 @@ def _candidate_from_fields(
 
 
 def _provider_query(params: JobSearchParams) -> str:
-    return " ".join(part for part in (params.query, params.location) if part)
+    if params.location:
+        return f"{params.query} em {params.location}"
+    return params.query
+
+
+def _jsearch_language(language: str) -> str:
+    """JSearch expects an ISO 639-1 language code, not a locale string."""
+
+    return language.split("-", 1)[0].casefold()
+
+
+def _canonical_jsearch_endpoint(endpoint: str) -> str:
+    """Accept the documented base URL or /search path, never a duplicated path."""
+
+    validated = validate_public_url(endpoint)
+    parsed = urlsplit(validated)
+    path = parsed.path.rstrip("/")
+    if path not in {"", "/search"}:
+        raise ValueError("O endpoint da JSearch deve apontar exatamente para /search.")
+    return urlunsplit((parsed.scheme, parsed.netloc, "/search", "", ""))
 
 
 def _cache_key(params: JobSearchParams) -> str:
