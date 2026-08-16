@@ -51,16 +51,16 @@ pnpm --filter job-finder-web build
 
 ## Busca e fontes (E4)
 
-A área **Fontes e execuções** na interface lista três conectores públicos
-iniciais — Remote OK, Arbeitnow e Jobicy — sem credenciais. O agendamento fica
-desligado por padrão; a busca manual pode ser iniciada escolhendo cargo,
-localização e fonte.
+A área **Busca unificada** consulta providers em sequência sem pedir que o
+usuário escolha uma API. Remote OK, Arbeitnow e Jobicy continuam listados no
+painel técnico como fallback legado, sem credenciais; o agendamento fica
+desligado por padrão.
 
 Os contratos HTTP locais principais são:
 
 - `GET /api/sources` e `PUT /api/sources/{source_key}` para configuração e limites;
 - `POST /api/sources/{source_key}/test` para testar uma fonte sem persistir vagas;
-- `POST /api/search-runs` para iniciar uma execução (`wait=true` é útil em testes);
+- `POST /api/search-runs` para execuções legadas auditáveis (`wait=true` é útil em testes);
 - `GET /api/search-runs` e `POST /api/search-runs/{id}/cancel` para acompanhar/cancelar;
 - `GET /api/duplicates` e `POST /api/duplicates/{id}/confirm|dismiss` para revisão;
 - `POST /api/scheduler/tick` para disparar fontes agendadas já vencidas.
