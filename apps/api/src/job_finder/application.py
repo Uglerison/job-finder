@@ -139,7 +139,7 @@ def _process_is_running(process_id: int) -> bool:
 
         process_query_limited_information = 0x1000
         still_active = 259
-        kernel32 = ctypes.windll.kernel32
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
         kernel32.OpenProcess.argtypes = (ctypes.c_ulong, ctypes.c_bool, ctypes.c_ulong)
         kernel32.OpenProcess.restype = ctypes.c_void_p
         kernel32.GetExitCodeProcess.argtypes = (

@@ -332,6 +332,92 @@ describe('App', () => {
     });
   });
 
+  it('exibe fontes de busca e inicia uma execução com contadores auditáveis', async () => {
+    const sources = [
+      {
+        backoff_until: null,
+        consecutive_failures: 0,
+        daily_limit: 50,
+        data_format: 'json',
+        display_name: 'Remote OK',
+        enabled: true,
+        endpoint: 'https://remoteok.com/api',
+        frequency_minutes: 1440,
+        id: 1,
+        last_error: null,
+        last_run_at: null,
+        next_run_at: null,
+        per_run_limit: 50,
+        schedule_enabled: false,
+        source_key: 'remoteok',
+        terms_url: 'https://remoteok.com/terms',
+        timeout_seconds: 15,
+      },
+    ];
+    const run = {
+      approximate_duplicates: 1,
+      candidates_seen: 4,
+      cancellation_requested: false,
+      current_cursor: null,
+      duration_ms: 120,
+      error_message: null,
+      exact_duplicates: 1,
+      finished_at: null,
+      id: 1,
+      jobs_created: 2,
+      query: { query: 'Backend Engineer' },
+      requested_at: '2026-08-15T10:00:00Z',
+      source_key: 'remoteok',
+      source_name: 'Remote OK',
+      started_at: null,
+      status: 'running',
+    };
+
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/sources') {
+          return Promise.resolve({ json: async () => sources, ok: true });
+        }
+        if (input === '/api/search-runs?limit=12') {
+          return Promise.resolve({ json: async () => [], ok: true });
+        }
+        if (input === '/api/search-runs' && init?.method === 'POST') {
+          return Promise.resolve({ json: async () => run, ok: true });
+        }
+        if (init?.method === 'PUT') {
+          return Promise.resolve({ json: async () => sources[0], ok: true });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Fontes e execuções' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Remote OK' }),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Cargo ou palavra-chave'), {
+      target: { value: 'Backend Engineer' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar agora' }));
+
+    expect(
+      await screen.findByText('Busca iniciada em Remote OK.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('1 para revisar')).toBeInTheDocument();
+    const [, options] = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        input === '/api/search-runs' && init?.method === 'POST',
+    ) as [string, RequestInit];
+    expect(JSON.parse(options.body as string)).toMatchObject({
+      query: 'Backend Engineer',
+      source_key: 'remoteok',
+    });
+  });
+
   it('abre o detalhe seguro sem executar HTML externo', async () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       if (input === '/api/jobs') {

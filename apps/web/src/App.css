@@ -199,6 +199,177 @@
   }
 }
 
+.sources-section {
+  border-top: 1px solid var(--ink-faint);
+  margin: 0 auto;
+  max-width: 64rem;
+  padding: 5.5rem 1.5rem;
+}
+
+.sources-intro {
+  max-width: 36rem;
+}
+
+.sources-intro h2 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 400;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  margin: 0;
+}
+
+.sources-intro p:not(.eyebrow) {
+  color: var(--ink-soft);
+  line-height: 1.65;
+  margin: 1rem 0 0;
+}
+
+.sources-workspace {
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-faint);
+  margin-top: 2.5rem;
+  padding: 1.25rem;
+}
+
+.source-search-form {
+  align-items: end;
+  border-bottom: 1px solid var(--ink-faint);
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: 1.2fr 1fr 1fr auto;
+  padding-bottom: 1.25rem;
+}
+
+.source-run-button {
+  white-space: nowrap;
+}
+
+.source-list-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+}
+
+.source-run-heading {
+  border-top: 1px solid var(--ink-faint);
+  padding-top: 1.5rem;
+}
+
+.source-list,
+.source-run-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.source-row,
+.source-run-row {
+  align-items: center;
+  border-bottom: 1px solid var(--ink-faint);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem 0;
+}
+
+.source-row:last-child,
+.source-run-row:last-child {
+  border-bottom: 0;
+}
+
+.source-row h3,
+.source-run-row h3 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.25rem;
+  font-weight: 400;
+  margin: 0.4rem 0 0;
+}
+
+.source-row p,
+.source-run-row p {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  margin: 0.35rem 0 0;
+}
+
+.source-row-actions,
+.source-run-metrics {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.source-run-metrics {
+  color: var(--ink-soft);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.65rem;
+  max-width: 28rem;
+}
+
+.source-run-metrics time {
+  color: var(--ink);
+}
+
+.source-run-status.is-failed,
+.source-run-status.is-cancelled {
+  color: #8a3024;
+}
+
+.source-run-status.is-running,
+.source-run-status.is-pending {
+  color: var(--accent);
+}
+
+.source-error-note {
+  color: #8a3024;
+  display: block;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  margin-top: 0.45rem;
+}
+
+.sources-feedback,
+.sources-empty {
+  color: var(--ink-soft);
+  line-height: 1.55;
+  margin: 1rem 0 0;
+}
+
+.sources-feedback.is-error {
+  color: #8a3024;
+}
+
+@media (max-width: 58rem) {
+  .source-search-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .source-run-button {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 44rem) {
+  .source-search-form {
+    grid-template-columns: 1fr;
+  }
+
+  .source-row,
+  .source-run-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .source-row-actions,
+  .source-run-metrics {
+    justify-content: flex-start;
+  }
+}
+
 /* Editorial shell inspired by the Prepara AI reference. */
 :root {
   --paper: #f8f8f4;

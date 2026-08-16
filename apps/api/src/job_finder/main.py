@@ -21,7 +21,11 @@ from job_finder.preferences_api import router as preferences_router
 from job_finder.privacy_api import router as privacy_router
 from job_finder.process_events_api import router as process_events_router
 from job_finder.profile_api import router as profile_router
+from job_finder.scheduler import PersistentScheduler
+from job_finder.search_runs import SearchTaskRegistry
 from job_finder.settings import Settings, get_settings
+from job_finder.source_adapters import SourceRegistry
+from job_finder.sources_api import router as sources_router
 from job_finder.trash_api import router as trash_router
 
 
@@ -45,6 +49,10 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         engine = create_database_engine(settings.data_dir)
         application.state.database_engine = engine
         application.state.session_factory = create_session_factory(engine)
+        application.state.scheduler = PersistentScheduler()
+        with application.state.session_factory() as session:
+            application.state.scheduler.recover_interrupted_runs(session)
+            session.commit()
         yield
     finally:
         try:
@@ -69,6 +77,8 @@ def create_app(
         openapi_url="/api/openapi.json",
     )
     application.state.settings = settings or get_settings()
+    application.state.source_registry = SourceRegistry()
+    application.state.search_tasks = SearchTaskRegistry()
     application.include_router(profile_router)
     application.include_router(preferences_router)
     application.include_router(filters_router)
@@ -79,6 +89,7 @@ def create_app(
     application.include_router(process_events_router)
     application.include_router(export_router)
     application.include_router(trash_router)
+    application.include_router(sources_router)
 
     @application.get("/api/health", response_model=HealthResponse)
     def health() -> HealthResponse:

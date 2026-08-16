@@ -70,13 +70,13 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E1 — Fundação local | JF-010–JF-022 | Concluído | Aplicação local abre e persiste dados |
 | E2 — Perfil | JF-100–JF-107 | Pendente | Perfil editável e versionado |
 | E3 — Vagas e candidaturas | JF-200–JF-216 | Em andamento | Fluxo manual completo |
-| E4 — Busca e fontes | JF-300–JF-313 | Pendente | Vagas coletadas e deduplicadas |
+| E4 — Busca e fontes | JF-300–JF-313 | Concluído | Vagas coletadas, auditadas e deduplicadas |
 | E5 — GPT-5.6 Luna | JF-400–JF-412 | Pendente | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Pendente | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `E3 — validação integrada e handoff para E4`.
+**Próxima tarefa pronta:** `E5 — integração controlada do gpt-5.6-luna`.
 
 ## Marcos
 
@@ -365,75 +365,89 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 
 ## E4 — Busca e fontes
 
-- [ ] **JF-300 — Definir contrato de adaptadores**
+- [x] **JF-300 — Definir contrato de adaptadores**
   - Depende de: JF-005 e JF-200.
   - Teste primeiro: adaptador bem-sucedido, parcial, vazio, cancelado e com erro.
   - Aceite: interface tipada não acopla domínio a uma fonte específica.
+  - Evidência: `SourceAdapter`, `SourceSearchRequest`, `SourceSearchResult` e token de cancelamento em `source_adapters.py`; fixtures cobrem sucesso, parcial/vazio, cancelado e erro.
 
-- [ ] **JF-301 — Modelar configuração de fonte**
+- [x] **JF-301 — Modelar configuração de fonte**
   - Depende de: JF-017 e JF-300.
   - Teste primeiro: ativação, frequência, limites e configuração inválida.
   - Aceite: segredos não são persistidos em texto simples.
+  - Evidência: migração `0012_search_sources`, `SourceConfigRecord` e `SourceConfigData`; três fontes públicas sem credenciais são semeadas com agendamento desligado e a API nunca retorna `secret_ref`.
 
-- [ ] **JF-302 — Implementar API e UI de fontes**
+- [x] **JF-302 — Implementar API e UI de fontes**
   - Depende de: JF-301.
   - Teste primeiro: criar, testar conexão, pausar e editar uma fonte.
   - Aceite: configuração e último estado visíveis ao usuário.
+  - Evidência: `/api/sources`, `PUT /api/sources/{source_key}`, teste de conexão e seção editorial “Fontes e execuções” com ativação/pausa, limites e último erro.
 
-- [ ] **JF-303 — Modelar e executar `search_run`**
+- [x] **JF-303 — Modelar e executar `search_run`**
   - Depende de: JF-300 e JF-301.
   - Teste primeiro: ciclo pendente/em execução/concluído/falhou/cancelado.
   - Aceite: contadores, duração e erros ficam auditáveis.
+  - Evidência: migração `0012_search_sources`, `execute_search_run`, estados pendente/em execução/concluído/parcial/falhou/cancelado e painel de execuções; API E4 cobre contadores e deduplicação.
 
-- [ ] **JF-304 — Implementar cancelamento cooperativo**
+- [x] **JF-304 — Implementar cancelamento cooperativo**
   - Depende de: JF-303.
   - Teste primeiro: cancelar antes, durante e após conclusão.
   - Aceite: nenhuma tarefa fica órfã nem grava resultado após cancelamento.
+  - Evidência: `CancellationToken`, `SearchTaskRegistry`, `POST /api/search-runs/{id}/cancel` e teste que confirma zero candidato persistido após cancelamento.
 
-- [ ] **JF-305 — Implementar agendador persistente**
+- [x] **JF-305 — Implementar agendador persistente**
   - Depende de: JF-301 e JF-303.
   - Teste primeiro: próxima execução, reinício, janela e tarefa perdida.
   - Aceite: automático desativado por padrão e fuso respeitado.
+  - Evidência: `PersistentScheduler`, `next_run_at`, recuperação de execuções interrompidas e `/api/scheduler/tick`; defaults desligam o automático e calculam janelas em UTC local.
 
-- [ ] **JF-306 — Implementar cliente HTTP seguro e resiliente**
+- [x] **JF-306 — Implementar cliente HTTP seguro e resiliente**
   - Depende de: JF-016 e JF-602.
   - Teste primeiro: timeout, limite, redirecionamento, retry e domínio bloqueado.
   - Aceite: políticas comuns aplicadas a todos os conectores.
+  - Evidência: `SafeHttpClient` valida esquema/destino público, limita bytes e redirects, aplica timeout e retries; fixture MockTransport cobre respostas inválidas.
 
-- [ ] **JF-307 — Implementar limite e backoff por fonte**
+- [x] **JF-307 — Implementar limite e backoff por fonte**
   - Depende de: JF-303 e JF-306.
   - Teste primeiro: `429`, erro transitório, teto e pausa automática.
   - Aceite: repetição limitada com jitter e diagnóstico visível.
+  - Evidência: tratamento de `429`, `Retry-After`, jitter limitado, teto diário/por execução, `backoff_until` e erro persistido; teste confirma pausa após rate limit.
 
-- [ ] **JF-308 — Implementar conector da fonte 1**
+- [x] **JF-308 — Implementar conector da fonte 1**
   - Depende de: JF-005, JF-300 e JF-306.
   - Teste primeiro: fixtures de sucesso, paginação, alteração e erro.
   - Aceite: vagas entram normalizadas com origem e evidência.
+  - Evidência: `RemoteOkAdapter` com fixture de JSON, origem `remoteok`, conteúdo sanitizado e normalização determinística.
 
-- [ ] **JF-309 — Implementar conector da fonte 2**
+- [x] **JF-309 — Implementar conector da fonte 2**
   - Depende de: JF-308.
   - Teste primeiro: fixtures específicas e contrato comum.
   - Aceite: mesmos indicadores operacionais da fonte 1.
+  - Evidência: `ArbeitnowAdapter` usa o contrato comum e fixture de payload `{data: [...]}`; contadores do run são compartilhados.
 
-- [ ] **JF-310 — Implementar conector da fonte 3**
+- [x] **JF-310 — Implementar conector da fonte 3**
   - Depende de: JF-309.
   - Teste primeiro: fixtures específicas e contrato comum.
   - Aceite: mesmos indicadores operacionais das fontes anteriores.
+  - Evidência: `JobicyAdapter` usa o contrato comum e fixture de payload `{jobs: [...]}`; falhas e limites seguem a mesma política.
 
-- [ ] **JF-311 — Implementar deduplicação exata**
+- [x] **JF-311 — Implementar deduplicação exata**
   - Depende de: JF-201 e JF-303.
   - Teste primeiro: URL canônica, ID externo, hash e múltiplas origens.
   - Aceite: duplicata exata não cria uma segunda vaga.
+  - Evidência: URL canônica, `(source, external_id)` e hash de conteúdo em `source_dedup.py`; origens múltiplas são preservadas e teste do segundo run mantém uma única vaga.
 
-- [ ] **JF-312 — Implementar sugestão de duplicata aproximada**
+- [x] **JF-312 — Implementar sugestão de duplicata aproximada**
   - Depende de: JF-311.
   - Teste primeiro: cargo/empresa/local semelhantes e falsos positivos conhecidos.
   - Aceite: união aproximada exige confirmação do usuário.
+  - Evidência: similaridade explicável de cargo/empresa/local em `duplicate_suggestions`; endpoints `/api/duplicates/{id}/confirm|dismiss` e teste de confirmação que anexa a origem sem duplicar a vaga.
 
-- [ ] **JF-313 — Criar painel de execuções e erros**
+- [x] **JF-313 — Criar painel de execuções e erros**
   - Depende de: JF-302 a JF-307.
   - Teste primeiro: progresso, cancelamento, falha parcial e reexecução.
   - Aceite: resultado de cada fonte pode ser diagnosticado sem abrir logs.
+  - Evidência: `/api/search-runs`, cancelamento e seção visual com status, duração, vagas encontradas, novas, duplicatas, aproximações e erro por fonte.
 
 ## E5 — GPT-5.6 Luna
 
@@ -707,6 +721,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-214 | Concluída | Motivos de encerramento obrigatórios quando aplicável e auditados nos eventos sem apagar histórico; 64 testes backend verdes |
 | 15/08/2026 | JF-215 | Concluída | Exportação CSV/JSON filtrável, codificação Excel-friendly e neutralização de fórmulas; 65 testes backend verdes |
 | 15/08/2026 | JF-216 | Concluída | Lixeira com soft-delete, restauração, expiração por retenção e proteção de candidaturas vinculadas; migração `0011_recoverable_trash`, UI de restauração/confirmação, 68 testes backend e 12 Vitest verdes |
+| 15/08/2026 | JF-300–JF-313 | Concluída | E4 completa: contrato de adaptadores, três fontes públicas, configuração sem segredos, runs auditáveis, cancelamento, scheduler persistente, cliente HTTP resiliente, limites/backoff, deduplicação exata/aproximada e painel; 49 testes unitários backend, 2 testes API E4, Ruff e Mypy verdes |
 
 ## Bloqueios e decisões pendentes
 
@@ -715,6 +730,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-004 | Falta consolidar o perfil profissional de referência | Usuário | Fornecer currículo ou preencher critérios no onboarding quando disponível |
 | 15/08/2026 | JF-005 | Fontes dependem de países, cargos e regime desejados | Projeto | Selecionar após JF-004 |
 | 15/08/2026 | JF-006 | Orçamento mensal ainda não definido | Usuário | Definir antes de ativar buscas automáticas |
+| 15/08/2026 | JF-005/JF-006 | E4 foi implementada com Remote OK, Arbeitnow e Jobicy, agendamento desligado e limites padrão de 50 execuções/dia e 50 vagas/run para não bloquear o desenvolvimento | Projeto | Usuário pode substituir fontes, termos, frequência e limites em `/api/sources` antes de ativar automação |
 
 ## Ideias fora do MVP
 

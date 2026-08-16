@@ -122,6 +122,46 @@ type AgendaEvent = {
   title: string;
 };
 
+type SourceConfig = {
+  source_key: string;
+  display_name: string;
+  endpoint: string;
+  terms_url: string | null;
+  data_format: 'json';
+  enabled: boolean;
+  schedule_enabled: boolean;
+  frequency_minutes: number;
+  daily_limit: number;
+  per_run_limit: number;
+  timeout_seconds: number;
+  id: number;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  backoff_until: string | null;
+  consecutive_failures: number;
+  last_error: string | null;
+};
+
+type SearchRun = {
+  id: number;
+  source_key: string;
+  source_name: string;
+  status:
+    'pending' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled';
+  query: { query?: string; location?: string; limit?: number };
+  requested_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  duration_ms: number | null;
+  candidates_seen: number;
+  jobs_created: number;
+  exact_duplicates: number;
+  approximate_duplicates: number;
+  error_message: string | null;
+  cancellation_requested: boolean;
+  current_cursor: string | null;
+};
+
 function formatAgendaDate(value: string, timezoneName: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -150,6 +190,30 @@ function pipelineStatusLabel(status: ApplicationStatus): string {
   return (
     pipelineStages.find((stage) => stage.value === status)?.label ?? status
   );
+}
+
+function sourceRunStatusLabel(status: SearchRun['status']): string {
+  return {
+    pending: 'PENDENTE',
+    running: 'EM EXECUÇÃO',
+    completed: 'CONCLUÍDA',
+    partial: 'PARCIAL',
+    failed: 'FALHOU',
+    cancelled: 'CANCELADA',
+  }[status];
+}
+
+function formatRunDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'agora';
+  }
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
 }
 
 type ManualJobFormState = {
@@ -390,6 +454,17 @@ function App() {
   const [trashJobs, setTrashJobs] = useState<TrashJob[]>([]);
   const [isLoadingTrash, setIsLoadingTrash] = useState(true);
   const [trashError, setTrashError] = useState<string | null>(null);
+  const [sources, setSources] = useState<SourceConfig[]>([]);
+  const [isLoadingSources, setIsLoadingSources] = useState(true);
+  const [sourcesError, setSourcesError] = useState<string | null>(null);
+  const [sourceRuns, setSourceRuns] = useState<SearchRun[]>([]);
+  const [isLoadingSourceRuns, setIsLoadingSourceRuns] = useState(true);
+  const [sourceRunsError, setSourceRunsError] = useState<string | null>(null);
+  const [sourceQuery, setSourceQuery] = useState('');
+  const [sourceLocation, setSourceLocation] = useState('');
+  const [selectedSourceKey, setSelectedSourceKey] = useState('remoteok');
+  const [isStartingSourceRun, setIsStartingSourceRun] = useState(false);
+  const [sourceMessage, setSourceMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -434,6 +509,85 @@ function App() {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSources = async () => {
+      try {
+        const response = await fetch('/api/sources');
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar as fontes.');
+        }
+        const payload = (await response.json()) as SourceConfig[] | null;
+        if (isMounted) {
+          const savedSources = Array.isArray(payload) ? payload : [];
+          setSources(savedSources);
+          if (
+            savedSources.length > 0 &&
+            !savedSources.some(
+              (source) => source.source_key === selectedSourceKey,
+            )
+          ) {
+            setSelectedSourceKey(savedSources[0].source_key);
+          }
+        }
+      } catch {
+        if (isMounted) {
+          setSourcesError('Não foi possível carregar as fontes locais.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingSources(false);
+        }
+      }
+    };
+
+    void loadSources();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedSourceKey]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSourceRuns = async () => {
+      try {
+        const response = await fetch('/api/search-runs?limit=12');
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar as execuções.');
+        }
+        const payload = (await response.json()) as SearchRun[] | null;
+        if (isMounted) {
+          setSourceRuns(Array.isArray(payload) ? payload : []);
+        }
+      } catch {
+        if (isMounted) {
+          setSourceRunsError(
+            'Não foi possível carregar o histórico de buscas.',
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingSourceRuns(false);
+        }
+      }
+    };
+
+    void loadSourceRuns();
+    const timer = window.setInterval(() => {
+      if (isMounted) {
+        void loadSourceRuns();
+      }
+    }, 2500);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(timer);
     };
   }, []);
 
@@ -838,6 +992,111 @@ function App() {
     setJobs(Array.isArray(payload?.items) ? payload.items : []);
   };
 
+  const refreshSourceRuns = async () => {
+    const response = await fetch('/api/search-runs?limit=12');
+    if (!response.ok) {
+      throw new Error('Não foi possível atualizar as execuções.');
+    }
+    const payload = (await response.json()) as SearchRun[] | null;
+    setSourceRuns(Array.isArray(payload) ? payload : []);
+  };
+
+  const toggleSource = async (source: SourceConfig) => {
+    setSourcesError(null);
+    try {
+      const response = await fetch(`/api/sources/${source.source_key}`, {
+        body: JSON.stringify({
+          display_name: source.display_name,
+          endpoint: source.endpoint,
+          terms_url: source.terms_url,
+          enabled: !source.enabled,
+          schedule_enabled: source.schedule_enabled,
+          frequency_minutes: source.frequency_minutes,
+          daily_limit: source.daily_limit,
+          per_run_limit: source.per_run_limit,
+          timeout_seconds: source.timeout_seconds,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT',
+      });
+      if (!response.ok) {
+        throw new Error('Não foi possível alterar a fonte.');
+      }
+      const saved = (await response.json()) as SourceConfig;
+      setSources((current) =>
+        current.map((item) =>
+          item.source_key === saved.source_key ? saved : item,
+        ),
+      );
+      setSourceMessage(
+        saved.enabled
+          ? `${saved.display_name} ativada para buscas manuais.`
+          : `${saved.display_name} pausada.`,
+      );
+    } catch {
+      setSourcesError('Não foi possível atualizar a configuração da fonte.');
+    }
+  };
+
+  const startSourceRun = async (sourceKey = selectedSourceKey) => {
+    setIsStartingSourceRun(true);
+    setSourceRunsError(null);
+    setSourceMessage(null);
+    try {
+      const response = await fetch('/api/search-runs', {
+        body: JSON.stringify({
+          location: sourceLocation.trim() || null,
+          limit: 50,
+          query: sourceQuery.trim() || null,
+          source_key: sourceKey,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as {
+          detail?: string;
+        } | null;
+        throw new Error(payload?.detail ?? 'Não foi possível iniciar a busca.');
+      }
+      const run = (await response.json()) as SearchRun;
+      setSourceRuns((current) => [
+        run,
+        ...current.filter((item) => item.id !== run.id),
+      ]);
+      setSourceMessage(`Busca iniciada em ${run.source_name}.`);
+      window.setTimeout(
+        () => void refreshSourceRuns().catch(() => undefined),
+        250,
+      );
+    } catch (error) {
+      setSourceRunsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível iniciar a busca.',
+      );
+    } finally {
+      setIsStartingSourceRun(false);
+    }
+  };
+
+  const cancelSourceRun = async (run: SearchRun) => {
+    try {
+      const response = await fetch(`/api/search-runs/${run.id}/cancel`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error('Não foi possível cancelar a busca.');
+      }
+      const cancelled = (await response.json()) as SearchRun;
+      setSourceRuns((current) =>
+        current.map((item) => (item.id === cancelled.id ? cancelled : item)),
+      );
+    } catch {
+      setSourceRunsError('Não foi possível cancelar a busca.');
+    }
+  };
+
   const restoreTrashJob = async (jobId: number) => {
     setTrashError(null);
     try {
@@ -975,6 +1234,7 @@ function App() {
             <a href="#fluxo">Fluxo</a>
             <a href="#perfil">Perfil</a>
             <a href="#historico">Histórico</a>
+            <a href="#busca">Busca</a>
             <a href="#vagas">Vagas</a>
             <a href="#agenda">Agenda</a>
             <a href="#lixeira">Lixeira</a>
@@ -993,6 +1253,195 @@ function App() {
           </div>
         </div>
       </header>
+
+      <section
+        className="sources-section"
+        id="busca"
+        aria-labelledby="sources-title"
+      >
+        <div className="sources-intro">
+          <p className="eyebrow">BUSCA CONTROLADA</p>
+          <h2 id="sources-title">Fontes e execuções</h2>
+          <p>
+            Escolha de onde buscar, faça uma execução manual e acompanhe os
+            contadores sem perder a origem de cada vaga.
+          </p>
+        </div>
+
+        <div className="sources-workspace">
+          <div className="source-search-form">
+            <div className="form-field">
+              <label htmlFor="source-query">Cargo ou palavra-chave</label>
+              <input
+                id="source-query"
+                onChange={(event) => setSourceQuery(event.target.value)}
+                placeholder="ex.: Backend Engineer"
+                value={sourceQuery}
+              />
+            </div>
+            <div className="form-field">
+              <label htmlFor="source-location">Localização</label>
+              <input
+                id="source-location"
+                onChange={(event) => setSourceLocation(event.target.value)}
+                placeholder="ex.: remoto ou São Paulo"
+                value={sourceLocation}
+              />
+            </div>
+            <div className="form-field">
+              <label htmlFor="source-select">Fonte da busca</label>
+              <select
+                id="source-select"
+                onChange={(event) => setSelectedSourceKey(event.target.value)}
+                value={selectedSourceKey}
+              >
+                {sources.map((source) => (
+                  <option key={source.source_key} value={source.source_key}>
+                    {source.display_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              className="primary-button source-run-button"
+              disabled={isStartingSourceRun || sources.length === 0}
+              onClick={() => void startSourceRun()}
+              type="button"
+            >
+              {isStartingSourceRun ? 'Iniciando…' : 'Buscar agora'}
+            </button>
+          </div>
+
+          {sourceMessage && (
+            <p className="form-message is-success" role="status">
+              {sourceMessage}
+            </p>
+          )}
+          {sourcesError && (
+            <p className="sources-feedback is-error" role="status">
+              {sourcesError}
+            </p>
+          )}
+
+          <div className="source-list-heading">
+            <span className="meta-label">FONTES CONFIGURADAS</span>
+            <span className="mono-note">AGENDAMENTO DESLIGADO POR PADRÃO</span>
+          </div>
+          {isLoadingSources && (
+            <p className="sources-feedback" role="status">
+              Carregando fontes…
+            </p>
+          )}
+          {!isLoadingSources && sources.length === 0 && !sourcesError && (
+            <p className="sources-feedback" role="status">
+              Nenhuma fonte configurada.
+            </p>
+          )}
+          {!isLoadingSources && sources.length > 0 && (
+            <ul className="source-list">
+              {sources.map((source) => (
+                <li className="source-row" key={source.source_key}>
+                  <div>
+                    <span className="job-status">
+                      {source.enabled ? 'ATIVA' : 'PAUSADA'}
+                    </span>
+                    <h3>{source.display_name}</h3>
+                    <p>
+                      {source.per_run_limit} vagas por execução · limite diário{' '}
+                      {source.daily_limit}
+                    </p>
+                    {source.last_error && (
+                      <span className="source-error-note">
+                        {source.last_error}
+                      </span>
+                    )}
+                  </div>
+                  <div className="source-row-actions">
+                    <button
+                      className="card-link"
+                      onClick={() => setSelectedSourceKey(source.source_key)}
+                      type="button"
+                    >
+                      Selecionar
+                    </button>
+                    <button
+                      className="text-button text-button-plain"
+                      onClick={() => void toggleSource(source)}
+                      type="button"
+                    >
+                      {source.enabled ? 'Pausar' : 'Ativar'}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="source-list-heading source-run-heading">
+            <span className="meta-label">HISTÓRICO DE EXECUÇÕES</span>
+            <span className="mono-note">CONTADORES AUDITÁVEIS</span>
+          </div>
+          {isLoadingSourceRuns && (
+            <p className="sources-feedback" role="status">
+              Carregando execuções…
+            </p>
+          )}
+          {sourceRunsError && (
+            <p className="sources-feedback is-error" role="status">
+              {sourceRunsError}
+            </p>
+          )}
+          {!isLoadingSourceRuns &&
+            sourceRuns.length === 0 &&
+            !sourceRunsError && (
+              <div className="sources-empty">
+                <span className="meta-label">NENHUMA BUSCA AINDA</span>
+                <p>As execuções manuais e agendadas aparecerão aqui.</p>
+              </div>
+            )}
+          {!isLoadingSourceRuns && sourceRuns.length > 0 && (
+            <ul className="source-run-list">
+              {sourceRuns.map((run) => (
+                <li className="source-run-row" key={run.id}>
+                  <div>
+                    <span
+                      className={`job-status source-run-status is-${run.status}`}
+                    >
+                      {sourceRunStatusLabel(run.status)}
+                    </span>
+                    <h3>{run.source_name}</h3>
+                    <p>
+                      {run.query.query || 'todos os cargos'}
+                      {run.query.location ? ` · ${run.query.location}` : ''}
+                    </p>
+                  </div>
+                  <div className="source-run-metrics">
+                    <span>{run.candidates_seen} encontradas</span>
+                    <span>{run.jobs_created} novas</span>
+                    <span>{run.exact_duplicates} exatas</span>
+                    <span>{run.approximate_duplicates} para revisar</span>
+                    <time dateTime={run.requested_at}>
+                      {formatRunDate(run.requested_at)}
+                    </time>
+                    {(run.status === 'pending' || run.status === 'running') && (
+                      <button
+                        className="text-button text-button-plain danger-button"
+                        onClick={() => void cancelSourceRun(run)}
+                        type="button"
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                  {run.error_message && (
+                    <p className="source-error-note">{run.error_message}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
 
       <section
         className="editorial-hero"

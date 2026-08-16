@@ -34,6 +34,26 @@ pnpm --filter job-finder-web build
 .\.venv\Scripts\python.exe scripts\smoke_test.py
 ```
 
+## Busca e fontes (E4)
+
+A área **Fontes e execuções** na interface lista três conectores públicos
+iniciais — Remote OK, Arbeitnow e Jobicy — sem credenciais. O agendamento fica
+desligado por padrão; a busca manual pode ser iniciada escolhendo cargo,
+localização e fonte.
+
+Os contratos HTTP locais principais são:
+
+- `GET /api/sources` e `PUT /api/sources/{source_key}` para configuração e limites;
+- `POST /api/sources/{source_key}/test` para testar uma fonte sem persistir vagas;
+- `POST /api/search-runs` para iniciar uma execução (`wait=true` é útil em testes);
+- `GET /api/search-runs` e `POST /api/search-runs/{id}/cancel` para acompanhar/cancelar;
+- `GET /api/duplicates` e `POST /api/duplicates/{id}/confirm|dismiss` para revisão;
+- `POST /api/scheduler/tick` para disparar fontes agendadas já vencidas.
+
+Cada execução registra duração, contadores, cursor, falhas e cancelamento. A
+deduplicação exata usa URL canônica, identidade externa e hash de conteúdo; uma
+semelhança de cargo/empresa/local fica pendente até confirmação explícita.
+
 ## Qualidade de código
 
 No backend, execute as verificações com o ambiente virtual do projeto:
