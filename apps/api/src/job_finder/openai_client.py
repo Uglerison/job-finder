@@ -1,6 +1,8 @@
 """Small backend-only client for controlled OpenAI Responses API calls."""
 
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from time import perf_counter
 from typing import Any, Literal, Protocol
 
 import httpx
@@ -32,12 +34,24 @@ class OpenAiResponseError(OpenAiClientError):
 
 
 @dataclass(frozen=True)
+class OpenAiUsage:
+    """Token counters returned by the Responses API when available."""
+
+    input_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    output_tokens: int | None = None
+    reasoning_tokens: int | None = None
+
+
+@dataclass(frozen=True)
 class OpenAiTextResponse:
     """Minimal normalized output from one Responses API call."""
 
     response_id: str
     model: str
     output_text: str
+    usage: OpenAiUsage = field(default_factory=OpenAiUsage)
+    latency_ms: int = 0
 
 
 class OpenAiTextClient(Protocol):
@@ -71,9 +85,11 @@ class OpenAiResponsesClient:
         *,
         transport: httpx.BaseTransport | None = None,
         timeout_seconds: float = 30.0,
+        clock: Callable[[], float] = perf_counter,
     ) -> None:
         self._transport = transport
         self._timeout_seconds = timeout_seconds
+        self._clock = clock
 
     def create_text_response(self, api_key: SecretStr, input_text: str) -> OpenAiTextResponse:
         """Call GPT-5.6 Luna without storing response state at the provider."""
@@ -126,6 +142,7 @@ class OpenAiResponsesClient:
     ) -> OpenAiTextResponse:
         """Execute one bounded Responses API request and normalize its text output."""
 
+        started = self._clock()
         try:
             with httpx.Client(
                 timeout=httpx.Timeout(self._timeout_seconds),
@@ -164,7 +181,40 @@ class OpenAiResponsesClient:
             response_id=response_id,
             model=model,
             output_text=output_text,
+            usage=_parse_usage(payload.get("usage")),
+            latency_ms=max(0, round((self._clock() - started) * 1000)),
         )
+
+
+def _parse_usage(raw_usage: object) -> OpenAiUsage:
+    """Normalize optional provider usage without making missing usage fatal."""
+
+    if not isinstance(raw_usage, dict):
+        return OpenAiUsage()
+    input_tokens = _non_negative_int(raw_usage.get("input_tokens"))
+    output_tokens = _non_negative_int(raw_usage.get("output_tokens"))
+    input_details = raw_usage.get("input_tokens_details")
+    output_details = raw_usage.get("output_tokens_details")
+    cached = (
+        _non_negative_int(input_details.get("cached_tokens"))
+        if isinstance(input_details, dict)
+        else None
+    )
+    reasoning = (
+        _non_negative_int(output_details.get("reasoning_tokens"))
+        if isinstance(output_details, dict)
+        else None
+    )
+    return OpenAiUsage(
+        input_tokens=input_tokens,
+        cached_input_tokens=cached,
+        output_tokens=output_tokens,
+        reasoning_tokens=reasoning,
+    )
+
+
+def _non_negative_int(value: object) -> int | None:
+    return value if isinstance(value, int) and value >= 0 else None
 
 
 def _extract_output_text(payload: dict[str, Any]) -> str:

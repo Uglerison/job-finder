@@ -71,12 +71,12 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E2 — Perfil | JF-100–JF-107 | Pendente | Perfil editável e versionado |
 | E3 — Vagas e candidaturas | JF-200–JF-216 | Em andamento | Fluxo manual completo |
 | E4 — Busca e fontes | JF-300–JF-313 | Concluído | Vagas coletadas, auditadas e deduplicadas |
-| E5 — GPT-5.6 Luna | JF-400–JF-412 | Em andamento | Análise explicável e controlada |
+| E5 — GPT-5.6 Luna | JF-400–JF-412 | Concluída | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Pendente | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `JF-407 — métricas de tokens, latência e custo`.
+**Próxima etapa:** E6 — dashboard e agenda (`JF-500`).
 
 ## Marcos
 
@@ -499,35 +499,54 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
     perfil, conteúdo, modelo e prompt de cada execução. `GET /api/jobs/{id}/analyses`
     devolve as versões em ordem; atualizações e exclusões pelo modelo ORM são bloqueadas.
 
-- [ ] **JF-407 — Medir tokens, latência e custo**
+- [x] **JF-407 — Medir tokens, latência e custo**
   - Depende de: JF-400.
   - Teste primeiro: uso normal, cache, ausência de usage e preço configurável.
   - Aceite: custo estimado por operação e execução disponível.
+  - Evidência: `OpenAiResponsesClient` normaliza `usage` (incluindo tokens em cache e
+    raciocínio) e latência; `ai_usage.py` calcula custo configurável sem falhar quando o
+    provedor não envia uso; `GET /api/ai/usage` agrega operações, tokens, custo e latência.
+    A resposta e o histórico de cada análise retêm os metadados na migração `0015_ai_usage`.
 
-- [ ] **JF-408 — Aplicar orçamento e alertas**
+- [x] **JF-408 — Aplicar orçamento e alertas**
   - Depende de: JF-006 e JF-407.
   - Teste primeiro: 50%, 80%, 100%, troca de período e concorrência.
   - Aceite: novas chamadas param no teto sem interromper operações locais.
+  - Evidência: `BudgetConfig` usa `JOB_FINDER_OPENAI_MONTHLY_BUDGET_USD`, calcula alertas
+    em 50/80/100%, bloqueia apenas novas chamadas de IA no teto e mantém triagem, busca e
+    pipeline locais disponíveis; `AI_BUDGET_LOCK` evita chamadas concorrentes no processo.
 
-- [ ] **JF-409 — Implementar cache seguro de contexto estável**
+- [x] **JF-409 — Implementar cache seguro de contexto estável**
   - Depende de: JF-402 e JF-407.
   - Teste primeiro: chave de cache, invalidação por versão e dados redigidos.
   - Aceite: redução mensurável sem compartilhar conteúdo entre perfis.
+  - Evidência: `AnalysisPromptCache` usa `(profile_version_id, prompt_version, mode)`,
+    guarda somente instruções derivadas redigidas, expõe `cache_hit` e invalida por versão;
+    texto da vaga e chave nunca entram no cache.
 
-- [ ] **JF-410 — Implementar descoberta por pesquisa web**
+- [x] **JF-410 — Implementar descoberta por pesquisa web**
   - Depende de: JF-300, JF-400 e JF-408.
   - Teste primeiro: resultado com URL/evidência, vazio, duplicado e limite atingido.
   - Aceite: pesquisa seletiva, auditável e sem ação externa de candidatura.
+  - Evidência: `POST /api/ai/discovery` aceita até três fontes escolhidas, consulta os
+    adaptadores públicos existentes com limite explícito, persiste cada `search_run`,
+    devolve URL/evidência e não possui qualquer ação de candidatura.
 
-- [ ] **JF-411 — Implementar fallback determinístico**
+- [x] **JF-411 — Implementar fallback determinístico**
   - Depende de: JF-106 e JF-400.
   - Teste primeiro: API indisponível, orçamento esgotado e retomada posterior.
   - Aceite: vaga continua triável com indicação clara de análise limitada.
+  - Evidência: indisponibilidade/timeout do provedor ou orçamento esgotado usa
+    `build_fallback_analysis`, preserva filtros determinísticos, grava `fallback=true` e
+    retém o motivo; a execução posterior continua disponível normalmente.
 
-- [ ] **JF-412 — Criar reanálise seletiva na interface**
+- [x] **JF-412 — Criar reanálise seletiva na interface**
   - Depende de: JF-406 e JF-408.
   - Teste primeiro: uma vaga, seleção múltipla, confirmação de custo e falha parcial.
   - Aceite: nunca reanalisa todo o banco acidentalmente.
+  - Evidência: detalhe da vaga oferece análise individual; a caixa de entrada permite
+    selecionar múltiplas vagas, confirma o custo/quantidade e usa `Promise.allSettled` para
+    falhas parciais. Nenhuma ação percorre o banco inteiro sem seleção explícita.
 
 ## E6 — Dashboard e agenda
 

@@ -1,7 +1,7 @@
 """Explicit local API action for one transient structured job analysis."""
 
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -9,8 +9,17 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session, sessionmaker
 
 from job_finder.ai_analysis import StructuredJobAnalysis
+from job_finder.ai_budget import (
+    AI_BUDGET_LOCK,
+    BudgetConfig,
+    BudgetState,
+    evaluate_budget,
+    pricing_from_settings,
+)
+from job_finder.ai_cache import AnalysisPromptCache
 from job_finder.ai_explanation import JobExplanation, build_explanation
 from job_finder.ai_extraction import JobAnalysisError, analyze_job_content
+from job_finder.ai_fallback import build_fallback_analysis
 from job_finder.ai_prompts import AnalysisMode
 from job_finder.ai_scoring import HybridFitScore, calculate_hybrid_fit
 from job_finder.ai_settings_api import (
@@ -19,6 +28,7 @@ from job_finder.ai_settings_api import (
     translate_openai_error,
     translate_vault_error,
 )
+from job_finder.ai_usage import AnalysisUsage, usage_from_response
 from job_finder.job_analyses import (
     JobAnalysisVersion,
     JobAnalysisVersionDraft,
@@ -26,10 +36,16 @@ from job_finder.job_analyses import (
     get_job_analysis_versions,
 )
 from job_finder.jobs import JobContentVersion, get_job, get_job_content_versions, get_job_origins
-from job_finder.openai_client import OpenAiClientError
+from job_finder.openai_client import (
+    OpenAiClientError,
+    OpenAiTimeoutError,
+    OpenAiUnavailableError,
+    OpenAiUsage,
+)
 from job_finder.profile_criteria import ProfileCriteria
 from job_finder.profiles import get_current_profile_version
 from job_finder.secret_store import SecretStoreError
+from job_finder.settings import Settings
 
 router = APIRouter(prefix="/api", tags=["ai-analysis"])
 
@@ -40,6 +56,14 @@ class JobAnalysisRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     mode: AnalysisMode = "batch"
+
+
+class BudgetResponse(BaseModel):
+    budget_usd: float | None
+    spent_usd: float
+    percent: float
+    alerts: list[int]
+    blocked: bool
 
 
 class JobAnalysisResponse(BaseModel):
@@ -54,6 +78,8 @@ class JobAnalysisResponse(BaseModel):
     explanation: JobExplanation
     model: str
     prompt_version: str
+    usage: AnalysisUsage
+    budget: BudgetResponse
 
 
 class JobAnalysisVersionResponse(BaseModel):
@@ -70,6 +96,7 @@ class JobAnalysisVersionResponse(BaseModel):
     fit: HybridFitScore
     explanation: JobExplanation
     created_at: datetime
+    usage: AnalysisUsage
 
 
 def get_session(request: Request) -> Iterator[Session]:
@@ -89,6 +116,7 @@ def analyze_job(
     session: SessionDependency,
     settings: AiSettingsDependency,
     client: OpenAiStructuredClientDependency,
+    request: Request,
     payload: JobAnalysisRequest | None = None,
 ) -> JobAnalysisResponse:
     """Analyze the newest captured job content, only when key and profile are ready."""
@@ -125,29 +153,94 @@ def analyze_job(
             detail="Configure e desbloqueie a chave OpenAI para analisar vagas.",
         )
 
-    try:
-        execution = analyze_job_content(
-            client,
-            api_key,
-            profile=ProfileCriteria.model_validate(profile_version.criteria),
+    profile = ProfileCriteria.model_validate(profile_version.criteria)
+    mode = payload.mode if payload is not None else "batch"
+    prompt_cache: AnalysisPromptCache = getattr(
+        request.app.state,
+        "analysis_prompt_cache",
+        AnalysisPromptCache(),
+    )
+    cached_instructions = prompt_cache.get(profile_version.id, profile, mode)
+    pricing = pricing_from_settings(request.app.state.settings)
+    budget = _current_budget(session, request.app.state.settings)
+    if budget.blocked:
+        analysis = build_fallback_analysis(
+            profile,
             title=job.title,
             company=job.company,
             location=job.location,
             raw_content=latest_content.raw_content,
-            mode=payload.mode if payload is not None else "batch",
+            reason="limite mensal de custo atingido",
         )
-    except JobAnalysisError as error:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
-    except OpenAiClientError as error:
-        raise translate_openai_error(error) from error
+        execution = None
+        usage = usage_from_response(
+            OpenAiUsage(),
+            0,
+            pricing=pricing,
+            cache_hit=cached_instructions.hit,
+            fallback=True,
+            fallback_reason="limite mensal de custo atingido",
+        )
+        model = "deterministic-fallback"
+        prompt_version = "local-fallback"
+    else:
+        try:
+            with AI_BUDGET_LOCK:
+                execution = analyze_job_content(
+                    client,
+                    api_key,
+                    profile=profile,
+                    title=job.title,
+                    company=job.company,
+                    location=job.location,
+                    raw_content=latest_content.raw_content,
+                    mode=mode,
+                    instructions_override=cached_instructions.value,
+                )
+            analysis = execution.analysis
+            usage = usage_from_response(
+                execution.usage,
+                execution.latency_ms,
+                pricing=pricing,
+                cache_hit=cached_instructions.hit,
+            )
+            model = execution.model
+            prompt_version = execution.prompt_version
+        except (OpenAiTimeoutError, OpenAiUnavailableError) as error:
+            analysis = build_fallback_analysis(
+                profile,
+                title=job.title,
+                company=job.company,
+                location=job.location,
+                raw_content=latest_content.raw_content,
+                reason=str(error),
+            )
+            execution = None
+            usage = usage_from_response(
+                OpenAiUsage(),
+                0,
+                pricing=pricing,
+                cache_hit=cached_instructions.hit,
+                fallback=True,
+                fallback_reason=str(error),
+            )
+            model = "deterministic-fallback"
+            prompt_version = "local-fallback"
+        except JobAnalysisError as error:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=str(error),
+            ) from error
+        except OpenAiClientError as error:
+            raise translate_openai_error(error) from error
 
     fit = calculate_hybrid_fit(
         ProfileCriteria.model_validate(profile_version.criteria),
-        execution.analysis,
+        analysis,
         description=latest_content.raw_content,
     )
     explanation = build_explanation(
-        execution.analysis,
+        analysis,
         title=job.title,
         company=job.company,
         location=job.location,
@@ -159,11 +252,12 @@ def analyze_job(
             profile_version_id=profile_version.id,
             job_id=job.id,
             job_content_version_id=latest_content.id,
-            model=execution.model,
-            prompt_version=execution.prompt_version,
-            analysis=execution.analysis.model_dump(mode="json"),
+            model=model,
+            prompt_version=prompt_version,
+            analysis=analysis.model_dump(mode="json"),
             fit=fit.model_dump(mode="json"),
             explanation=explanation.model_dump(mode="json"),
+            usage=usage.model_dump(mode="json"),
         ),
     )
     session.commit()
@@ -174,11 +268,13 @@ def analyze_job(
         job_content_version_id=latest_content.id,
         analysis_id=record.id,
         analysis_version=record.version_number,
-        analysis=execution.analysis,
+        analysis=analysis,
         fit=fit,
         explanation=explanation,
-        model=execution.model,
-        prompt_version=execution.prompt_version,
+        model=model,
+        prompt_version=prompt_version,
+        usage=usage,
+        budget=_budget_response(_current_budget(session, request.app.state.settings)),
     )
 
 
@@ -219,4 +315,36 @@ def _analysis_version_response(record: JobAnalysisVersion) -> JobAnalysisVersion
         fit=HybridFitScore.model_validate(record.fit),
         explanation=JobExplanation.model_validate(record.explanation),
         created_at=record.created_at,
+        usage=AnalysisUsage.model_validate(record.usage or {}),
+    )
+
+
+def _current_budget(session: Session, settings: Settings) -> BudgetState:
+    from sqlalchemy import select
+
+    config = BudgetConfig.from_settings(settings)
+    if config.monthly_budget_usd is None:
+        return evaluate_budget(0, config)
+    from job_finder.job_analyses import JobAnalysisVersion
+
+    now = datetime.now(timezone.utc)
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    records = session.scalars(
+        select(JobAnalysisVersion).where(JobAnalysisVersion.created_at >= start)
+    )
+    spent = 0.0
+    for record in records:
+        value = (record.usage or {}).get("estimated_cost_usd")
+        if isinstance(value, (int, float)):
+            spent += float(value)
+    return evaluate_budget(spent, config)
+
+
+def _budget_response(state: BudgetState) -> BudgetResponse:
+    return BudgetResponse(
+        budget_usd=state.budget_usd,
+        spent_usd=state.spent_usd,
+        percent=state.percent,
+        alerts=list(state.alerts),
+        blocked=state.blocked,
     )

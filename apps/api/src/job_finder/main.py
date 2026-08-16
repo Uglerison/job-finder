@@ -10,7 +10,10 @@ from pydantic import BaseModel
 
 from job_finder import __version__
 from job_finder.ai_analysis_api import router as ai_analysis_router
+from job_finder.ai_cache import AnalysisPromptCache
+from job_finder.ai_discovery_api import router as ai_discovery_router
 from job_finder.ai_settings_api import router as ai_settings_router
+from job_finder.ai_usage_api import router as ai_usage_router
 from job_finder.applications_api import router as applications_router
 from job_finder.database import create_database_engine, create_session_factory, run_migrations
 from job_finder.export_api import router as export_router
@@ -85,9 +88,12 @@ def create_app(
     application.state.source_registry = SourceRegistry()
     application.state.search_tasks = SearchTaskRegistry()
     application.state.openai_client = OpenAiResponsesClient()
+    application.state.analysis_prompt_cache = AnalysisPromptCache()
     application.include_router(profile_router)
     application.include_router(ai_settings_router)
     application.include_router(ai_analysis_router)
+    application.include_router(ai_usage_router)
+    application.include_router(ai_discovery_router)
     application.include_router(preferences_router)
     application.include_router(filters_router)
     application.include_router(privacy_router)

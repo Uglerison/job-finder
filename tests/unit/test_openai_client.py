@@ -138,3 +138,39 @@ def test_responses_client_sends_a_strict_json_schema_without_storing_the_respons
             }
         },
     }
+
+
+def test_responses_client_normalizes_usage_and_latency_without_requiring_usage() -> None:
+    clock_values = iter((10.0, 10.042))
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp_usage_123",
+                "model": DEFAULT_OPENAI_MODEL,
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [{"type": "output_text", "text": "ok"}],
+                    }
+                ],
+                "usage": {
+                    "input_tokens": 100,
+                    "input_tokens_details": {"cached_tokens": 25},
+                    "output_tokens": 40,
+                    "output_tokens_details": {"reasoning_tokens": 10},
+                },
+            },
+        )
+
+    result = OpenAiResponsesClient(
+        transport=httpx.MockTransport(handler),
+        clock=lambda: next(clock_values),
+    ).create_text_response(SecretStr("sk-test-only-12345678901234567890"), "Teste")
+
+    assert result.latency_ms == 42
+    assert result.usage.input_tokens == 100
+    assert result.usage.cached_input_tokens == 25
+    assert result.usage.output_tokens == 40
+    assert result.usage.reasoning_tokens == 10

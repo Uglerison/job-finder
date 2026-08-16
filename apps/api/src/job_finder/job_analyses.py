@@ -1,6 +1,6 @@
 """Append-only persistence for provenance-rich AI job analyses."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from sqlalchemy import (
@@ -32,6 +32,7 @@ class JobAnalysisVersionDraft:
     analysis: dict[str, object]
     fit: dict[str, object]
     explanation: dict[str, object]
+    usage: dict[str, object] = field(default_factory=dict)
 
 
 class JobAnalysisVersion(Base):
@@ -56,6 +57,7 @@ class JobAnalysisVersion(Base):
     analysis: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     fit: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     explanation: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    usage: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -112,6 +114,7 @@ def create_job_analysis_version(
         analysis=draft.analysis,
         fit=draft.fit,
         explanation=draft.explanation,
+        usage=draft.usage or {},
     )
     session.add(record)
     session.flush()

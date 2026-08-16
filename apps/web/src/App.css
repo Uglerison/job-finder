@@ -1496,6 +1496,24 @@
   min-width: 0;
 }
 
+.job-select-control {
+  align-items: center;
+  display: flex;
+  padding-top: 0.2rem;
+}
+
+.job-select-control input {
+  accent-color: var(--accent);
+}
+
+.job-bulk-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.8rem;
+  justify-content: flex-end;
+  margin: 0.8rem 0;
+}
+
 .job-status {
   color: var(--success);
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
@@ -1555,6 +1573,27 @@
   color: var(--ink-soft);
   font-size: 0.82rem;
   margin: 0;
+}
+
+.job-analysis-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.job-analysis-summary {
+  background: var(--paper-sunken);
+  border-left: 2px solid var(--accent);
+  padding: 0.8rem;
+}
+
+.job-analysis-summary p {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin: 0.4rem 0 0;
 }
 
 .job-detail-grid {

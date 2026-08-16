@@ -174,6 +174,34 @@ type SearchRun = {
   current_cursor: string | null;
 };
 
+type AnalysisUsage = {
+  estimated_cost_usd: number | null;
+  fallback: boolean;
+  fallback_reason: string | null;
+  input_tokens: number | null;
+  latency_ms: number;
+  metered: boolean;
+  output_tokens: number | null;
+};
+
+type JobAnalysisResponse = {
+  analysis: {
+    assessment: {
+      confidence: number;
+      gaps: string[];
+      strengths: string[];
+      summary: string;
+      warnings: string[];
+    };
+  };
+  analysis_version: number;
+  explanation: { supported_evidence: { claim: string; quote: string }[] };
+  fit: { accepted: boolean; score: number };
+  model: string;
+  prompt_version: string;
+  usage: AnalysisUsage;
+};
+
 function formatAgendaDate(value: string, timezoneName: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -474,6 +502,11 @@ function App() {
   const [jobFormError, setJobFormError] = useState<string | null>(null);
   const [jobMessage, setJobMessage] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<JobDetail | null>(null);
+  const [selectedJobIds, setSelectedJobIds] = useState<number[]>([]);
+  const [jobAnalyses, setJobAnalyses] = useState<Record<number, JobAnalysisResponse>>({});
+  const [isAnalyzingJob, setIsAnalyzingJob] = useState(false);
+  const [analysisMessage, setAnalysisMessage] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isLoadingJobDetail, setIsLoadingJobDetail] = useState(false);
   const [jobDetailError, setJobDetailError] = useState<string | null>(null);
   const [applications, setApplications] = useState<
@@ -1196,6 +1229,56 @@ function App() {
     } finally {
       setIsLoadingJobDetail(false);
     }
+  };
+
+  const analyzeSelectedJobs = async (jobIds: number[]) => {
+    if (jobIds.length === 0) {
+      setAnalysisError('Selecione ao menos uma vaga para analisar.');
+      return;
+    }
+    if (!window.confirm(`Analisar ${jobIds.length} vaga${jobIds.length === 1 ? '' : 's'} com a IA?`)) {
+      return;
+    }
+    setIsAnalyzingJob(true);
+    setAnalysisError(null);
+    setAnalysisMessage(null);
+    const results = await Promise.allSettled(
+      jobIds.map(async (jobId) => {
+        const response = await fetch(`/api/jobs/${jobId}/analysis`, {
+          body: JSON.stringify({ mode: 'batch' }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | JobAnalysisResponse
+          | { detail?: string }
+          | null;
+        if (!response.ok || !payload || !('analysis_version' in payload)) {
+          throw new Error(
+            payload && 'detail' in payload
+              ? payload.detail ?? 'Falha na análise.'
+              : 'Falha na análise.',
+          );
+        }
+        return [jobId, payload] as const;
+      }),
+    );
+    const successes = results.filter(
+      (result): result is PromiseFulfilledResult<readonly [number, JobAnalysisResponse]> =>
+        result.status === 'fulfilled',
+    );
+    setJobAnalyses((current) => ({
+      ...current,
+      ...Object.fromEntries(successes.map((result) => result.value)),
+    }));
+    const failures = results.filter((result) => result.status === 'rejected');
+    setAnalysisMessage(
+      `${successes.length} análise${successes.length === 1 ? '' : 's'} concluída${successes.length === 1 ? '' : 's'}${failures.length ? `; ${failures.length} falhou` : ''}.`,
+    );
+    if (failures.length) {
+      setAnalysisError('Algumas vagas não puderam ser analisadas; as demais foram preservadas.');
+    }
+    setIsAnalyzingJob(false);
   };
 
   const refreshJobs = async () => {
@@ -2570,6 +2653,37 @@ function App() {
                 {selectedJob.company}
                 {selectedJob.location ? ` · ${selectedJob.location}` : ''}
               </p>
+              <div className="job-analysis-actions">
+                <button
+                  className="primary-button"
+                  disabled={isAnalyzingJob}
+                  onClick={() => void analyzeSelectedJobs([selectedJob.id])}
+                  type="button"
+                >
+                  {isAnalyzingJob ? 'Analisando…' : 'Analisar esta vaga com IA'}
+                </button>
+                {jobAnalyses[selectedJob.id] && (
+                  <span className="mono-note">
+                    Versão {jobAnalyses[selectedJob.id].analysis_version} ·{' '}
+                    {jobAnalyses[selectedJob.id].usage.fallback
+                      ? 'triagem local limitada'
+                      : `${jobAnalyses[selectedJob.id].usage.estimated_cost_usd == null ? 'custo indisponível' : `US$ ${jobAnalyses[selectedJob.id].usage.estimated_cost_usd!.toFixed(4)}`}`}
+                  </span>
+                )}
+              </div>
+              {jobAnalyses[selectedJob.id] && (
+                <div className="job-analysis-summary" role="status">
+                  <strong>
+                    Aderência: {jobAnalyses[selectedJob.id].fit.score}/100
+                  </strong>
+                  <p>{jobAnalyses[selectedJob.id].analysis.assessment.summary}</p>
+                  {jobAnalyses[selectedJob.id].analysis.assessment.warnings.length > 0 && (
+                    <p className="mono-note">
+                      {jobAnalyses[selectedJob.id].analysis.assessment.warnings.join(' · ')}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="job-detail-grid">
                 <div>
                   <span className="meta-label">ORIGENS</span>
@@ -2743,9 +2857,40 @@ function App() {
               </p>
             )}
           {!isLoadingJobs && !jobsError && visibleJobs.length > 0 && (
+            <>
+              <div className="job-bulk-actions">
+                <span className="mono-note">{selectedJobIds.length} selecionada(s)</span>
+                <button
+                  className="header-action"
+                  disabled={isAnalyzingJob || selectedJobIds.length === 0}
+                  onClick={() => void analyzeSelectedJobs(selectedJobIds)}
+                  type="button"
+                >
+                  Analisar selecionadas
+                </button>
+              </div>
+              {(analysisMessage || analysisError) && (
+                <p className={`form-message${analysisError ? ' is-error' : ' is-success'}`} role="status">
+                  {analysisError || analysisMessage}
+                </p>
+              )}
             <ul className="job-list">
               {visibleJobs.map((job) => (
                 <li className="job-row" key={job.id}>
+                  <label className="job-select-control">
+                    <input
+                      aria-label={`Selecionar ${job.title}`}
+                      checked={selectedJobIds.includes(job.id)}
+                      onChange={(event) =>
+                        setSelectedJobIds((current) =>
+                          event.target.checked
+                            ? [...current, job.id]
+                            : current.filter((id) => id !== job.id),
+                        )
+                      }
+                      type="checkbox"
+                    />
+                  </label>
                   <div className="job-row-main">
                     <span className="job-status">{job.status_label}</span>
                     <h3>{job.title}</h3>
@@ -2780,6 +2925,7 @@ function App() {
                 </li>
               ))}
             </ul>
+            </>
           )}
         </div>
       </section>

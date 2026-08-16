@@ -13,7 +13,7 @@ from job_finder.ai_prompts import (
     analysis_configuration,
     render_analysis_instructions,
 )
-from job_finder.openai_client import OpenAiStructuredClient
+from job_finder.openai_client import OpenAiStructuredClient, OpenAiUsage
 from job_finder.profile_criteria import ProfileCriteria
 from job_finder.redaction import redact_personal_data
 
@@ -30,6 +30,8 @@ class JobAnalysisExecution:
     model: str
     prompt_version: str
     response_id: str
+    usage: OpenAiUsage
+    latency_ms: int
 
 
 def structured_job_analysis_schema() -> dict[str, object]:
@@ -48,13 +50,14 @@ def analyze_job_content(
     location: str | None,
     raw_content: str,
     mode: AnalysisMode = "batch",
+    instructions_override: str | None = None,
 ) -> JobAnalysisExecution:
     """Analyze one listing; redact detectable PII before its text leaves the device."""
 
     configuration = analysis_configuration(mode)
     response = client.create_structured_response(
         api_key,
-        instructions=render_analysis_instructions(profile),
+        instructions=instructions_override or render_analysis_instructions(profile),
         input_text=_render_job_input(title, company, location, raw_content),
         schema_name="job_analysis",
         schema=structured_job_analysis_schema(),
@@ -75,6 +78,8 @@ def analyze_job_content(
         model=response.model,
         prompt_version=ANALYSIS_PROMPT_VERSION,
         response_id=response.response_id,
+        usage=response.usage,
+        latency_ms=response.latency_ms,
     )
 
 

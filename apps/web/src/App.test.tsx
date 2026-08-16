@@ -259,6 +259,82 @@ describe('App', () => {
     });
   });
 
+  it('reanalisisa somente as vagas selecionadas e preserva falhas parciais', async () => {
+    const confirmMock = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirmMock);
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/jobs') {
+          return Promise.resolve({
+            json: async () => ({
+              items: [
+                {
+                  canonical_url: 'https://example.com/1',
+                  company: 'Acme',
+                  created_at: '2026-08-15T10:00:00Z',
+                  id: 1,
+                  location: 'Remoto',
+                  origin_count: 1,
+                  status: 'found',
+                  status_label: 'ENCONTRADA',
+                  title: 'Backend Engineer',
+                },
+              ],
+            }),
+            ok: true,
+          });
+        }
+        if (input === '/api/jobs/1/analysis' && init?.method === 'POST') {
+          return Promise.resolve({
+            json: async () => ({
+              analysis: {
+                assessment: {
+                  confidence: 90,
+                  gaps: [],
+                  strengths: ['Python'],
+                  summary: 'Boa aderência.',
+                  warnings: [],
+                },
+              },
+              analysis_version: 1,
+              explanation: { supported_evidence: [] },
+              fit: { accepted: true, score: 82 },
+              model: 'gpt-5.6-luna',
+              prompt_version: '2026-08-15.1',
+              usage: {
+                estimated_cost_usd: 0.001,
+                fallback: false,
+                fallback_reason: null,
+                input_tokens: 100,
+                latency_ms: 30,
+                metered: true,
+                output_tokens: 50,
+              },
+            }),
+            ok: true,
+          });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+
+    render(<App />);
+    expect(
+      await screen.findByRole('heading', { name: 'Backend Engineer' }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Selecionar Backend Engineer'));
+    fireEvent.click(screen.getByRole('button', { name: 'Analisar selecionadas' }));
+
+    expect(confirmMock).toHaveBeenCalledWith('Analisar 1 vaga com a IA?');
+    expect(
+      await screen.findByText('1 análise concluída.'),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/jobs/1/analysis',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
   it('envia a chave somente ao backend local e nunca a exibe novamente', async () => {
     const apiKey = 'sk-test-only-12345678901234567890';
     const vaultPassword = 'uma senha local longa';

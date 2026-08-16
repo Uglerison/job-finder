@@ -106,6 +106,29 @@ texto visível da vaga. Somente itens com uma citação exata existente ficam co
 `supported`; resumos, pontos fortes, lacunas, alertas e alegações sem essa
 prova aparecem como `needs_review` para revisão humana.
 
+### Operação E5: custo, descoberta e reanálise
+
+Os contadores locais ficam disponíveis em `GET /api/ai/usage`. Quando quiser
+definir um teto mensal, configure antes de iniciar o backend:
+
+```powershell
+$env:JOB_FINDER_OPENAI_MONTHLY_BUDGET_USD = "5"
+```
+
+Os preços usados na estimativa também são configuráveis por
+`JOB_FINDER_OPENAI_INPUT_PRICE_USD_PER_MILLION`,
+`JOB_FINDER_OPENAI_CACHED_INPUT_PRICE_USD_PER_MILLION` e
+`JOB_FINDER_OPENAI_OUTPUT_PRICE_USD_PER_MILLION`. No teto, apenas novas chamadas
+à IA são interrompidas; busca, triagem e pipeline locais continuam funcionando.
+
+`POST /api/ai/discovery` recebe `source_keys`, `query`, `location` e `limit` e
+executa somente as fontes públicas selecionadas. Cada execução continua
+registrada em `search_runs`, com URL e evidência para revisão humana; o endpoint
+não envia candidaturas. Se a OpenAI estiver indisponível ou o orçamento acabar,
+`POST /api/jobs/{id}/analysis` salva uma triagem determinística identificada
+como `fallback`, sem inventar fatos. Na interface, use as caixas de seleção da
+caixa de entrada para confirmar e reanalisar somente as vagas escolhidas.
+
 ## Qualidade de código
 
 No backend, execute as verificações com o ambiente virtual do projeto:
