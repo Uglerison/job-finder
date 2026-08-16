@@ -174,11 +174,39 @@ type SearchRun = {
   current_cursor: string | null;
 };
 
+type ScheduledSearch = {
+  enabled: boolean;
+  frequency_minutes: number;
+  id: number;
+  last_run_at: string | null;
+  limit: number;
+  location: string | null;
+  name: string;
+  next_run_at: string | null;
+  profile_version_id: number | null;
+  query: string;
+  work_model: 'all' | 'remote' | 'hybrid' | 'on_site';
+};
+
+type ScheduledSearchJob = {
+  company: string;
+  found_at: string;
+  id: number;
+  job_id: number | null;
+  outcome: 'created' | 'exact' | 'approximate';
+  provider: string;
+  run_id: number;
+  title: string;
+  url: string;
+};
+
 type AggregatedJob = {
   company: string;
   description: string;
+  job_id: number | null;
   location: string | null;
   published_at: string | null;
+  review_required: boolean;
   salary: string | null;
   source: string | null;
   title: string;
@@ -647,6 +675,7 @@ function App() {
     null,
   );
   const [pipelineActionId, setPipelineActionId] = useState<number | null>(null);
+  const [applyingJobId, setApplyingJobId] = useState<number | null>(null);
   const [pipelineTargets, setPipelineTargets] = useState<
     Record<number, ApplicationStatus>
   >({});
@@ -662,6 +691,23 @@ function App() {
   const [sourceRuns, setSourceRuns] = useState<SearchRun[]>([]);
   const [isLoadingSourceRuns, setIsLoadingSourceRuns] = useState(true);
   const [sourceRunsError, setSourceRunsError] = useState<string | null>(null);
+  const [scheduledSearches, setScheduledSearches] = useState<ScheduledSearch[]>(
+    [],
+  );
+  const [scheduledJobs, setScheduledJobs] = useState<
+    Record<number, ScheduledSearchJob[]>
+  >({});
+  const [isLoadingScheduledSearches, setIsLoadingScheduledSearches] =
+    useState(true);
+  const [scheduledSearchError, setScheduledSearchError] = useState<
+    string | null
+  >(null);
+  const [scheduledSearchMessage, setScheduledSearchMessage] = useState<
+    string | null
+  >(null);
+  const [scheduledSearchName, setScheduledSearchName] = useState('');
+  const [scheduledSearchFrequency, setScheduledSearchFrequency] =
+    useState('1440');
   const [aggregatedQuery, setAggregatedQuery] = useState('');
   const [aggregatedLocation, setAggregatedLocation] = useState('');
   const [aggregatedWorkModel, setAggregatedWorkModel] = useState('all');
@@ -687,6 +733,7 @@ function App() {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [dashboardRefreshNonce, setDashboardRefreshNonce] = useState(0);
   const [dashboardDays, setDashboardDays] = useState('30');
   const [isJobsPayloadReady, setIsJobsPayloadReady] = useState(false);
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
@@ -737,6 +784,38 @@ function App() {
 
     void loadProfile();
 
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadScheduledSearches = async () => {
+      try {
+        const response = await fetch('/api/scheduled-searches');
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar os agendamentos.');
+        }
+        const payload = (await response.json()) as ScheduledSearch[] | null;
+        if (isMounted) {
+          setScheduledSearches(Array.isArray(payload) ? payload : []);
+        }
+      } catch {
+        if (isMounted) {
+          setScheduledSearchError(
+            'Não foi possível carregar os agendamentos locais.',
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingScheduledSearches(false);
+        }
+      }
+    };
+
+    void loadScheduledSearches();
     return () => {
       isMounted = false;
     };
@@ -820,7 +899,12 @@ function App() {
     return () => {
       isMounted = false;
     };
-  }, [dashboardDays, isJobsPayloadReady, preferences.timezone]);
+  }, [
+    dashboardDays,
+    dashboardRefreshNonce,
+    isJobsPayloadReady,
+    preferences.timezone,
+  ]);
 
   useEffect(() => {
     if (!isJobsPayloadReady) {
@@ -1564,6 +1648,148 @@ function App() {
     setJobs(Array.isArray(payload?.items) ? payload.items : []);
   };
 
+  const markJobApplied = async (
+    job: Pick<JobListItem, 'id' | 'title'>,
+  ): Promise<ApplicationResponse | null> => {
+    setApplyingJobId(job.id);
+    setApplicationsError(null);
+    try {
+      const response = await fetch(`/api/jobs/${job.id}/application/applied`, {
+        method: 'POST',
+      });
+      const payload = (await response.json().catch(() => null)) as
+        ApplicationResponse | { detail?: string } | null;
+      if (!response.ok || !payload || !('id' in payload)) {
+        throw new Error(
+          payload && 'detail' in payload && payload.detail
+            ? payload.detail
+            : 'Não foi possível marcar a vaga como aplicada.',
+        );
+      }
+      setApplications((current) => ({ ...current, [payload.id]: payload }));
+      setPipelineTargets((current) => ({
+        ...current,
+        [payload.id]: payload.current_status,
+      }));
+      setDashboardRefreshNonce((current) => current + 1);
+      setJobMessage(`Vaga marcada como aplicada: ${job.title}.`);
+      return payload;
+    } catch (error) {
+      setApplicationsError(
+        error instanceof Error
+          ? error.message
+          : `Não foi possível marcar ${job.title} como aplicada.`,
+      );
+      return null;
+    } finally {
+      setApplyingJobId(null);
+    }
+  };
+
+  const createScheduledSearch = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (
+      scheduledSearchName.trim().length < 1 ||
+      aggregatedQuery.trim().length < 2
+    ) {
+      setScheduledSearchError(
+        'Informe um nome e uma busca com pelo menos duas letras.',
+      );
+      return;
+    }
+    setScheduledSearchError(null);
+    setScheduledSearchMessage(null);
+    try {
+      const response = await fetch('/api/scheduled-searches', {
+        body: JSON.stringify({
+          name: scheduledSearchName.trim(),
+          query: aggregatedQuery.trim(),
+          location: aggregatedLocation.trim() || null,
+          work_model: aggregatedWorkModel,
+          frequency_minutes: Number(scheduledSearchFrequency),
+          limit: 20,
+          enabled: false,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+      const payload = (await response.json().catch(() => null)) as
+        ScheduledSearch | { detail?: string } | null;
+      if (!response.ok || !payload || !('id' in payload)) {
+        throw new Error(
+          payload && 'detail' in payload && payload.detail
+            ? payload.detail
+            : 'Não foi possível criar o agendamento.',
+        );
+      }
+      setScheduledSearches((current) => [payload, ...current]);
+      setScheduledSearchName('');
+      setScheduledSearchMessage(
+        'Agendamento salvo. Ele executa somente enquanto o Job Finder estiver aberto.',
+      );
+    } catch (error) {
+      setScheduledSearchError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível criar o agendamento.',
+      );
+    }
+  };
+
+  const toggleScheduledSearch = async (schedule: ScheduledSearch) => {
+    setScheduledSearchError(null);
+    try {
+      const response = await fetch(`/api/scheduled-searches/${schedule.id}`, {
+        body: JSON.stringify({
+          name: schedule.name,
+          query: schedule.query,
+          location: schedule.location,
+          work_model: schedule.work_model,
+          frequency_minutes: schedule.frequency_minutes,
+          limit: schedule.limit,
+          enabled: !schedule.enabled,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT',
+      });
+      if (!response.ok) {
+        throw new Error('Não foi possível atualizar o agendamento.');
+      }
+      const saved = (await response.json()) as ScheduledSearch;
+      setScheduledSearches((current) =>
+        current.map((item) => (item.id === saved.id ? saved : item)),
+      );
+    } catch (error) {
+      setScheduledSearchError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível atualizar o agendamento.',
+      );
+    }
+  };
+
+  const loadScheduledJobs = async (scheduleId: number) => {
+    try {
+      const response = await fetch(
+        `/api/scheduled-searches/${scheduleId}/jobs`,
+      );
+      if (!response.ok) {
+        throw new Error('Não foi possível carregar as vagas agendadas.');
+      }
+      const payload = (await response.json()) as ScheduledSearchJob[] | null;
+      setScheduledJobs((current) => ({
+        ...current,
+        [scheduleId]: Array.isArray(payload) ? payload : [],
+      }));
+    } catch (error) {
+      setScheduledSearchError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível carregar as vagas agendadas.',
+      );
+    }
+  };
+
   const saveCurrentFilter = async () => {
     const name = savedFilterName.trim();
     if (!name) {
@@ -1683,6 +1909,7 @@ function App() {
         );
       }
       setAggregatedResults(payload);
+      await refreshJobs().catch(() => undefined);
     } catch (error) {
       setAggregatedError(
         error instanceof TypeError
@@ -2108,8 +2335,31 @@ function App() {
                         {job.salary && (
                           <p className="aggregated-job-salary">{job.salary}</p>
                         )}
+                        {job.review_required && (
+                          <p className="mono-note">
+                            Possível duplicata: revise antes de criar uma
+                            candidatura.
+                          </p>
+                        )}
                       </div>
                       <div className="aggregated-job-actions">
+                        {typeof job.job_id === 'number' && (
+                          <button
+                            className="primary-button"
+                            disabled={applyingJobId === job.job_id}
+                            onClick={() =>
+                              void markJobApplied({
+                                id: job.job_id as number,
+                                title: job.title,
+                              })
+                            }
+                            type="button"
+                          >
+                            {applyingJobId === job.job_id
+                              ? 'Salvando…'
+                              : 'Marcar como aplicada'}
+                          </button>
+                        )}
                         <a
                           className="card-link"
                           href={job.url}
@@ -2275,6 +2525,131 @@ function App() {
                         'não configurada'
                       )}
                     </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section
+            aria-labelledby="scheduled-searches-title"
+            className="scheduled-search-panel"
+          >
+            <div className="source-list-heading">
+              <span className="meta-label" id="scheduled-searches-title">
+                AGENDADOR LOCAL
+              </span>
+              <span className="mono-note">EXECUTA COM O APP ABERTO</span>
+            </div>
+            <p className="sources-feedback">
+              Salve filtros para consultar novas vagas depois. A agenda fica no
+              SQLite local e nunca armazena credenciais de providers.
+            </p>
+            <form
+              className="scheduled-search-form"
+              onSubmit={createScheduledSearch}
+            >
+              <div className="form-field">
+                <label htmlFor="scheduled-search-name">Nome da agenda</label>
+                <input
+                  id="scheduled-search-name"
+                  onChange={(event) =>
+                    setScheduledSearchName(event.target.value)
+                  }
+                  placeholder="Dados em Curitiba"
+                  value={scheduledSearchName}
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="scheduled-search-frequency">Frequência</label>
+                <select
+                  id="scheduled-search-frequency"
+                  onChange={(event) =>
+                    setScheduledSearchFrequency(event.target.value)
+                  }
+                  value={scheduledSearchFrequency}
+                >
+                  <option value="60">A cada hora</option>
+                  <option value="360">A cada 6 horas</option>
+                  <option value="1440">Uma vez por dia</option>
+                  <option value="10080">Uma vez por semana</option>
+                </select>
+              </div>
+              <button className="primary-button" type="submit">
+                Salvar agenda
+              </button>
+            </form>
+            {scheduledSearchError && (
+              <p className="sources-feedback is-error" role="status">
+                {scheduledSearchError}
+              </p>
+            )}
+            {scheduledSearchMessage && (
+              <p className="sources-feedback" role="status">
+                {scheduledSearchMessage}
+              </p>
+            )}
+            {isLoadingScheduledSearches && (
+              <p className="sources-feedback" role="status">
+                Carregando agendas…
+              </p>
+            )}
+            {!isLoadingScheduledSearches && scheduledSearches.length === 0 && (
+              <p className="sources-empty">
+                Nenhuma agenda criada. Preencha a busca acima e salve uma para
+                consultar vagas no próximo ciclo.
+              </p>
+            )}
+            {scheduledSearches.length > 0 && (
+              <ul className="source-list">
+                {scheduledSearches.map((schedule) => (
+                  <li className="source-row" key={schedule.id}>
+                    <div>
+                      <span className="job-status">
+                        {schedule.enabled ? 'ATIVA' : 'PAUSADA'}
+                      </span>
+                      <h3>{schedule.name}</h3>
+                      <p>
+                        {schedule.query}
+                        {schedule.location ? ` · ${schedule.location}` : ''}
+                      </p>
+                      <p className="mono-note">
+                        {schedule.last_run_at
+                          ? `Última execução: ${formatRunDate(schedule.last_run_at)}`
+                          : 'Ainda não executada'}
+                      </p>
+                    </div>
+                    <div className="source-row-actions">
+                      <button
+                        className="text-button text-button-plain"
+                        onClick={() => void toggleScheduledSearch(schedule)}
+                        type="button"
+                      >
+                        {schedule.enabled ? 'Pausar' : 'Ativar'}
+                      </button>
+                      <button
+                        className="card-link"
+                        onClick={() => void loadScheduledJobs(schedule.id)}
+                        type="button"
+                      >
+                        Ver vagas encontradas
+                      </button>
+                    </div>
+                    {scheduledJobs[schedule.id] && (
+                      <ul className="scheduled-job-history">
+                        {scheduledJobs[schedule.id].map((item) => (
+                          <li key={item.id}>
+                            <span>
+                              <strong>{item.title}</strong> · {item.company}
+                            </span>
+                            <span className="mono-note">
+                              {item.outcome} · {item.provider} ·{' '}
+                              {formatRunDate(item.found_at)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -3534,6 +3909,34 @@ function App() {
                 {selectedJob.location ? ` · ${selectedJob.location}` : ''}
               </p>
               <div className="job-analysis-actions">
+                {(() => {
+                  const application = Object.values(applications).find(
+                    (candidate) => candidate.job_id === selectedJob.id,
+                  );
+                  if (
+                    application &&
+                    application.current_status !== 'found' &&
+                    application.current_status !== 'pending'
+                  ) {
+                    return (
+                      <span className="job-status">
+                        {pipelineStatusLabel(application.current_status)}
+                      </span>
+                    );
+                  }
+                  return (
+                    <button
+                      className="primary-button"
+                      disabled={applyingJobId === selectedJob.id}
+                      onClick={() => void markJobApplied(selectedJob)}
+                      type="button"
+                    >
+                      {applyingJobId === selectedJob.id
+                        ? 'Salvando…'
+                        : 'Marcar como aplicada'}
+                    </button>
+                  );
+                })()}
                 <button
                   className="primary-button"
                   disabled={isAnalyzingJob}
@@ -3769,6 +4172,9 @@ function App() {
               <ul className="job-list">
                 {visibleJobs.map((job) => {
                   const analysis = jobAnalyses[job.id];
+                  const application = Object.values(applications).find(
+                    (candidate) => candidate.job_id === job.id,
+                  );
                   return (
                     <li className="job-row" key={job.id}>
                       <div className="job-row-content">
@@ -3816,6 +4222,20 @@ function App() {
                           >
                             Ver detalhes
                           </button>
+                          {(!application ||
+                            application.current_status === 'found' ||
+                            application.current_status === 'pending') && (
+                            <button
+                              className="primary-button"
+                              disabled={applyingJobId === job.id}
+                              onClick={() => void markJobApplied(job)}
+                              type="button"
+                            >
+                              {applyingJobId === job.id
+                                ? 'Salvando…'
+                                : 'Marcar como aplicada'}
+                            </button>
+                          )}
                         </div>
                       </div>
                       {analysis && (

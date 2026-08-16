@@ -55,6 +55,8 @@ async def test_unified_search_returns_normalized_jobs_without_provider_names(app
 
     assert response.status_code == 200
     payload = response.json()
+    assert isinstance(payload["jobs"][0]["job_id"], int)
+    assert payload["jobs"][0]["review_required"] is False
     assert payload["jobs"][0]["title"] == "Analista de Dados"
     assert payload["jobs"][0]["source"] == "Portal parceiro"
     assert payload["provider_runs"][0]["display_name"] == "Fonte pública"

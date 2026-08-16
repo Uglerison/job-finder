@@ -4,9 +4,9 @@ import json
 import logging
 from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, SecretStr, field_validator
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -25,7 +25,7 @@ from job_finder.aggregated_search import (
 from job_finder.secret_store import EncryptedDatabaseVault, SecretStoreError
 from job_finder.settings import Settings
 from job_finder.source_adapters import SourceRegistry
-from job_finder.source_dedup import ingest_candidate
+from job_finder.source_dedup import find_exact_match, ingest_candidate
 from job_finder.source_models import ensure_default_sources
 
 router = APIRouter(prefix="/api/search", tags=["aggregated-search"])
@@ -35,6 +35,8 @@ ProviderName = Literal["jsearch", "adzuna", "jooble"]
 
 
 class AggregatedJobResponse(BaseModel):
+    job_id: int | None
+    review_required: bool
     title: str
     company: str
     location: str | None
@@ -109,17 +111,28 @@ async def get_session(request: Request) -> AsyncIterator[Session]:
 SessionDependency = Annotated[Session, Depends(get_session)]
 
 
-def _vault(request: Request) -> EncryptedDatabaseVault:
-    vault = getattr(request.app.state, "secret_vault", None)
+def _app_state(request_or_application: Request | FastAPI) -> Any:
+    return (
+        request_or_application.app.state
+        if isinstance(request_or_application, Request)
+        else request_or_application.state
+    )
+
+
+def _vault(request_or_application: Request | FastAPI) -> EncryptedDatabaseVault:
+    state = _app_state(request_or_application)
+    vault = getattr(state, "secret_vault", None)
     if vault is None:
-        vault = EncryptedDatabaseVault(request.app.state.session_factory)
-        request.app.state.secret_vault = vault
+        vault = EncryptedDatabaseVault(state.session_factory)
+        state.secret_vault = vault
     return vault
 
 
-def _provider_status(request: Request, provider: ProviderName) -> ProviderCredentialStatus:
-    vault = _vault(request)
-    settings: Settings = request.app.state.settings
+def _provider_status(
+    request_or_application: Request | FastAPI, provider: ProviderName
+) -> ProviderCredentialStatus:
+    vault = _vault(request_or_application)
+    settings: Settings = _app_state(request_or_application).settings
     environment_value = {
         "jsearch": settings.jsearch_api_key,
         "adzuna": settings.adzuna_app_key,
@@ -203,12 +216,12 @@ def unlock_provider_credential(
         ) from error
 
 
-def _credential(request: Request, provider: str) -> str | None:
-    vault = _vault(request)
+def _credential(request_or_application: Request | FastAPI, provider: str) -> str | None:
+    vault = _vault(request_or_application)
     stored = vault.get_unlocked_provider_secret(provider)
     if stored is not None:
         return stored
-    settings: Settings = request.app.state.settings
+    settings: Settings = _app_state(request_or_application).settings
     value = {
         "jsearch": settings.jsearch_api_key,
         "adzuna": settings.adzuna_app_key,
@@ -217,12 +230,13 @@ def _credential(request: Request, provider: str) -> str | None:
     return value.get_secret_value() if value else None
 
 
-def _providers(request: Request, session: Session) -> list[JobProvider]:
+def _providers(request_or_application: Request | FastAPI, session: Session) -> list[JobProvider]:
     configured: list[JobProvider] = []
-    jsearch_key = _credential(request, "jsearch")
+    jsearch_key = _credential(request_or_application, "jsearch")
     configured.append(JSearchProvider(api_key=jsearch_key))
-    adzuna_raw = _credential(request, "adzuna")
-    app_id = request.app.state.settings.adzuna_app_id
+    adzuna_raw = _credential(request_or_application, "adzuna")
+    settings: Settings = _app_state(request_or_application).settings
+    app_id = settings.adzuna_app_id
     if adzuna_raw:
         try:
             parsed = json.loads(adzuna_raw)
@@ -235,9 +249,9 @@ def _providers(request: Request, session: Session) -> list[JobProvider]:
         adzuna_app_id = app_id.get_secret_value() if app_id else None
         adzuna_key = None
     configured.append(AdzunaProvider(app_id=adzuna_app_id, app_key=adzuna_key))
-    configured.append(JoobleProvider(api_key=_credential(request, "jooble")))
+    configured.append(JoobleProvider(api_key=_credential(request_or_application, "jooble")))
 
-    registry: SourceRegistry = request.app.state.source_registry
+    registry: SourceRegistry = _app_state(request_or_application).source_registry
     for source in ensure_default_sources(session):
         if source.enabled:
             adapter = registry.get(source.source_key, source.endpoint, source.timeout_seconds)
@@ -245,10 +259,16 @@ def _providers(request: Request, session: Session) -> list[JobProvider]:
     return configured
 
 
-def _response(result: AggregatedSearchResult) -> AggregatedSearchResponse:
+def _response(
+    result: AggregatedSearchResult,
+    job_ids: list[int | None],
+    review_required: list[bool],
+) -> AggregatedSearchResponse:
     return AggregatedSearchResponse(
         jobs=[
             AggregatedJobResponse(
+                job_id=job_ids[index] if index < len(job_ids) else None,
+                review_required=(review_required[index] if index < len(review_required) else False),
                 title=item.title,
                 company=item.company,
                 location=item.location,
@@ -259,7 +279,7 @@ def _response(result: AggregatedSearchResult) -> AggregatedSearchResponse:
                 source=item.source_label,
                 published_at=item.published_at,
             )
-            for item in result.candidates
+            for index, item in enumerate(result.candidates)
         ],
         provider_runs=[ProviderRunResponse(**run.__dict__) for run in result.provider_runs],
         partial=result.partial,
@@ -293,11 +313,22 @@ async def search_jobs(
         )
         request.app.state.aggregated_cache = aggregator.cache
         result = await aggregator.search(payload)
+        job_ids: list[int | None] = []
+        review_required: list[bool] = []
         if not result.cache_hit:
             for candidate in result.candidates:
-                ingest_candidate(session, candidate)
+                dedupe_result = ingest_candidate(session, candidate)
+                # Approximate matches stay pending review and never point the
+                # card at an existing job that may not be the same listing.
+                job_ids.append(dedupe_result.job.id if dedupe_result.job is not None else None)
+                review_required.append(dedupe_result.suggestion is not None)
             session.commit()
-        return _response(result)
+        else:
+            for candidate in result.candidates:
+                job, _reason = find_exact_match(session, candidate)
+                job_ids.append(job.id if job is not None else None)
+                review_required.append(False)
+        return _response(result, job_ids, review_required)
     except HTTPException:
         raise
     except Exception as error:

@@ -1141,6 +1141,77 @@ describe('App', () => {
     });
   });
 
+  it('marca uma vaga da caixa de entrada como aplicada', async () => {
+    const job = {
+      canonical_url: 'https://jobs.example.com/application-1',
+      company: 'Example Labs',
+      created_at: '2026-08-15T10:00:00Z',
+      id: 1,
+      location: 'São Paulo',
+      origin_count: 1,
+      status: 'found',
+      status_label: 'ENCONTRADA',
+      title: 'Backend Engineer',
+    };
+    const applied = {
+      created_at: '2026-08-15T10:05:00Z',
+      current_status: 'applied',
+      events: [
+        { from_status: null, id: 1, kind: 'initial', to_status: 'found' },
+        {
+          from_status: 'found',
+          id: 2,
+          kind: 'transition',
+          to_status: 'applied',
+        },
+      ],
+      id: 7,
+      job_id: 1,
+      updated_at: '2026-08-15T10:06:00Z',
+    };
+
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/jobs') {
+          return Promise.resolve({
+            json: async () => ({ items: [job] }),
+            ok: true,
+          });
+        }
+        if (input === '/api/jobs/1/application') {
+          return Promise.resolve({ json: async () => null, ok: false });
+        }
+        if (
+          input === '/api/jobs/1/application/applied' &&
+          init?.method === 'POST'
+        ) {
+          return Promise.resolve({ json: async () => applied, ok: true });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+
+    render(<App />);
+
+    const button = await screen.findByRole('button', {
+      name: 'Marcar como aplicada',
+    });
+    fireEvent.click(button);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Vaga marcada como aplicada: Backend Engineer.'),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      fetchMock.mock.calls.some(
+        ([input, init]) =>
+          input === '/api/jobs/1/application/applied' &&
+          init?.method === 'POST',
+      ),
+    ).toBe(true);
+  });
+
   it('reverte a movimentação otimista quando a transição é rejeitada', async () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       if (input === '/api/jobs') {

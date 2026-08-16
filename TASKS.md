@@ -69,15 +69,15 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E0 — Governança e decisões | JF-001–JF-009 | Em andamento | Escopo operacional fechado |
 | E1 — Fundação local | JF-010–JF-022 | Concluído | Aplicação local abre e persiste dados |
 | E2 — Perfil | JF-100–JF-107 | Concluído | Perfil editável e versionado |
-| E3 — Vagas e candidaturas | JF-200–JF-221 | Em andamento | Marcação de aplicada disponível diretamente na vaga |
+| E3 — Vagas e candidaturas | JF-200–JF-221 | Concluído | Marcação de aplicada disponível diretamente na vaga |
 | E4 — Busca e fontes | JF-300–JF-313 | Concluído | Vagas coletadas, auditadas e deduplicadas |
-| E4.1 — Busca agregada e foco Brasil | JF-320–JF-350 | Em andamento | Busca manual e agendada persistida para consulta posterior |
+| E4.1 — Busca agregada e foco Brasil | JF-320–JF-350 | Concluído | Busca manual e agendada persistida para consulta posterior |
 | E5 — GPT-5.6 Luna | JF-400–JF-412 | Concluída | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Em andamento | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima etapa:** `JF-217 — Criar comando atômico para marcar uma vaga como aplicada`.
+**Próxima etapa:** `JF-600 — Fechar endurecimento e empacotamento para a release Windows`.
 
 ## Marcos
 
@@ -370,7 +370,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: exclusão definitiva exige confirmação e respeita vínculos.
   - Evidência: migração `0011_recoverable_trash`, soft-delete com retenção das preferências, restauração, purge de expirados e `confirm=true` para remoção definitiva; candidaturas vinculadas bloqueiam a remoção; lixeira visual com restauração e confirmação no navegador; 68 testes backend e 12 testes Vitest verdes.
 
-- [ ] **JF-217 — Criar comando atômico para marcar uma vaga como aplicada**
+- [x] **JF-217 — Criar comando atômico para marcar uma vaga como aplicada**
   - Depende de: JF-209 e JF-210.
   - Teste primeiro: vaga sem candidatura, candidatura em `found`/`pending`, já `applied`, estado
     posterior ou terminal, vaga inexistente e duas requisições concorrentes.
@@ -379,7 +379,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Contrato proposto: `POST /api/jobs/{job_id}/application/applied`, retornando a candidatura e o
     histórico auditável; regressões de fase retornam `409` com motivo seguro.
 
-- [ ] **JF-218 — Adicionar “Marcar como aplicada” na caixa e no detalhe da vaga**
+- [x] **JF-218 — Adicionar “Marcar como aplicada” na caixa e no detalhe da vaga**
   - Depende de: JF-217.
   - Teste primeiro: botão disponível, confirmação explícita, sucesso, conflito, falha de rede,
     clique duplo e vaga já aplicada.
@@ -388,7 +388,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite de UX: mensagem identifica cargo e empresa; erro preserva o estado anterior e permite
     tentar novamente sem duplicar eventos.
 
-- [ ] **JF-219 — Vincular resultados da busca agregada às vagas persistidas**
+- [x] **JF-219 — Vincular resultados da busca agregada às vagas persistidas**
   - Depende de: JF-337, JF-344 e JF-217.
   - Teste primeiro: vaga criada, duplicata exata, resultado em cache e sugestão de duplicata
     aproximada.
@@ -398,7 +398,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite de consistência: busca nova ou em cache resolve o mesmo `job_id` e atualiza a caixa de
     vagas sem exigir recarregar o navegador.
 
-- [ ] **JF-220 — Sincronizar pipeline, métricas e histórico após a aplicação**
+- [x] **JF-220 — Sincronizar pipeline, métricas e histórico após a aplicação**
   - Depende de: JF-218 e JF-219.
   - Teste primeiro: ação concluída atualiza cartão, pipeline, contador de candidaturas, série do
     dashboard e histórico; recarregar a página mantém os mesmos dados.
@@ -407,7 +407,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite de auditoria: o histórico mostra evento inicial e transição para `applied`, com horário
     local consistente e sem permitir alteração do evento anterior.
 
-- [ ] **JF-221 — Validar o fluxo de aplicação ponta a ponta**
+- [x] **JF-221 — Validar o fluxo de aplicação ponta a ponta**
   - Depende de: JF-217 a JF-220.
   - Teste primeiro: vaga encontrada pela JSearch → abrir anúncio → confirmação humana → marcar como
     aplicada → visualizar no pipeline e dashboard → reiniciar o aplicativo.
@@ -415,6 +415,9 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
     claros, nenhuma candidatura é enviada automaticamente e nenhuma chave aparece na UI ou nos logs.
   - Evidência exigida: testes unitários/API/Vitest, Ruff, Mypy, Oxlint, TypeScript, Prettier e build
     pnpm verdes; passos manuais e limitações atualizados no README.
+  - Evidência: `tests/api/test_applications_api.py` cobre criação idempotente, fases, vaga ausente e
+    concorrência; `App.test.tsx` cobre a ação na caixa; resultados agregados recebem `job_id`; o
+    dashboard é reconsultado após confirmação; API/UI, Ruff, Mypy, Oxlint, TypeScript e build verdes.
 
 ## E4 — Busca e fontes
 
@@ -733,7 +736,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
     criação e atualização da origem; o teste reproduz a resposta real da JSearch e persiste sem
     `ValidationError`.
 
-- [ ] **JF-345 — Modelar pesquisas agendadas da busca unificada**
+- [x] **JF-345 — Modelar pesquisas agendadas da busca unificada**
   - Depende de: JF-321, JF-330 e JF-305.
   - Teste primeiro: criar, editar, pausar, reativar e excluir uma agenda; frequência, próxima
     execução, consulta, localização e modalidade inválidas.
@@ -742,7 +745,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite de produto: agendamento é desligado por padrão, deixa claro que só executa enquanto o
     Job Finder estiver aberto e apagar a agenda não apaga as vagas já coletadas.
 
-- [ ] **JF-346 — Executar automaticamente pesquisas agendadas enquanto o app estiver aberto**
+- [x] **JF-346 — Executar automaticamente pesquisas agendadas enquanto o app estiver aberto**
   - Depende de: JF-345, JF-326, JF-327, JF-328 e JF-329.
   - Teste primeiro: tick periódico, reinício com agenda vencida, duas agendas simultâneas, lock de
     instância única, limite diário, rate limit, cancelamento e encerramento do aplicativo.
@@ -752,7 +755,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
     persistir senha; providers públicos/fallbacks continuam quando possível e o resultado pode ser
     parcial.
 
-- [ ] **JF-347 — Persistir vagas e vínculo com cada execução agendada**
+- [x] **JF-347 — Persistir vagas e vínculo com cada execução agendada**
   - Depende de: JF-311, JF-312, JF-344 e JF-346.
   - Teste primeiro: vaga nova, duplicata exata, possível duplicata, resultado parcial, falha no meio
     da persistência e repetição da mesma agenda.
@@ -762,7 +765,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite transacional: falha de uma vaga não perde as vagas válidas já confirmadas nem deixa run
     marcado como sucesso incorretamente; nenhuma execução cria candidatura ou marca como aplicada.
 
-- [ ] **JF-348 — Criar consulta histórica das vagas encontradas pelo agendador**
+- [x] **JF-348 — Criar consulta histórica das vagas encontradas pelo agendador**
   - Depende de: JF-204 e JF-347.
   - Teste primeiro: última execução, período, agenda, provider, somente novas, duplicadas, vazio e
     paginação estável.
@@ -772,7 +775,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite de navegação: vagas agendadas também aparecem na caixa de entrada normal e podem usar
     análise, rejeição, espera e “Marcar como aplicada” sem criar cópias.
 
-- [ ] **JF-349 — Preservar decisões do usuário em redescobertas agendadas**
+- [x] **JF-349 — Preservar decisões do usuário em redescobertas agendadas**
   - Depende de: JF-217, JF-220 e JF-347.
   - Teste primeiro: redescobrir vaga encontrada, em espera, aplicada, entrevista, rejeitada e
     removida; conteúdo atualizado e URL/origem adicional.
@@ -781,7 +784,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite de retenção: histórico da execução respeita a política local; remoção de uma agenda não
     remove vaga, candidatura, análise ou evento relacionado.
 
-- [ ] **JF-350 — Validar agendamento, persistência e consulta ponta a ponta**
+- [x] **JF-350 — Validar agendamento, persistência e consulta ponta a ponta**
   - Depende de: JF-345 a JF-349.
   - Teste primeiro: criar agenda → vencer horário → buscar em providers → persistir/deduplicar →
     consultar histórico → reiniciar app → consultar as mesmas vagas.
@@ -789,6 +792,9 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
     bloqueado, limite, falha e parcial, e continua íntegro após reinício.
   - Evidência exigida: testes unitários/API/integração/Vitest, smoke de reinício, Ruff, Mypy, Oxlint,
     TypeScript, Prettier e build pnpm verdes; README documenta funcionamento e limitações locais.
+  - Evidência: `0018_scheduled_unified_searches`, `test_scheduled_searches_api.py` e painel
+    “Agendador local” cobrem CRUD, tick, persistência por candidato, histórico, deduplicação e
+    redescoberta sem regressão de `applied`; o worker roda apenas enquanto o app está aberto.
 
 ## E5 — GPT-5.6 Luna
 
@@ -1127,8 +1133,8 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 16/08/2026 | JF-342 | Concluída | Lock de instância agora é validado por `/api/health` antes de abrir o navegador; busca sem conexão recebe orientação de reinício e exceções inesperadas retornam JSON seguro e entram no log local. |
 | 16/08/2026 | JF-343 | Concluída | A resposta real da JSearch continha `data` como objeto; o parser agora aceita coleções aninhadas e converte formatos desconhecidos em falha isolada da fonte, preservando os fallbacks. |
 | 16/08/2026 | JF-344 | Concluída | IDs externos opacos da JSearch acima de 255 caracteres são convertidos em hash determinístico antes de persistir, mantendo a deduplicação exata e eliminando o `ValidationError`. |
-| 16/08/2026 | JF-217–JF-221 | Planejadas | Fluxo “Marcar como aplicada” dividido em comando atômico, ações na vaga e busca, sincronização de pipeline/dashboard e validação ponta a ponta com TDD. |
-| 16/08/2026 | JF-345–JF-350 | Planejadas | Agendador unificado dividido em agenda persistida, worker local, vínculo execução-vaga, consulta histórica, preservação das decisões humanas e validação após reinício. |
+| 16/08/2026 | JF-217–JF-221 | Concluídas | Endpoint idempotente `POST /api/jobs/{job_id}/application/applied`, ações na caixa/detalhe/busca, IDs locais nos resultados, sincronização do pipeline/dashboard e testes concorrentes/API/Vitest. |
+| 16/08/2026 | JF-345–JF-350 | Concluídas | Migração `0018_scheduled_unified_searches`, agendas persistidas, worker do ciclo de vida local, vínculo execução-vaga/dedupe, histórico API/UI e teste de redescoberta sem regressão de candidatura. |
 | 15/08/2026 | JF-601 | Concluída | Cofre SQLite cifrado por senha transitória, UI local e migração `0013_ai_secrets`; testes de ausência de plaintext, bloqueio/desbloqueio, API e interface verdes. |
 | 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
 | 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |

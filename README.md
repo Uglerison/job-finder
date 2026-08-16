@@ -69,6 +69,28 @@ Cada execução registra duração, contadores, cursor, falhas e cancelamento. A
 deduplicação exata usa URL canônica, identidade externa e hash de conteúdo; uma
 semelhança de cargo/empresa/local fica pendente até confirmação explícita.
 
+### Agendas da busca unificada
+
+Na seção **Agendador local**, salve uma consulta, localização, modalidade e
+frequência. A agenda nasce pausada; ao ativá-la, o worker do backend executa
+somente enquanto o Job Finder estiver aberto. Cada execução e cada vaga ficam
+persistidas no SQLite, inclusive o resultado da deduplicação, e podem ser
+consultados depois em:
+
+- `POST|GET /api/scheduled-searches` para criar/listar agendas;
+- `PUT|DELETE /api/scheduled-searches/{id}` para editar, pausar ou remover uma agenda;
+- `POST /api/scheduled-searches/tick` para disparar manualmente as agendas vencidas;
+- `GET /api/scheduled-searches/{id}/runs` e `/jobs` para consultar histórico e vagas encontradas.
+
+Remover uma agenda não remove vagas, candidaturas, análises ou eventos já
+coletados. Redescobertas atualizam origens e versões do conteúdo, sem rebaixar
+uma candidatura de `applied`, entrevista ou resultado terminal.
+
+Para registrar uma confirmação humana de envio, use o botão **Marcar como
+aplicada** na caixa, no detalhe ou no cartão de busca. O backend cria a
+candidatura e o evento inicial/transição em uma única transação; repetição é
+idempotente e não envia candidatura automaticamente a nenhum site.
+
 ## Chave OpenAI local
 
 O modelo preparado é `gpt-5.6-luna`. A configuração local não inicia análises

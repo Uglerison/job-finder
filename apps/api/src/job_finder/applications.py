@@ -127,6 +127,31 @@ def get_application_for_job(session: Session, job_id: int) -> Application | None
     return session.scalar(select(Application).where(Application.job_id == job_id))
 
 
+def mark_application_applied(session: Session, job_id: int) -> Application:
+    """Atomically create or advance a job application to ``applied``.
+
+    The operation is intentionally idempotent when the application is already
+    marked as applied. Once an application has advanced to a later phase, the
+    shortcut cannot move it backwards; callers must use the explicit
+    transition endpoint with its correction/audit semantics instead.
+    """
+
+    application = get_application_for_job(session, job_id)
+    if application is None:
+        application = create_application(session, job_id)
+
+    if application.current_status == "applied":
+        return application
+    if application.current_status not in {"found", "pending"}:
+        raise ValueError(f"Application already advanced to {application.current_status}.")
+
+    # Imported at call time to keep the domain modules free of an import cycle.
+    from job_finder.pipeline import transition_application
+
+    transition_application(session, application, "applied")
+    return application
+
+
 def get_application_events(session: Session, application_id: int) -> list[ApplicationEvent]:
     statement = (
         select(ApplicationEvent)
