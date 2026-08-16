@@ -10,6 +10,17 @@ describe('App', () => {
     vi.stubGlobal('fetch', fetchMock);
     fetchMock.mockImplementation(
       (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (_input === '/api/ai/settings') {
+          return Promise.resolve({
+            json: async () => ({
+              configured: false,
+              unlocked: false,
+              model: 'gpt-5.6-luna',
+              storage: 'not_configured',
+            }),
+            ok: true,
+          });
+        }
         if (init?.method === 'PUT') {
           return Promise.resolve({
             json: async () => ({
@@ -246,6 +257,171 @@ describe('App', () => {
       locale: 'en-US',
       retention_days: 90,
     });
+  });
+
+  it('reanalisisa somente as vagas selecionadas e preserva falhas parciais', async () => {
+    const confirmMock = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirmMock);
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/jobs') {
+          return Promise.resolve({
+            json: async () => ({
+              items: [
+                {
+                  canonical_url: 'https://example.com/1',
+                  company: 'Acme',
+                  created_at: '2026-08-15T10:00:00Z',
+                  id: 1,
+                  location: 'Remoto',
+                  origin_count: 1,
+                  status: 'found',
+                  status_label: 'ENCONTRADA',
+                  title: 'Backend Engineer',
+                },
+              ],
+            }),
+            ok: true,
+          });
+        }
+        if (input === '/api/jobs/1/analysis' && init?.method === 'POST') {
+          return Promise.resolve({
+            json: async () => ({
+              analysis: {
+                assessment: {
+                  confidence: 90,
+                  gaps: [],
+                  strengths: ['Python'],
+                  summary: 'Boa aderência.',
+                  warnings: [],
+                },
+              },
+              analysis_version: 1,
+              explanation: { supported_evidence: [] },
+              fit: { accepted: true, score: 82 },
+              model: 'gpt-5.6-luna',
+              prompt_version: '2026-08-15.1',
+              usage: {
+                estimated_cost_usd: 0.001,
+                fallback: false,
+                fallback_reason: null,
+                input_tokens: 100,
+                latency_ms: 30,
+                metered: true,
+                output_tokens: 50,
+              },
+            }),
+            ok: true,
+          });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+
+    render(<App />);
+    expect(
+      await screen.findByRole('heading', { name: 'Backend Engineer' }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Selecionar Backend Engineer'));
+    fireEvent.click(screen.getByRole('button', { name: 'Analisar selecionadas' }));
+
+    expect(confirmMock).toHaveBeenCalledWith('Analisar 1 vaga com a IA?');
+    expect(
+      await screen.findByText('1 análise concluída.'),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/jobs/1/analysis',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('envia a chave somente ao backend local e nunca a exibe novamente', async () => {
+    const apiKey = 'sk-test-only-12345678901234567890';
+    const vaultPassword = 'uma senha local longa';
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/ai/settings') {
+          return Promise.resolve({
+            json: async () => ({
+              configured: false,
+              unlocked: false,
+              model: 'gpt-5.6-luna',
+              storage: 'not_configured',
+            }),
+            ok: true,
+          });
+        }
+        if (input === '/api/ai/api-key' && init?.method === 'PUT') {
+          return Promise.resolve({
+            json: async () => ({
+              configured: true,
+              unlocked: true,
+              model: 'gpt-5.6-luna',
+              storage: 'encrypted_database',
+            }),
+            ok: true,
+          });
+        }
+        if (input === '/api/ai/connection/test' && init?.method === 'POST') {
+          return Promise.resolve({
+            json: async () => ({ model: 'gpt-5.6-luna', status: 'connected' }),
+            ok: true,
+          });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Conecte sua chave OpenAI' }),
+    ).toBeInTheDocument();
+    const input = screen.getByLabelText('Chave da API OpenAI');
+    expect(input).toHaveAttribute('type', 'password');
+    fireEvent.change(input, { target: { value: apiKey } });
+    fireEvent.change(
+      screen.getByLabelText('Crie uma senha para o cofre local'),
+      {
+        target: { value: vaultPassword },
+      },
+    );
+    fireEvent.change(screen.getByLabelText('Confirme a senha do cofre local'), {
+      target: { value: vaultPassword },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Criptografar e salvar chave' }),
+    );
+
+    expect(
+      await screen.findByText('Chave criptografada e salva no banco local.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Chave da API OpenAI'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Crie uma senha para o cofre local'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(apiKey)).not.toBeInTheDocument();
+    expect(screen.queryByText(vaultPassword)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Testar conexão' }));
+    expect(
+      await screen.findByText('Conexão com gpt-5.6-luna confirmada.'),
+    ).toBeInTheDocument();
+    const [, options] = fetchMock.mock.calls.find(
+      ([calledInput, init]) =>
+        calledInput === '/api/ai/api-key' && init?.method === 'PUT',
+    ) as [string, RequestInit];
+    expect(JSON.parse(options.body as string)).toEqual({
+      api_key: apiKey,
+      vault_password: vaultPassword,
+    });
+    expect(
+      fetchMock.mock.calls.some(
+        ([calledInput, init]) =>
+          calledInput === '/api/ai/connection/test' && init?.method === 'POST',
+      ),
+    ).toBe(true);
   });
 
   it('carrega a caixa de entrada e adiciona uma vaga manual rapidamente', async () => {

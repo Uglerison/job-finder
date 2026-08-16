@@ -24,7 +24,7 @@ class RedactionResult:
 _REDACTION_RULES: tuple[tuple[str, re.Pattern[str], str], ...] = (
     (
         "email",
-        re.compile(r"(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+(?![\w.-])", re.IGNORECASE),
+        re.compile(r"(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+(?![\w-])", re.IGNORECASE),
         "[E-MAIL REMOVIDO]",
     ),
     (

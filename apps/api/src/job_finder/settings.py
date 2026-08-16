@@ -1,6 +1,7 @@
 """Typed configuration for the local Job Finder backend."""
 
 import os
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -35,6 +36,10 @@ class Settings(BaseSettings):
     log_level: LogLevel = "INFO"
     data_dir: Path = Field(default_factory=default_data_dir)
     openai_api_key: SecretStr | None = Field(default=None, repr=False)
+    openai_input_price_usd_per_million: Decimal = Decimal("0.20")
+    openai_cached_input_price_usd_per_million: Decimal = Decimal("0.02")
+    openai_output_price_usd_per_million: Decimal = Decimal("1.20")
+    openai_monthly_budget_usd: Decimal | None = None
 
 
 @lru_cache(maxsize=1)

@@ -71,12 +71,12 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E2 — Perfil | JF-100–JF-107 | Pendente | Perfil editável e versionado |
 | E3 — Vagas e candidaturas | JF-200–JF-216 | Em andamento | Fluxo manual completo |
 | E4 — Busca e fontes | JF-300–JF-313 | Concluído | Vagas coletadas, auditadas e deduplicadas |
-| E5 — GPT-5.6 Luna | JF-400–JF-412 | Pendente | Análise explicável e controlada |
+| E5 — GPT-5.6 Luna | JF-400–JF-412 | Concluída | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Pendente | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Pendente | Release candidata Windows |
 | E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima tarefa pronta:** `E5 — integração controlada do gpt-5.6-luna`.
+**Próxima etapa:** E6 — dashboard e agenda (`JF-500`).
 
 ## Marcos
 
@@ -451,70 +451,102 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 
 ## E5 — GPT-5.6 Luna
 
-- [ ] **JF-400 — Integrar o cliente OpenAI no backend**
+- [x] **JF-400 — Integrar o cliente OpenAI no backend**
   - Depende de: JF-016 e JF-601.
   - Teste primeiro: cliente simulado, timeout, autenticação inválida e indisponibilidade.
   - Aceite: modelo padrão `gpt-5.6-luna` e nenhuma chamada pelo frontend.
 
-- [ ] **JF-401 — Criar schemas estruturados da IA**
+- [x] **JF-401 — Criar schemas estruturados da IA**
   - Depende de: JF-100 e JF-200.
   - Teste primeiro: respostas válidas, ausentes, fora de faixa e com evidência inválida.
   - Aceite: extração e aderência validadas antes de persistir.
 
-- [ ] **JF-402 — Versionar prompts e configuração de raciocínio**
+- [x] **JF-402 — Versionar prompts e configuração de raciocínio**
   - Depende de: JF-400 e JF-401.
   - Teste primeiro: renderização determinística, perfil redigido e versão registrada.
   - Aceite: `low` padrão e `medium` somente para análise detalhada solicitada.
 
-- [ ] **JF-403 — Implementar extração estruturada de vaga**
+- [x] **JF-403 — Implementar extração estruturada de vaga**
   - Depende de: JF-402 e JF-009.
   - Teste primeiro: conjunto de fixtures e respostas simuladas com campos ausentes.
   - Aceite: cargo, requisitos, local, regime, salário e evidências extraídos.
+  - Evidência: `POST /api/jobs/{id}/analysis` analisa explicitamente a versão mais recente
+    da vaga, com JSON Schema estrito, perfil e anúncio redigidos, `low` por padrão e
+    validação Pydantic antes de retornar o resultado transitório. Coberto por testes
+    unitários e de API; JF-009 permanece pendente de rotulagem humana.
 
-- [ ] **JF-404 — Implementar pontuação híbrida de aderência**
+- [x] **JF-404 — Implementar pontuação híbrida de aderência**
   - Depende de: JF-106, JF-401 e JF-403.
   - Teste primeiro: pesos, filtros impeditivos, score 0–100 e confiança.
   - Aceite: nenhum atributo sensível participa da pontuação.
+  - Evidência: score combina dimensões determinísticas permitidas pelos pesos do perfil
+    com influência fixa de 20% do contexto do modelo; filtros obrigatórios zeram a
+    aderência. O allowlist não inclui atributos sensíveis nem pesos desconhecidos.
 
-- [ ] **JF-405 — Implementar explicação e evidências**
+- [x] **JF-405 — Implementar explicação e evidências**
   - Depende de: JF-404.
   - Teste primeiro: pontos fortes, lacunas, alertas e citações presentes no anúncio.
   - Aceite: afirmação sem evidência é sinalizada, não apresentada como fato.
+  - Evidência: cada citação é verificada no título, metadados ou texto visível do
+    anúncio. Itens sem citação exata recebem `needs_review`; somente evidências
+    verificadas são retornadas como fatos suportados.
 
-- [ ] **JF-406 — Persistir versão da análise**
+- [x] **JF-406 — Persistir versão da análise**
   - Depende de: JF-100 e JF-405.
   - Teste primeiro: perfil/modelo/prompt usados, reanálise e histórico imutável.
   - Aceite: análise antiga permanece auditável.
+  - Evidência: migração `0014_job_analysis_versions` retém análise, score, explicação,
+    perfil, conteúdo, modelo e prompt de cada execução. `GET /api/jobs/{id}/analyses`
+    devolve as versões em ordem; atualizações e exclusões pelo modelo ORM são bloqueadas.
 
-- [ ] **JF-407 — Medir tokens, latência e custo**
+- [x] **JF-407 — Medir tokens, latência e custo**
   - Depende de: JF-400.
   - Teste primeiro: uso normal, cache, ausência de usage e preço configurável.
   - Aceite: custo estimado por operação e execução disponível.
+  - Evidência: `OpenAiResponsesClient` normaliza `usage` (incluindo tokens em cache e
+    raciocínio) e latência; `ai_usage.py` calcula custo configurável sem falhar quando o
+    provedor não envia uso; `GET /api/ai/usage` agrega operações, tokens, custo e latência.
+    A resposta e o histórico de cada análise retêm os metadados na migração `0015_ai_usage`.
 
-- [ ] **JF-408 — Aplicar orçamento e alertas**
+- [x] **JF-408 — Aplicar orçamento e alertas**
   - Depende de: JF-006 e JF-407.
   - Teste primeiro: 50%, 80%, 100%, troca de período e concorrência.
   - Aceite: novas chamadas param no teto sem interromper operações locais.
+  - Evidência: `BudgetConfig` usa `JOB_FINDER_OPENAI_MONTHLY_BUDGET_USD`, calcula alertas
+    em 50/80/100%, bloqueia apenas novas chamadas de IA no teto e mantém triagem, busca e
+    pipeline locais disponíveis; `AI_BUDGET_LOCK` evita chamadas concorrentes no processo.
 
-- [ ] **JF-409 — Implementar cache seguro de contexto estável**
+- [x] **JF-409 — Implementar cache seguro de contexto estável**
   - Depende de: JF-402 e JF-407.
   - Teste primeiro: chave de cache, invalidação por versão e dados redigidos.
   - Aceite: redução mensurável sem compartilhar conteúdo entre perfis.
+  - Evidência: `AnalysisPromptCache` usa `(profile_version_id, prompt_version, mode)`,
+    guarda somente instruções derivadas redigidas, expõe `cache_hit` e invalida por versão;
+    texto da vaga e chave nunca entram no cache.
 
-- [ ] **JF-410 — Implementar descoberta por pesquisa web**
+- [x] **JF-410 — Implementar descoberta por pesquisa web**
   - Depende de: JF-300, JF-400 e JF-408.
   - Teste primeiro: resultado com URL/evidência, vazio, duplicado e limite atingido.
   - Aceite: pesquisa seletiva, auditável e sem ação externa de candidatura.
+  - Evidência: `POST /api/ai/discovery` aceita até três fontes escolhidas, consulta os
+    adaptadores públicos existentes com limite explícito, persiste cada `search_run`,
+    devolve URL/evidência e não possui qualquer ação de candidatura.
 
-- [ ] **JF-411 — Implementar fallback determinístico**
+- [x] **JF-411 — Implementar fallback determinístico**
   - Depende de: JF-106 e JF-400.
   - Teste primeiro: API indisponível, orçamento esgotado e retomada posterior.
   - Aceite: vaga continua triável com indicação clara de análise limitada.
+  - Evidência: indisponibilidade/timeout do provedor ou orçamento esgotado usa
+    `build_fallback_analysis`, preserva filtros determinísticos, grava `fallback=true` e
+    retém o motivo; a execução posterior continua disponível normalmente.
 
-- [ ] **JF-412 — Criar reanálise seletiva na interface**
+- [x] **JF-412 — Criar reanálise seletiva na interface**
   - Depende de: JF-406 e JF-408.
   - Teste primeiro: uma vaga, seleção múltipla, confirmação de custo e falha parcial.
   - Aceite: nunca reanalisa todo o banco acidentalmente.
+  - Evidência: detalhe da vaga oferece análise individual; a caixa de entrada permite
+    selecionar múltiplas vagas, confirma o custo/quantidade e usa `Promise.allSettled` para
+    falhas parciais. Nenhuma ação percorre o banco inteiro sem seleção explícita.
 
 ## E6 — Dashboard e agenda
 
@@ -569,10 +601,10 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Teste primeiro: origem válida/inválida, mutação sem token e reinício.
   - Aceite: página externa não consegue realizar mutações locais.
 
-- [ ] **JF-601 — Armazenar chave no Windows Credential Manager**
+- [x] **JF-601 — Armazenar chave criptografada no banco local**
   - Depende de: JF-016.
-  - Teste primeiro: salvar, recuperar, substituir, remover e keyring indisponível.
-  - Aceite: chave nunca aparece no banco, frontend ou logs.
+  - Teste primeiro: salvar, desbloquear, bloquear, remover, senha incorreta e indisponibilidade do cofre.
+  - Aceite: SQLite contém somente ciphertext e salt; a senha do cofre não é persistida; chave nunca aparece em API de leitura, interface ou logs.
 
 - [ ] **JF-602 — Bloquear SSRF e URLs perigosas**
   - Depende de: JF-016.
@@ -722,15 +754,25 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-215 | Concluída | Exportação CSV/JSON filtrável, codificação Excel-friendly e neutralização de fórmulas; 65 testes backend verdes |
 | 15/08/2026 | JF-216 | Concluída | Lixeira com soft-delete, restauração, expiração por retenção e proteção de candidaturas vinculadas; migração `0011_recoverable_trash`, UI de restauração/confirmação, 68 testes backend e 12 Vitest verdes |
 | 15/08/2026 | JF-300–JF-313 | Concluída | E4 completa: contrato de adaptadores, três fontes públicas, configuração sem segredos, runs auditáveis, cancelamento, scheduler persistente, cliente HTTP resiliente, limites/backoff, deduplicação exata/aproximada e painel; 49 testes unitários backend, 2 testes API E4, Ruff e Mypy verdes |
+| 15/08/2026 | JF-601 | Concluída | Cofre SQLite cifrado por senha transitória, UI local e migração `0013_ai_secrets`; testes de ausência de plaintext, bloqueio/desbloqueio, API e interface verdes. |
+| 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
+| 15/08/2026 | JF-400 | Concluída | Cliente backend da Responses API usa `gpt-5.6-luna`, `reasoning.effort: low` e `store: false`; testes simulados cobrem sucesso, autenticação, timeout, indisponibilidade e endpoint de conexão. |
+| 15/08/2026 | JF-401 | Concluída | Contratos Pydantic para extração, aderência, score, confiança e evidências; validações cobrem campos ausentes, faixas inválidas, evidência inválida e salário inconsistente. |
+| 15/08/2026 | JF-402 | Concluída | Prompt `2026-08-15.1` é determinístico, redige PII detectável do perfil e define `low` para lote e `medium` para revisão detalhada. |
+| 15/08/2026 | JF-403 | Concluída com exceção explícita | Rota de análise por vaga usa Structured Outputs estrito, redige perfil e anúncio, seleciona o conteúdo mais recente e devolve campos/evidências validados; JF-009 continua pendente de seleção e rótulos humanos. |
+| 15/08/2026 | JF-404 | Concluída | Pontuação híbrida limitada a dimensões permitidas; filtros impeditivos retornam nota zero e confiança 100, enquanto o contexto do modelo tem peso fixo de 20%. |
+| 15/08/2026 | JF-405 | Concluída | Evidências são comparadas com título, metadados ou conteúdo visível; resumos, pontos fortes, lacunas e alertas sem citação exata recebem estado `needs_review`. |
+| 15/08/2026 | JF-406 | Concluída | Migração `0014_job_analysis_versions` cria histórico append-only com versão da vaga e perfil, modelo, prompt, análise, score e explicação; a API lista reanálises em ordem. |
 
 ## Bloqueios e decisões pendentes
 
 | Data | Tarefa | Bloqueio/decisão | Responsável | Próxima ação |
 |---|---|---|---|---|
-| 15/08/2026 | JF-004 | Falta consolidar o perfil profissional de referência | Usuário | Fornecer currículo ou preencher critérios no onboarding quando disponível |
+| 15/08/2026 | JF-004 | Currículo privado analisado sem ser versionado; ainda faltam confirmação de senioridade, idiomas, regime, localização e faixa salarial | Usuário | Confirmar esses critérios no onboarding antes da avaliação final |
 | 15/08/2026 | JF-005 | Fontes dependem de países, cargos e regime desejados | Projeto | Selecionar após JF-004 |
 | 15/08/2026 | JF-006 | Orçamento mensal ainda não definido | Usuário | Definir antes de ativar buscas automáticas |
 | 15/08/2026 | JF-005/JF-006 | E4 foi implementada com Remote OK, Arbeitnow e Jobicy, agendamento desligado e limites padrão de 50 execuções/dia e 50 vagas/run para não bloquear o desenvolvimento | Projeto | Usuário pode substituir fontes, termos, frequência e limites em `/api/sources` antes de ativar automação |
+| 15/08/2026 | JF-009 | O conjunto de avaliação depende de rótulos humanos e dos critérios finais do perfil; a coleta pública já está no banco local | Usuário + Projeto | Salvar a chave no painel IA e confirmar o perfil para iniciar a seleção e rotulagem assistida |
 
 ## Ideias fora do MVP
 

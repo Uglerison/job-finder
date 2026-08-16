@@ -45,6 +45,18 @@ type Preferences = {
   retention_days: number;
 };
 
+type AiSettings = {
+  configured: boolean;
+  unlocked: boolean;
+  model: 'gpt-5.6-luna';
+  storage: 'encrypted_database' | 'environment' | 'not_configured';
+};
+
+type AiConnectionTest = {
+  model: 'gpt-5.6-luna';
+  status: 'connected';
+};
+
 type JobListItem = {
   canonical_url: string | null;
   company: string;
@@ -162,6 +174,34 @@ type SearchRun = {
   current_cursor: string | null;
 };
 
+type AnalysisUsage = {
+  estimated_cost_usd: number | null;
+  fallback: boolean;
+  fallback_reason: string | null;
+  input_tokens: number | null;
+  latency_ms: number;
+  metered: boolean;
+  output_tokens: number | null;
+};
+
+type JobAnalysisResponse = {
+  analysis: {
+    assessment: {
+      confidence: number;
+      gaps: string[];
+      strengths: string[];
+      summary: string;
+      warnings: string[];
+    };
+  };
+  analysis_version: number;
+  explanation: { supported_evidence: { claim: string; quote: string }[] };
+  fit: { accepted: boolean; score: number };
+  model: string;
+  prompt_version: string;
+  usage: AnalysisUsage;
+};
+
 function formatAgendaDate(value: string, timezoneName: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -259,6 +299,13 @@ const defaultPreferences: Preferences = {
   locale: 'pt-BR',
   retention_days: 365,
   timezone: 'America/Sao_Paulo',
+};
+
+const defaultAiSettings: AiSettings = {
+  configured: false,
+  unlocked: false,
+  model: 'gpt-5.6-luna',
+  storage: 'not_configured',
 };
 
 const defaultManualJobForm: ManualJobFormState = {
@@ -401,6 +448,14 @@ function replacementLabel(kind: string): string {
   );
 }
 
+function aiStorageLabel(storage: AiSettings['storage']): string {
+  return {
+    encrypted_database: 'banco local criptografado',
+    environment: 'variável de ambiente local',
+    not_configured: 'ainda não configurada',
+  }[storage];
+}
+
 function App() {
   const [formState, setFormState] =
     useState<ProfileFormState>(defaultFormState);
@@ -424,6 +479,18 @@ function App() {
     null,
   );
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
+  const [aiSettings, setAiSettings] = useState<AiSettings>(defaultAiSettings);
+  const [isLoadingAiSettings, setIsLoadingAiSettings] = useState(true);
+  const [apiKeyDraft, setApiKeyDraft] = useState('');
+  const [vaultPasswordDraft, setVaultPasswordDraft] = useState('');
+  const [vaultPasswordConfirmation, setVaultPasswordConfirmation] =
+    useState('');
+  const [isSavingApiKey, setIsSavingApiKey] = useState(false);
+  const [isTestingAiConnection, setIsTestingAiConnection] = useState(false);
+  const [aiSettingsError, setAiSettingsError] = useState<string | null>(null);
+  const [aiSettingsMessage, setAiSettingsMessage] = useState<string | null>(
+    null,
+  );
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
   const [jobsError, setJobsError] = useState<string | null>(null);
@@ -435,6 +502,11 @@ function App() {
   const [jobFormError, setJobFormError] = useState<string | null>(null);
   const [jobMessage, setJobMessage] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<JobDetail | null>(null);
+  const [selectedJobIds, setSelectedJobIds] = useState<number[]>([]);
+  const [jobAnalyses, setJobAnalyses] = useState<Record<number, JobAnalysisResponse>>({});
+  const [isAnalyzingJob, setIsAnalyzingJob] = useState(false);
+  const [analysisMessage, setAnalysisMessage] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isLoadingJobDetail, setIsLoadingJobDetail] = useState(false);
   const [jobDetailError, setJobDetailError] = useState<string | null>(null);
   const [applications, setApplications] = useState<
@@ -551,6 +623,39 @@ function App() {
       isMounted = false;
     };
   }, [selectedSourceKey]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAiSettings = async () => {
+      try {
+        const response = await fetch('/api/ai/settings');
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar a configuração da IA.');
+        }
+        const payload = (await response.json()) as AiSettings;
+        if (isMounted && payload) {
+          setAiSettings(payload);
+        }
+      } catch {
+        if (isMounted) {
+          setAiSettingsError(
+            'Não foi possível consultar a configuração local da IA.',
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingAiSettings(false);
+        }
+      }
+    };
+
+    void loadAiSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -906,6 +1011,149 @@ function App() {
     }
   };
 
+  const handleApiKeySubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const apiKey = apiKeyDraft.trim();
+    const vaultPassword = vaultPasswordDraft;
+    const needsUnlock =
+      aiSettings.storage === 'encrypted_database' && !aiSettings.unlocked;
+
+    if (!needsUnlock && !apiKey) {
+      setAiSettingsError('Informe a chave da API antes de salvar.');
+      return;
+    }
+    if (!vaultPassword) {
+      setAiSettingsError('Informe a senha do cofre local.');
+      return;
+    }
+    if (!needsUnlock && vaultPassword !== vaultPasswordConfirmation) {
+      setAiSettingsError('A confirmação da senha do cofre não confere.');
+      return;
+    }
+
+    setIsSavingApiKey(true);
+    setAiSettingsError(null);
+    setAiSettingsMessage(null);
+    try {
+      const response = await fetch(
+        needsUnlock ? '/api/ai/unlock' : '/api/ai/api-key',
+        {
+          body: JSON.stringify(
+            needsUnlock
+              ? { vault_password: vaultPassword }
+              : { api_key: apiKey, vault_password: vaultPassword },
+          ),
+          headers: { 'Content-Type': 'application/json' },
+          method: needsUnlock ? 'POST' : 'PUT',
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as
+        AiSettings | { detail?: string } | null;
+      if (!response.ok || !payload || !('configured' in payload)) {
+        const detail = payload && 'detail' in payload ? payload.detail : null;
+        throw new Error(detail ?? 'Não foi possível salvar a chave.');
+      }
+      setAiSettings(payload);
+      setApiKeyDraft('');
+      setVaultPasswordDraft('');
+      setVaultPasswordConfirmation('');
+      setAiSettingsMessage(
+        needsUnlock
+          ? 'Cofre desbloqueado somente nesta execução.'
+          : 'Chave criptografada e salva no banco local.',
+      );
+    } catch (error) {
+      setAiSettingsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível salvar a chave.',
+      );
+    } finally {
+      setIsSavingApiKey(false);
+    }
+  };
+
+  const handleApiKeyLock = async () => {
+    setIsSavingApiKey(true);
+    setAiSettingsError(null);
+    setAiSettingsMessage(null);
+    try {
+      const response = await fetch('/api/ai/lock', { method: 'POST' });
+      const payload = (await response.json().catch(() => null)) as
+        AiSettings | { detail?: string } | null;
+      if (!response.ok || !payload || !('configured' in payload)) {
+        const detail = payload && 'detail' in payload ? payload.detail : null;
+        throw new Error(detail ?? 'Não foi possível bloquear o cofre.');
+      }
+      setAiSettings(payload);
+      setAiSettingsMessage('Cofre bloqueado; a chave saiu da memória.');
+    } catch (error) {
+      setAiSettingsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível bloquear o cofre.',
+      );
+    } finally {
+      setIsSavingApiKey(false);
+    }
+  };
+
+  const handleOpenAiConnectionTest = async () => {
+    setIsTestingAiConnection(true);
+    setAiSettingsError(null);
+    setAiSettingsMessage(null);
+    try {
+      const response = await fetch('/api/ai/connection/test', {
+        method: 'POST',
+      });
+      const payload = (await response.json().catch(() => null)) as
+        AiConnectionTest | { detail?: string } | null;
+      if (!response.ok || !payload || !('status' in payload)) {
+        const detail = payload && 'detail' in payload ? payload.detail : null;
+        throw new Error(
+          detail ?? 'Não foi possível testar a conexão com a OpenAI.',
+        );
+      }
+      setAiSettingsMessage(`Conexão com ${payload.model} confirmada.`);
+    } catch (error) {
+      setAiSettingsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível testar a conexão com a OpenAI.',
+      );
+    } finally {
+      setIsTestingAiConnection(false);
+    }
+  };
+
+  const handleApiKeyRemoval = async () => {
+    setIsSavingApiKey(true);
+    setAiSettingsError(null);
+    setAiSettingsMessage(null);
+    try {
+      const response = await fetch('/api/ai/api-key', { method: 'DELETE' });
+      const payload = (await response.json().catch(() => null)) as
+        AiSettings | { detail?: string } | null;
+      if (!response.ok || !payload || !('configured' in payload)) {
+        const detail = payload && 'detail' in payload ? payload.detail : null;
+        throw new Error(detail ?? 'Não foi possível remover a chave.');
+      }
+      setAiSettings(payload);
+      setApiKeyDraft('');
+      setVaultPasswordDraft('');
+      setVaultPasswordConfirmation('');
+      setAiSettingsMessage('Chave criptografada removida do banco local.');
+    } catch (error) {
+      setAiSettingsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível remover a chave.',
+      );
+    } finally {
+      setIsSavingApiKey(false);
+    }
+  };
+
   const openJobForm = () => {
     setManualJobForm(defaultManualJobForm);
     setJobFormError(null);
@@ -981,6 +1229,56 @@ function App() {
     } finally {
       setIsLoadingJobDetail(false);
     }
+  };
+
+  const analyzeSelectedJobs = async (jobIds: number[]) => {
+    if (jobIds.length === 0) {
+      setAnalysisError('Selecione ao menos uma vaga para analisar.');
+      return;
+    }
+    if (!window.confirm(`Analisar ${jobIds.length} vaga${jobIds.length === 1 ? '' : 's'} com a IA?`)) {
+      return;
+    }
+    setIsAnalyzingJob(true);
+    setAnalysisError(null);
+    setAnalysisMessage(null);
+    const results = await Promise.allSettled(
+      jobIds.map(async (jobId) => {
+        const response = await fetch(`/api/jobs/${jobId}/analysis`, {
+          body: JSON.stringify({ mode: 'batch' }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | JobAnalysisResponse
+          | { detail?: string }
+          | null;
+        if (!response.ok || !payload || !('analysis_version' in payload)) {
+          throw new Error(
+            payload && 'detail' in payload
+              ? payload.detail ?? 'Falha na análise.'
+              : 'Falha na análise.',
+          );
+        }
+        return [jobId, payload] as const;
+      }),
+    );
+    const successes = results.filter(
+      (result): result is PromiseFulfilledResult<readonly [number, JobAnalysisResponse]> =>
+        result.status === 'fulfilled',
+    );
+    setJobAnalyses((current) => ({
+      ...current,
+      ...Object.fromEntries(successes.map((result) => result.value)),
+    }));
+    const failures = results.filter((result) => result.status === 'rejected');
+    setAnalysisMessage(
+      `${successes.length} análise${successes.length === 1 ? '' : 's'} concluída${successes.length === 1 ? '' : 's'}${failures.length ? `; ${failures.length} falhou` : ''}.`,
+    );
+    if (failures.length) {
+      setAnalysisError('Algumas vagas não puderam ser analisadas; as demais foram preservadas.');
+    }
+    setIsAnalyzingJob(false);
   };
 
   const refreshJobs = async () => {
@@ -1238,6 +1536,7 @@ function App() {
             <a href="#vagas">Vagas</a>
             <a href="#agenda">Agenda</a>
             <a href="#lixeira">Lixeira</a>
+            <a href="#ia">IA</a>
             <a href="#preferencias">Preferências</a>
           </nav>
 
@@ -1441,6 +1740,168 @@ function App() {
             </ul>
           )}
         </div>
+      </section>
+
+      <section
+        className="preferences-section ai-settings-section"
+        id="ia"
+        aria-labelledby="ai-settings-title"
+      >
+        <div className="preferences-intro">
+          <p className="eyebrow">IA LOCAL E CONTROLADA</p>
+          <h2 id="ai-settings-title">Conecte sua chave OpenAI</h2>
+          <p>
+            A chave é criptografada no banco local. A senha do cofre não é
+            gravada: ela apenas desbloqueia a chave nesta execução do app.
+          </p>
+        </div>
+
+        <form className="preferences-form" onSubmit={handleApiKeySubmit}>
+          {!aiSettings.configured && (
+            <div className="form-field form-field-wide">
+              <label htmlFor="openai-api-key">Chave da API OpenAI</label>
+              <input
+                autoComplete="new-password"
+                id="openai-api-key"
+                onChange={(event) => {
+                  setApiKeyDraft(event.target.value);
+                  setAiSettingsError(null);
+                  setAiSettingsMessage(null);
+                }}
+                placeholder="sk-…"
+                spellCheck={false}
+                type="password"
+                value={apiKeyDraft}
+              />
+              <span>
+                Modelo preparado: {aiSettings.model}. Nenhuma análise é iniciada
+                automaticamente.
+              </span>
+            </div>
+          )}
+
+          {aiSettings.storage !== 'environment' && !aiSettings.unlocked && (
+            <div className="form-field form-field-wide">
+              <label htmlFor="vault-password">
+                {aiSettings.configured
+                  ? 'Senha do cofre local'
+                  : 'Crie uma senha para o cofre local'}
+              </label>
+              <input
+                autoComplete="new-password"
+                id="vault-password"
+                minLength={12}
+                onChange={(event) => {
+                  setVaultPasswordDraft(event.target.value);
+                  setAiSettingsError(null);
+                  setAiSettingsMessage(null);
+                }}
+                spellCheck={false}
+                type="password"
+                value={vaultPasswordDraft}
+              />
+              {!aiSettings.configured && (
+                <span>Use ao menos 12 caracteres e guarde esta senha.</span>
+              )}
+            </div>
+          )}
+
+          {!aiSettings.configured && (
+            <div className="form-field form-field-wide">
+              <label htmlFor="vault-password-confirmation">
+                Confirme a senha do cofre local
+              </label>
+              <input
+                autoComplete="new-password"
+                id="vault-password-confirmation"
+                minLength={12}
+                onChange={(event) => {
+                  setVaultPasswordConfirmation(event.target.value);
+                  setAiSettingsError(null);
+                  setAiSettingsMessage(null);
+                }}
+                spellCheck={false}
+                type="password"
+                value={vaultPasswordConfirmation}
+              />
+            </div>
+          )}
+
+          <div className="form-field form-field-wide">
+            <span className="meta-label">
+              {isLoadingAiSettings
+                ? 'VERIFICANDO CONFIGURAÇÃO…'
+                : aiSettings.configured
+                  ? aiSettings.unlocked
+                    ? 'CHAVE CONFIGURADA E DESBLOQUEADA'
+                    : 'CHAVE CONFIGURADA E BLOQUEADA'
+                  : 'CHAVE AINDA NÃO CONFIGURADA'}
+            </span>
+            {!isLoadingAiSettings && (
+              <span>Armazenamento: {aiStorageLabel(aiSettings.storage)}.</span>
+            )}
+          </div>
+
+          {(aiSettingsError || aiSettingsMessage) && (
+            <p
+              className={`form-message${aiSettingsError ? ' is-error' : ' is-success'}`}
+              role="status"
+            >
+              {aiSettingsError || aiSettingsMessage}
+            </p>
+          )}
+
+          <div className="form-actions form-field-wide">
+            <button
+              className="primary-button"
+              disabled={isSavingApiKey || aiSettings.storage === 'environment'}
+              type="submit"
+            >
+              {isSavingApiKey
+                ? 'Salvando…'
+                : aiSettings.unlocked
+                  ? 'Chave disponível nesta execução'
+                  : aiSettings.configured
+                    ? 'Desbloquear chave'
+                    : 'Criptografar e salvar chave'}
+            </button>
+            {aiSettings.configured &&
+              aiSettings.storage === 'encrypted_database' && (
+                <>
+                  {aiSettings.unlocked && (
+                    <>
+                      <button
+                        className="text-button text-button-plain"
+                        disabled={isSavingApiKey || isTestingAiConnection}
+                        onClick={() => void handleOpenAiConnectionTest()}
+                        type="button"
+                      >
+                        {isTestingAiConnection
+                          ? 'Testando conexão…'
+                          : 'Testar conexão'}
+                      </button>
+                      <button
+                        className="text-button text-button-plain"
+                        disabled={isSavingApiKey || isTestingAiConnection}
+                        onClick={() => void handleApiKeyLock()}
+                        type="button"
+                      >
+                        Bloquear cofre
+                      </button>
+                    </>
+                  )}
+                  <button
+                    className="text-button text-button-plain danger-button"
+                    disabled={isSavingApiKey}
+                    onClick={() => void handleApiKeyRemoval()}
+                    type="button"
+                  >
+                    Remover chave local
+                  </button>
+                </>
+              )}
+          </div>
+        </form>
       </section>
 
       <section
@@ -2192,6 +2653,37 @@ function App() {
                 {selectedJob.company}
                 {selectedJob.location ? ` · ${selectedJob.location}` : ''}
               </p>
+              <div className="job-analysis-actions">
+                <button
+                  className="primary-button"
+                  disabled={isAnalyzingJob}
+                  onClick={() => void analyzeSelectedJobs([selectedJob.id])}
+                  type="button"
+                >
+                  {isAnalyzingJob ? 'Analisando…' : 'Analisar esta vaga com IA'}
+                </button>
+                {jobAnalyses[selectedJob.id] && (
+                  <span className="mono-note">
+                    Versão {jobAnalyses[selectedJob.id].analysis_version} ·{' '}
+                    {jobAnalyses[selectedJob.id].usage.fallback
+                      ? 'triagem local limitada'
+                      : `${jobAnalyses[selectedJob.id].usage.estimated_cost_usd == null ? 'custo indisponível' : `US$ ${jobAnalyses[selectedJob.id].usage.estimated_cost_usd!.toFixed(4)}`}`}
+                  </span>
+                )}
+              </div>
+              {jobAnalyses[selectedJob.id] && (
+                <div className="job-analysis-summary" role="status">
+                  <strong>
+                    Aderência: {jobAnalyses[selectedJob.id].fit.score}/100
+                  </strong>
+                  <p>{jobAnalyses[selectedJob.id].analysis.assessment.summary}</p>
+                  {jobAnalyses[selectedJob.id].analysis.assessment.warnings.length > 0 && (
+                    <p className="mono-note">
+                      {jobAnalyses[selectedJob.id].analysis.assessment.warnings.join(' · ')}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="job-detail-grid">
                 <div>
                   <span className="meta-label">ORIGENS</span>
@@ -2365,9 +2857,40 @@ function App() {
               </p>
             )}
           {!isLoadingJobs && !jobsError && visibleJobs.length > 0 && (
+            <>
+              <div className="job-bulk-actions">
+                <span className="mono-note">{selectedJobIds.length} selecionada(s)</span>
+                <button
+                  className="header-action"
+                  disabled={isAnalyzingJob || selectedJobIds.length === 0}
+                  onClick={() => void analyzeSelectedJobs(selectedJobIds)}
+                  type="button"
+                >
+                  Analisar selecionadas
+                </button>
+              </div>
+              {(analysisMessage || analysisError) && (
+                <p className={`form-message${analysisError ? ' is-error' : ' is-success'}`} role="status">
+                  {analysisError || analysisMessage}
+                </p>
+              )}
             <ul className="job-list">
               {visibleJobs.map((job) => (
                 <li className="job-row" key={job.id}>
+                  <label className="job-select-control">
+                    <input
+                      aria-label={`Selecionar ${job.title}`}
+                      checked={selectedJobIds.includes(job.id)}
+                      onChange={(event) =>
+                        setSelectedJobIds((current) =>
+                          event.target.checked
+                            ? [...current, job.id]
+                            : current.filter((id) => id !== job.id),
+                        )
+                      }
+                      type="checkbox"
+                    />
+                  </label>
                   <div className="job-row-main">
                     <span className="job-status">{job.status_label}</span>
                     <h3>{job.title}</h3>
@@ -2402,6 +2925,7 @@ function App() {
                 </li>
               ))}
             </ul>
+            </>
           )}
         </div>
       </section>
