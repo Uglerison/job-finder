@@ -569,10 +569,10 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Teste primeiro: origem válida/inválida, mutação sem token e reinício.
   - Aceite: página externa não consegue realizar mutações locais.
 
-- [ ] **JF-601 — Armazenar chave no Windows Credential Manager**
+- [x] **JF-601 — Armazenar chave criptografada no banco local**
   - Depende de: JF-016.
-  - Teste primeiro: salvar, recuperar, substituir, remover e keyring indisponível.
-  - Aceite: chave nunca aparece no banco, frontend ou logs.
+  - Teste primeiro: salvar, desbloquear, bloquear, remover, senha incorreta e indisponibilidade do cofre.
+  - Aceite: SQLite contém somente ciphertext e salt; a senha do cofre não é persistida; chave nunca aparece em API de leitura, interface ou logs.
 
 - [ ] **JF-602 — Bloquear SSRF e URLs perigosas**
   - Depende de: JF-016.
@@ -722,15 +722,18 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-215 | Concluída | Exportação CSV/JSON filtrável, codificação Excel-friendly e neutralização de fórmulas; 65 testes backend verdes |
 | 15/08/2026 | JF-216 | Concluída | Lixeira com soft-delete, restauração, expiração por retenção e proteção de candidaturas vinculadas; migração `0011_recoverable_trash`, UI de restauração/confirmação, 68 testes backend e 12 Vitest verdes |
 | 15/08/2026 | JF-300–JF-313 | Concluída | E4 completa: contrato de adaptadores, três fontes públicas, configuração sem segredos, runs auditáveis, cancelamento, scheduler persistente, cliente HTTP resiliente, limites/backoff, deduplicação exata/aproximada e painel; 49 testes unitários backend, 2 testes API E4, Ruff e Mypy verdes |
+| 15/08/2026 | JF-601 | Concluída | Cofre SQLite cifrado por senha transitória, UI local e migração `0013_ai_secrets`; testes de ausência de plaintext, bloqueio/desbloqueio, API e interface verdes. |
+| 15/08/2026 | JF-009 | Coleta iniciada | 57 vagas públicas persistidas por execuções auditáveis de `Data Analyst`, `Business Intelligence` e `Data`; falta selecionar 30–50 e rotular após a chave e os critérios finais. |
 
 ## Bloqueios e decisões pendentes
 
 | Data | Tarefa | Bloqueio/decisão | Responsável | Próxima ação |
 |---|---|---|---|---|
-| 15/08/2026 | JF-004 | Falta consolidar o perfil profissional de referência | Usuário | Fornecer currículo ou preencher critérios no onboarding quando disponível |
+| 15/08/2026 | JF-004 | Currículo privado analisado sem ser versionado; ainda faltam confirmação de senioridade, idiomas, regime, localização e faixa salarial | Usuário | Confirmar esses critérios no onboarding antes da avaliação final |
 | 15/08/2026 | JF-005 | Fontes dependem de países, cargos e regime desejados | Projeto | Selecionar após JF-004 |
 | 15/08/2026 | JF-006 | Orçamento mensal ainda não definido | Usuário | Definir antes de ativar buscas automáticas |
 | 15/08/2026 | JF-005/JF-006 | E4 foi implementada com Remote OK, Arbeitnow e Jobicy, agendamento desligado e limites padrão de 50 execuções/dia e 50 vagas/run para não bloquear o desenvolvimento | Projeto | Usuário pode substituir fontes, termos, frequência e limites em `/api/sources` antes de ativar automação |
+| 15/08/2026 | JF-009 | O conjunto de avaliação depende de rótulos humanos e dos critérios finais do perfil; a coleta pública já está no banco local | Usuário + Projeto | Salvar a chave no painel IA e confirmar o perfil para iniciar a seleção e rotulagem assistida |
 
 ## Ideias fora do MVP
 

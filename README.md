@@ -25,6 +25,21 @@ pnpm --filter job-finder-web test
 pnpm --filter job-finder-web build
 ```
 
+## Abrir a aplicação local
+
+Após instalar as dependências e compilar a interface, inicie a aplicação. Ela
+abre o navegador na URL local e escuta apenas em `127.0.0.1`:
+
+```powershell
+pnpm --filter job-finder-web build
+.\.venv\Scripts\python.exe scripts\run_local.py
+```
+
+Para cadastrar a chave, abra a seção **IA** da navegação. A chave OpenAI é
+gravada apenas como ciphertext no SQLite local; crie e guarde uma senha de
+cofre com pelo menos 12 caracteres. Essa senha não é persistida e será pedida
+para desbloquear a chave depois que o aplicativo for reiniciado.
+
 ## Smoke test local
 
 Com o frontend compilado, valide a fundação completa no Windows:
@@ -53,6 +68,13 @@ Os contratos HTTP locais principais são:
 Cada execução registra duração, contadores, cursor, falhas e cancelamento. A
 deduplicação exata usa URL canônica, identidade externa e hash de conteúdo; uma
 semelhança de cargo/empresa/local fica pendente até confirmação explícita.
+
+## Chave OpenAI local
+
+O modelo preparado é `gpt-5.6-luna`. A configuração local não inicia análises
+automaticamente: ela apenas deixa a futura triagem pronta para ser ativada. A
+senha do cofre e a chave nunca são devolvidas pela API, mostradas novamente na
+interface ou gravadas nos logs.
 
 ## Qualidade de código
 

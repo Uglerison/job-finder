@@ -332,8 +332,9 @@ O identificador será configurado como `gpt-5.6-luna`, usando a Responses API. A
 
 ### 10.4 Segurança da chave e privacidade
 
-- solicitar a chave na primeira execução e armazená-la no Windows Credential Manager;
-- nunca gravar a chave em banco, logs, Git ou frontend;
+- solicitar a chave na primeira execução e gravá-la apenas como ciphertext no SQLite local;
+- proteger o ciphertext com senha de cofre não persistida, exigida após reiniciar para desbloqueio apenas em memória;
+- nunca gravar a chave em plaintext, a senha do cofre, logs ou Git; nunca devolver a chave pela API nem exibi-la novamente na interface;
 - chamar a OpenAI exclusivamente pelo backend local;
 - enviar somente dados necessários, com remoção opcional de nome, telefone, e-mail, endereço e documentos;
 - mostrar claramente quais dados serão enviados antes da primeira análise;
@@ -422,7 +423,7 @@ Estimativas abaixo consideram uma pessoa desenvolvedora em dedicação principal
 
 ### Fase 4 — Inteligência e avaliação (5–8 dias)
 
-- integração com Responses API e Credential Manager;
+- integração com Responses API e cofre SQLite criptografado;
 - schemas de extração e aderência;
 - filtros determinísticos e pontuação híbrida;
 - custos, limites, cache e fallback;
@@ -530,7 +531,7 @@ O MVP estará pronto quando:
 | Restrição de termos ou bloqueio anti-bot | Fonte indisponível | Priorizar APIs/feeds, limitar frequência e oferecer importação manual |
 | Classificação incorreta da IA | Boas vagas descartadas | Filtros explicáveis, confiança, caixa de revisão e evals |
 | Custos inesperados | Orçamento excedido | Tetos, alertas, cache, lotes e medição por operação |
-| Vazamento de dados pessoais | Dano de privacidade | Redação, minimização, keyring e logs sem conteúdo sensível |
+| Vazamento de dados pessoais | Dano de privacidade | Redação, minimização, cofre SQLite cifrado e logs sem conteúdo sensível |
 | Banco local corrompido | Perda de histórico | WAL, backups automáticos, verificação e restauração testada |
 | Executável bloqueado pelo Windows | Má experiência | build reproduzível, assinatura futura e documentação clara |
 | Métricas enganosas | Decisões ruins | definições versionadas, testes de agregação e denominadores visíveis |

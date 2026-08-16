@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from job_finder import __version__
+from job_finder.ai_settings_api import router as ai_settings_router
 from job_finder.applications_api import router as applications_router
 from job_finder.database import create_database_engine, create_session_factory, run_migrations
 from job_finder.export_api import router as export_router
@@ -23,6 +24,7 @@ from job_finder.process_events_api import router as process_events_router
 from job_finder.profile_api import router as profile_router
 from job_finder.scheduler import PersistentScheduler
 from job_finder.search_runs import SearchTaskRegistry
+from job_finder.secret_store import EncryptedDatabaseVault
 from job_finder.settings import Settings, get_settings
 from job_finder.source_adapters import SourceRegistry
 from job_finder.sources_api import router as sources_router
@@ -49,6 +51,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         engine = create_database_engine(settings.data_dir)
         application.state.database_engine = engine
         application.state.session_factory = create_session_factory(engine)
+        application.state.secret_vault = EncryptedDatabaseVault(application.state.session_factory)
         application.state.scheduler = PersistentScheduler()
         with application.state.session_factory() as session:
             application.state.scheduler.recover_interrupted_runs(session)
@@ -80,6 +83,7 @@ def create_app(
     application.state.source_registry = SourceRegistry()
     application.state.search_tasks = SearchTaskRegistry()
     application.include_router(profile_router)
+    application.include_router(ai_settings_router)
     application.include_router(preferences_router)
     application.include_router(filters_router)
     application.include_router(privacy_router)

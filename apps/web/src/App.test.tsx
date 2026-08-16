@@ -10,6 +10,17 @@ describe('App', () => {
     vi.stubGlobal('fetch', fetchMock);
     fetchMock.mockImplementation(
       (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (_input === '/api/ai/settings') {
+          return Promise.resolve({
+            json: async () => ({
+              configured: false,
+              unlocked: false,
+              model: 'gpt-5.6-luna',
+              storage: 'not_configured',
+            }),
+            ok: true,
+          });
+        }
         if (init?.method === 'PUT') {
           return Promise.resolve({
             json: async () => ({
@@ -245,6 +256,79 @@ describe('App', () => {
     expect(JSON.parse(options.body as string)).toMatchObject({
       locale: 'en-US',
       retention_days: 90,
+    });
+  });
+
+  it('envia a chave somente ao backend local e nunca a exibe novamente', async () => {
+    const apiKey = 'sk-test-only-12345678901234567890';
+    const vaultPassword = 'uma senha local longa';
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/ai/settings') {
+          return Promise.resolve({
+            json: async () => ({
+              configured: false,
+              unlocked: false,
+              model: 'gpt-5.6-luna',
+              storage: 'not_configured',
+            }),
+            ok: true,
+          });
+        }
+        if (input === '/api/ai/api-key' && init?.method === 'PUT') {
+          return Promise.resolve({
+            json: async () => ({
+              configured: true,
+              unlocked: true,
+              model: 'gpt-5.6-luna',
+              storage: 'encrypted_database',
+            }),
+            ok: true,
+          });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Conecte sua chave OpenAI' }),
+    ).toBeInTheDocument();
+    const input = screen.getByLabelText('Chave da API OpenAI');
+    expect(input).toHaveAttribute('type', 'password');
+    fireEvent.change(input, { target: { value: apiKey } });
+    fireEvent.change(
+      screen.getByLabelText('Crie uma senha para o cofre local'),
+      {
+        target: { value: vaultPassword },
+      },
+    );
+    fireEvent.change(screen.getByLabelText('Confirme a senha do cofre local'), {
+      target: { value: vaultPassword },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Criptografar e salvar chave' }),
+    );
+
+    expect(
+      await screen.findByText('Chave criptografada e salva no banco local.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Chave da API OpenAI'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Crie uma senha para o cofre local'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(apiKey)).not.toBeInTheDocument();
+    expect(screen.queryByText(vaultPassword)).not.toBeInTheDocument();
+    const [, options] = fetchMock.mock.calls.find(
+      ([calledInput, init]) =>
+        calledInput === '/api/ai/api-key' && init?.method === 'PUT',
+    ) as [string, RequestInit];
+    expect(JSON.parse(options.body as string)).toEqual({
+      api_key: apiKey,
+      vault_password: vaultPassword,
     });
   });
 

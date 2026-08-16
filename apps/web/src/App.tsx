@@ -45,6 +45,13 @@ type Preferences = {
   retention_days: number;
 };
 
+type AiSettings = {
+  configured: boolean;
+  unlocked: boolean;
+  model: 'gpt-5.6-luna';
+  storage: 'encrypted_database' | 'environment' | 'not_configured';
+};
+
 type JobListItem = {
   canonical_url: string | null;
   company: string;
@@ -261,6 +268,13 @@ const defaultPreferences: Preferences = {
   timezone: 'America/Sao_Paulo',
 };
 
+const defaultAiSettings: AiSettings = {
+  configured: false,
+  unlocked: false,
+  model: 'gpt-5.6-luna',
+  storage: 'not_configured',
+};
+
 const defaultManualJobForm: ManualJobFormState = {
   canonicalUrl: '',
   company: '',
@@ -401,6 +415,14 @@ function replacementLabel(kind: string): string {
   );
 }
 
+function aiStorageLabel(storage: AiSettings['storage']): string {
+  return {
+    encrypted_database: 'banco local criptografado',
+    environment: 'variável de ambiente local',
+    not_configured: 'ainda não configurada',
+  }[storage];
+}
+
 function App() {
   const [formState, setFormState] =
     useState<ProfileFormState>(defaultFormState);
@@ -424,6 +446,17 @@ function App() {
     null,
   );
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
+  const [aiSettings, setAiSettings] = useState<AiSettings>(defaultAiSettings);
+  const [isLoadingAiSettings, setIsLoadingAiSettings] = useState(true);
+  const [apiKeyDraft, setApiKeyDraft] = useState('');
+  const [vaultPasswordDraft, setVaultPasswordDraft] = useState('');
+  const [vaultPasswordConfirmation, setVaultPasswordConfirmation] =
+    useState('');
+  const [isSavingApiKey, setIsSavingApiKey] = useState(false);
+  const [aiSettingsError, setAiSettingsError] = useState<string | null>(null);
+  const [aiSettingsMessage, setAiSettingsMessage] = useState<string | null>(
+    null,
+  );
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
   const [jobsError, setJobsError] = useState<string | null>(null);
@@ -551,6 +584,39 @@ function App() {
       isMounted = false;
     };
   }, [selectedSourceKey]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAiSettings = async () => {
+      try {
+        const response = await fetch('/api/ai/settings');
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar a configuração da IA.');
+        }
+        const payload = (await response.json()) as AiSettings;
+        if (isMounted && payload) {
+          setAiSettings(payload);
+        }
+      } catch {
+        if (isMounted) {
+          setAiSettingsError(
+            'Não foi possível consultar a configuração local da IA.',
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingAiSettings(false);
+        }
+      }
+    };
+
+    void loadAiSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -906,6 +972,121 @@ function App() {
     }
   };
 
+  const handleApiKeySubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const apiKey = apiKeyDraft.trim();
+    const vaultPassword = vaultPasswordDraft;
+    const needsUnlock =
+      aiSettings.storage === 'encrypted_database' && !aiSettings.unlocked;
+
+    if (!needsUnlock && !apiKey) {
+      setAiSettingsError('Informe a chave da API antes de salvar.');
+      return;
+    }
+    if (!vaultPassword) {
+      setAiSettingsError('Informe a senha do cofre local.');
+      return;
+    }
+    if (!needsUnlock && vaultPassword !== vaultPasswordConfirmation) {
+      setAiSettingsError('A confirmação da senha do cofre não confere.');
+      return;
+    }
+
+    setIsSavingApiKey(true);
+    setAiSettingsError(null);
+    setAiSettingsMessage(null);
+    try {
+      const response = await fetch(
+        needsUnlock ? '/api/ai/unlock' : '/api/ai/api-key',
+        {
+          body: JSON.stringify(
+            needsUnlock
+              ? { vault_password: vaultPassword }
+              : { api_key: apiKey, vault_password: vaultPassword },
+          ),
+          headers: { 'Content-Type': 'application/json' },
+          method: needsUnlock ? 'POST' : 'PUT',
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as
+        AiSettings | { detail?: string } | null;
+      if (!response.ok || !payload || !('configured' in payload)) {
+        const detail = payload && 'detail' in payload ? payload.detail : null;
+        throw new Error(detail ?? 'Não foi possível salvar a chave.');
+      }
+      setAiSettings(payload);
+      setApiKeyDraft('');
+      setVaultPasswordDraft('');
+      setVaultPasswordConfirmation('');
+      setAiSettingsMessage(
+        needsUnlock
+          ? 'Cofre desbloqueado somente nesta execução.'
+          : 'Chave criptografada e salva no banco local.',
+      );
+    } catch (error) {
+      setAiSettingsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível salvar a chave.',
+      );
+    } finally {
+      setIsSavingApiKey(false);
+    }
+  };
+
+  const handleApiKeyLock = async () => {
+    setIsSavingApiKey(true);
+    setAiSettingsError(null);
+    setAiSettingsMessage(null);
+    try {
+      const response = await fetch('/api/ai/lock', { method: 'POST' });
+      const payload = (await response.json().catch(() => null)) as
+        AiSettings | { detail?: string } | null;
+      if (!response.ok || !payload || !('configured' in payload)) {
+        const detail = payload && 'detail' in payload ? payload.detail : null;
+        throw new Error(detail ?? 'Não foi possível bloquear o cofre.');
+      }
+      setAiSettings(payload);
+      setAiSettingsMessage('Cofre bloqueado; a chave saiu da memória.');
+    } catch (error) {
+      setAiSettingsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível bloquear o cofre.',
+      );
+    } finally {
+      setIsSavingApiKey(false);
+    }
+  };
+
+  const handleApiKeyRemoval = async () => {
+    setIsSavingApiKey(true);
+    setAiSettingsError(null);
+    setAiSettingsMessage(null);
+    try {
+      const response = await fetch('/api/ai/api-key', { method: 'DELETE' });
+      const payload = (await response.json().catch(() => null)) as
+        AiSettings | { detail?: string } | null;
+      if (!response.ok || !payload || !('configured' in payload)) {
+        const detail = payload && 'detail' in payload ? payload.detail : null;
+        throw new Error(detail ?? 'Não foi possível remover a chave.');
+      }
+      setAiSettings(payload);
+      setApiKeyDraft('');
+      setVaultPasswordDraft('');
+      setVaultPasswordConfirmation('');
+      setAiSettingsMessage('Chave criptografada removida do banco local.');
+    } catch (error) {
+      setAiSettingsError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível remover a chave.',
+      );
+    } finally {
+      setIsSavingApiKey(false);
+    }
+  };
+
   const openJobForm = () => {
     setManualJobForm(defaultManualJobForm);
     setJobFormError(null);
@@ -1238,6 +1419,7 @@ function App() {
             <a href="#vagas">Vagas</a>
             <a href="#agenda">Agenda</a>
             <a href="#lixeira">Lixeira</a>
+            <a href="#ia">IA</a>
             <a href="#preferencias">Preferências</a>
           </nav>
 
@@ -1441,6 +1623,156 @@ function App() {
             </ul>
           )}
         </div>
+      </section>
+
+      <section
+        className="preferences-section ai-settings-section"
+        id="ia"
+        aria-labelledby="ai-settings-title"
+      >
+        <div className="preferences-intro">
+          <p className="eyebrow">IA LOCAL E CONTROLADA</p>
+          <h2 id="ai-settings-title">Conecte sua chave OpenAI</h2>
+          <p>
+            A chave é criptografada no banco local. A senha do cofre não é
+            gravada: ela apenas desbloqueia a chave nesta execução do app.
+          </p>
+        </div>
+
+        <form className="preferences-form" onSubmit={handleApiKeySubmit}>
+          {!aiSettings.configured && (
+            <div className="form-field form-field-wide">
+              <label htmlFor="openai-api-key">Chave da API OpenAI</label>
+              <input
+                autoComplete="new-password"
+                id="openai-api-key"
+                onChange={(event) => {
+                  setApiKeyDraft(event.target.value);
+                  setAiSettingsError(null);
+                  setAiSettingsMessage(null);
+                }}
+                placeholder="sk-…"
+                spellCheck={false}
+                type="password"
+                value={apiKeyDraft}
+              />
+              <span>
+                Modelo preparado: {aiSettings.model}. Nenhuma análise é iniciada
+                automaticamente.
+              </span>
+            </div>
+          )}
+
+          {aiSettings.storage !== 'environment' && !aiSettings.unlocked && (
+            <div className="form-field form-field-wide">
+              <label htmlFor="vault-password">
+                {aiSettings.configured
+                  ? 'Senha do cofre local'
+                  : 'Crie uma senha para o cofre local'}
+              </label>
+              <input
+                autoComplete="new-password"
+                id="vault-password"
+                minLength={12}
+                onChange={(event) => {
+                  setVaultPasswordDraft(event.target.value);
+                  setAiSettingsError(null);
+                  setAiSettingsMessage(null);
+                }}
+                spellCheck={false}
+                type="password"
+                value={vaultPasswordDraft}
+              />
+              {!aiSettings.configured && (
+                <span>Use ao menos 12 caracteres e guarde esta senha.</span>
+              )}
+            </div>
+          )}
+
+          {!aiSettings.configured && (
+            <div className="form-field form-field-wide">
+              <label htmlFor="vault-password-confirmation">
+                Confirme a senha do cofre local
+              </label>
+              <input
+                autoComplete="new-password"
+                id="vault-password-confirmation"
+                minLength={12}
+                onChange={(event) => {
+                  setVaultPasswordConfirmation(event.target.value);
+                  setAiSettingsError(null);
+                  setAiSettingsMessage(null);
+                }}
+                spellCheck={false}
+                type="password"
+                value={vaultPasswordConfirmation}
+              />
+            </div>
+          )}
+
+          <div className="form-field form-field-wide">
+            <span className="meta-label">
+              {isLoadingAiSettings
+                ? 'VERIFICANDO CONFIGURAÇÃO…'
+                : aiSettings.configured
+                  ? aiSettings.unlocked
+                    ? 'CHAVE CONFIGURADA E DESBLOQUEADA'
+                    : 'CHAVE CONFIGURADA E BLOQUEADA'
+                  : 'CHAVE AINDA NÃO CONFIGURADA'}
+            </span>
+            {!isLoadingAiSettings && (
+              <span>Armazenamento: {aiStorageLabel(aiSettings.storage)}.</span>
+            )}
+          </div>
+
+          {(aiSettingsError || aiSettingsMessage) && (
+            <p
+              className={`form-message${aiSettingsError ? ' is-error' : ' is-success'}`}
+              role="status"
+            >
+              {aiSettingsError || aiSettingsMessage}
+            </p>
+          )}
+
+          <div className="form-actions form-field-wide">
+            <button
+              className="primary-button"
+              disabled={isSavingApiKey || aiSettings.storage === 'environment'}
+              type="submit"
+            >
+              {isSavingApiKey
+                ? 'Salvando…'
+                : aiSettings.unlocked
+                  ? 'Chave disponível nesta execução'
+                  : aiSettings.configured
+                    ? 'Desbloquear chave'
+                    : 'Criptografar e salvar chave'}
+            </button>
+            {aiSettings.configured &&
+              aiSettings.storage === 'encrypted_database' && (
+                <>
+                  {aiSettings.unlocked && (
+                    <button
+                      className="text-button text-button-plain"
+                      disabled={isSavingApiKey}
+                      onClick={() => void handleApiKeyLock()}
+                      type="button"
+                    >
+                      Bloquear cofre
+                    </button>
+                  )}
+                  <button
+                    className="text-button text-button-plain danger-button"
+                    disabled={isSavingApiKey}
+                    onClick={() => void handleApiKeyRemoval()}
+                    type="button"
+                  >
+                    Remover chave local
+                  </button>
+                </>
+              )}
+          </div>
+        </form>
       </section>
 
       <section
