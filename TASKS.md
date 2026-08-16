@@ -593,10 +593,12 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Evidência: seção `#dashboard` com período, cartões, `<progress>` acessível, funil,
     tabela semanal, tabela por fonte e resumo de agenda; cobertura Vitest adicionada.
 
-- [ ] **JF-506 — Implementar filtros salvos**
+- [x] **JF-506 — Implementar filtros salvos**
   - Depende de: JF-204 e JF-505.
   - Teste primeiro: criar, aplicar, renomear, excluir e filtro inválido após migração.
   - Aceite: filtros funcionam em vagas e dashboard.
+  - Evidência: migração `0016_saved_filters`, CRUD em `/api/saved-filters` com validação
+    de chaves permitidas e controles na caixa de entrada para salvar/aplicar busca e período.
 
 - [x] **JF-507 — Criar painel de agenda e prazos**
   - Depende de: JF-213 e JF-505.

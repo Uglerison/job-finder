@@ -204,6 +204,12 @@ type DashboardSummary = {
   }[];
 };
 
+type SavedFilter = {
+  id: number;
+  name: string;
+  query: { days?: string | null; q?: string | null; source_key?: string | null; status?: string | null };
+};
+
 type AnalysisUsage = {
   estimated_cost_usd: number | null;
   fallback: boolean;
@@ -572,6 +578,10 @@ function App() {
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [dashboardDays, setDashboardDays] = useState('30');
   const [isJobsPayloadReady, setIsJobsPayloadReady] = useState(false);
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+  const [savedFilterName, setSavedFilterName] = useState('');
+  const [selectedSavedFilter, setSelectedSavedFilter] = useState('');
+  const [savedFilterMessage, setSavedFilterMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -670,6 +680,33 @@ function App() {
       isMounted = false;
     };
   }, [dashboardDays, isJobsPayloadReady, preferences.timezone]);
+
+  useEffect(() => {
+    if (!isJobsPayloadReady) {
+      return;
+    }
+    let isMounted = true;
+    void fetch('/api/saved-filters')
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar filtros salvos.');
+        }
+        return (await response.json()) as SavedFilter[];
+      })
+      .then((payload) => {
+        if (isMounted) {
+          setSavedFilters(Array.isArray(payload) ? payload : []);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setSavedFilterMessage('Não foi possível carregar os filtros salvos.');
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [isJobsPayloadReady]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1377,6 +1414,46 @@ function App() {
     }
     const payload = (await response.json()) as { items?: JobListItem[] } | null;
     setJobs(Array.isArray(payload?.items) ? payload.items : []);
+  };
+
+  const saveCurrentFilter = async () => {
+    const name = savedFilterName.trim();
+    if (!name) {
+      setSavedFilterMessage('Dê um nome ao filtro antes de salvar.');
+      return;
+    }
+    try {
+      const response = await fetch('/api/saved-filters', {
+        body: JSON.stringify({
+          name,
+          query: { days: dashboardDays, q: jobSearch.trim() || null },
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+      const payload = (await response.json().catch(() => null)) as SavedFilter | { detail?: string } | null;
+      if (!response.ok || !payload || !('id' in payload)) {
+        throw new Error(payload && 'detail' in payload ? payload.detail : 'Não foi possível salvar o filtro.');
+      }
+      setSavedFilters((current) => [...current, payload]);
+      setSavedFilterName('');
+      setSavedFilterMessage('Filtro salvo localmente.');
+    } catch (error) {
+      setSavedFilterMessage(error instanceof Error ? error.message : 'Não foi possível salvar o filtro.');
+    }
+  };
+
+  const applySavedFilter = (filterId: string) => {
+    setSelectedSavedFilter(filterId);
+    const saved = savedFilters.find((filter) => String(filter.id) === filterId);
+    if (!saved) {
+      return;
+    }
+    setJobSearch(saved.query.q ?? '');
+    if (saved.query.days) {
+      setDashboardDays(saved.query.days);
+    }
+    setSavedFilterMessage(`Filtro “${saved.name}” aplicado.`);
   };
 
   const refreshSourceRuns = async () => {
@@ -2852,6 +2929,42 @@ function App() {
               Adicionar vaga
             </button>
           </div>
+          <div className="saved-filter-toolbar">
+            <label htmlFor="saved-filter-select">Filtro salvo</label>
+            <select
+              id="saved-filter-select"
+              onChange={(event) => applySavedFilter(event.target.value)}
+              value={selectedSavedFilter}
+            >
+              <option value="">Nenhum filtro salvo</option>
+              {savedFilters.map((filter) => (
+                <option key={filter.id} value={filter.id}>
+                  {filter.name}
+                </option>
+              ))}
+            </select>
+            <label className="saved-filter-name" htmlFor="saved-filter-name">
+              Nome
+              <input
+                id="saved-filter-name"
+                onChange={(event) => setSavedFilterName(event.target.value)}
+                placeholder="ex.: Backend remoto"
+                value={savedFilterName}
+              />
+            </label>
+            <button
+              className="card-link"
+              onClick={() => void saveCurrentFilter()}
+              type="button"
+            >
+              Salvar filtro atual
+            </button>
+          </div>
+          {savedFilterMessage && (
+            <p className="form-message" role="status">
+              {savedFilterMessage}
+            </p>
+          )}
 
           {isLoadingJobDetail && (
             <p className="jobs-feedback" role="status">

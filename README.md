@@ -137,6 +137,9 @@ semanais, desempenho por fonte e contadores de agenda. Vagas removidas não
 entram nos denominadores; quando uma vaga possui várias origens, a primeira
 origem registrada recebe o crédito de conversão.
 
+Filtros recorrentes podem ser salvos e aplicados pela caixa de entrada em
+`/api/saved-filters`; somente campos de busca aprovados são persistidos.
+
 ## Qualidade de código
 
 No backend, execute as verificações com o ambiente virtual do projeto:
