@@ -145,3 +145,28 @@ async def test_provider_credential_is_encrypted_and_can_be_unlocked(application)
     }
     assert locked.status_code == 200
     assert "jsearch-local-key" not in saved.text
+
+
+@pytest.mark.anyio
+async def test_one_vault_password_unlocks_all_configured_providers(application) -> None:
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        await client.put(
+            "/api/search/providers/jsearch",
+            json={"api_key": "jsearch-local-key", "vault_password": "senha local com doze"},
+        )
+        await client.put(
+            "/api/search/providers/jooble",
+            json={"api_key": "jooble-local-key", "vault_password": "senha local com doze"},
+        )
+        application.state.secret_vault.lock()
+        unlocked = await client.post(
+            "/api/search/providers/unlock-all",
+            json={"vault_password": "senha local com doze"},
+        )
+
+    assert unlocked.status_code == 200
+    payload = {item["provider"]: item for item in unlocked.json()}
+    assert payload["jsearch"]["unlocked"] is True
+    assert payload["jooble"]["unlocked"] is True
+    assert all("api_key" not in item and "secret" not in item for item in unlocked.json())

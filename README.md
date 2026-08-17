@@ -77,10 +77,37 @@ pnpm --filter job-finder-web build
 .\.venv\Scripts\python.exe scripts\run_local.py
 ```
 
-Para cadastrar a chave, abra a seção **IA** da navegação. A chave OpenAI é
-gravada apenas como ciphertext no SQLite local; crie e guarde uma senha de
-cofre com pelo menos 12 caracteres. Essa senha não é persistida e será pedida
-para desbloquear a chave depois que o aplicativo for reiniciado.
+Para cadastrar credenciais, abra **Configurações → Fontes e integrações**. As
+chaves OpenAI e dos providers são gravadas apenas como ciphertext no SQLite
+local; crie e guarde uma senha de cofre com pelo menos 12 caracteres. Informe-a
+uma vez em **Desbloquear credenciais cadastradas** para liberar todas as
+integrações durante a sessão. A senha não é persistida.
+
+## Navegação por páginas
+
+Cada etapa do fluxo tem uma URL própria e compartilha o mesmo layout. Trocar de
+página não perde o estado: perfil, credenciais, vagas, candidaturas, agendas,
+preferências e histórico continuam persistidos no backend/SQLite local.
+
+| Rota | Responsabilidade |
+| --- | --- |
+| `/` | Início, progresso de configuração e próximos passos |
+| `/perfil` | Perfil profissional e prévia segura para a IA |
+| `/busca` | Pesquisa manual de vagas |
+| `/vagas` | Caixa de entrada, detalhes, análises e ação “Marcar como aplicada” |
+| `/candidaturas` | Pipeline de candidaturas e transições de fase |
+| `/agenda` | Buscas automáticas e vagas coletadas por cada agenda |
+| `/insights` | Recursos de IA, privacidade e análises recentes |
+| `/painel` | Métricas, funil e séries de acompanhamento |
+| `/configuracoes` | Visão geral das configurações |
+| `/configuracoes/fontes` | JSearch, Adzuna, Jooble, fontes públicas, API keys e cofre |
+| `/configuracoes/preferencias` | Idioma, moeda, timezone e retenção local |
+| `/configuracoes/historico` | Histórico técnico de buscas e versões do perfil |
+| `/configuracoes/lixeira` | Vagas removidas e restauração/exclusão definitiva |
+
+O fluxo recomendado é **Configurar → Buscar → Avaliar → Aplicar → Acompanhar**.
+O botão de preparação de entrevista permanece fora do produto e direciona para
+[Se Prepara AI](https://sepreparai.com.br/).
 
 ## Smoke test local
 
@@ -134,13 +161,15 @@ o Job Finder antes de restaurar para liberar conexões SQLite no Windows.
 ## Primeiro uso e configuração
 
 1. Abra **Perfil** e salve cargos, competências, localização, regime e filtros.
-2. Em **IA**, crie a senha do cofre e informe a chave OpenAI. A senha não é
-   persistida; a chave é armazenada somente cifrada no SQLite local.
+2. Em **Configurações → Fontes e integrações**, crie a senha do cofre e
+   informe as chaves OpenAI/providers que desejar. Use a mesma senha no bloco
+   do cofre para desbloquear todas as credenciais cadastradas. A senha não é
+   persistida; as chaves são armazenadas somente cifradas no SQLite local.
 3. Em **Busca**, informe cargo e localização e execute a busca unificada.
 4. Se usar JSearch, configure a chave RapidAPI no cofre local ou em
    `JOB_FINDER_JSEARCH_API_KEY`. O endpoint atual é `/search-v2`.
-5. Abra o detalhe da vaga para analisar, descartar, manter em espera ou usar
-   **Marcar como aplicada**.
+5. Abra **Vagas** para analisar, descartar, manter em espera ou usar **Marcar
+   como aplicada**.
 
 O aplicativo não envia candidaturas automaticamente. O botão de preparação de
 entrevista direciona para o produto externo [Se Prepara AI](https://sepreparai.com.br/).
@@ -167,10 +196,10 @@ senhas e dados pessoais detectáveis são redigidos antes de serem gravados.
 
 ## Busca e fontes (E4)
 
-A área **Busca unificada** consulta providers em sequência sem pedir que o
-usuário escolha uma API. Remote OK, Arbeitnow e Jobicy continuam listados no
-painel técnico como fallback legado, sem credenciais; o agendamento fica
-desligado por padrão.
+A área **Busca unificada** (`/busca`) consulta providers em sequência sem pedir
+que o usuário escolha uma API. Remote OK, Arbeitnow e Jobicy continuam listados
+em **Configurações → Fontes e integrações** como fallback legado, sem
+credenciais; o agendamento fica em `/agenda` e desligado por padrão.
 
 Os contratos HTTP locais principais são:
 
@@ -178,6 +207,7 @@ Os contratos HTTP locais principais são:
 - `POST /api/sources/{source_key}/test` para testar uma fonte sem persistir vagas;
 - `POST /api/search-runs` para execuções legadas auditáveis (`wait=true` é útil em testes);
 - `GET /api/search-runs` e `POST /api/search-runs/{id}/cancel` para acompanhar/cancelar;
+- `GET /api/search/providers`, `PUT /api/search/providers/{provider}` e `POST /api/search/providers/unlock-all` para credenciais e desbloqueio único do cofre;
 - `GET /api/duplicates` e `POST /api/duplicates/{id}/confirm|dismiss` para revisão;
 - `POST /api/scheduler/tick` para disparar fontes agendadas já vencidas.
 
@@ -187,7 +217,7 @@ semelhança de cargo/empresa/local fica pendente até confirmação explícita.
 
 ### Agendas da busca unificada
 
-Na seção **Agendador local**, salve uma consulta, localização, modalidade e
+Em **Agenda** (`/agenda`), salve uma consulta, localização, modalidade e
 frequência. A agenda nasce pausada; ao ativá-la, o worker do backend executa
 somente enquanto o Job Finder estiver aberto. Cada execução e cada vaga ficam
 persistidas no SQLite, inclusive o resultado da deduplicação, e podem ser
@@ -212,7 +242,8 @@ idempotente e não envia candidatura automaticamente a nenhum site.
 O modelo preparado é `gpt-5.6-luna`. A configuração local não inicia análises
 automaticamente: a análise é sempre uma ação explícita sobre uma vaga. A senha
 do cofre e a chave nunca são devolvidas pela API, mostradas novamente na
-interface ou gravadas nos logs.
+interface ou gravadas nos logs. O botão **Desbloquear credenciais cadastradas**
+libera a chave OpenAI e todos os providers criptografados de uma só vez.
 
 O botão **Testar conexão** faz uma chamada mínima e sem dados de perfil ou
 vagas pelo backend local. O cliente usa a [Responses API](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.6),
@@ -288,10 +319,10 @@ o status, quantidade e duração de cada provider, sem expor credenciais.
 
 As credenciais podem ser definidas como variáveis `JOB_FINDER_*` ou salvas no
 SQLite criptografado por senha local através de `/api/search/providers`. A
-senha nunca é persistida. Depois de reiniciar o app, desbloqueie cada provider
-com `POST /api/search/providers/{provider}/unlock` ou pelo botão **Desbloquear**
-que aparece ao lado de um provider bloqueado na seção de credenciais. A busca
-continua sem expor a chave no navegador.
+senha nunca é persistida. Depois de reiniciar o app, use uma única vez
+`POST /api/search/providers/unlock-all` ou o botão **Desbloquear credenciais
+cadastradas** na seção de credenciais. A busca continua sem expor a chave no
+navegador.
 
 Se o navegador informar que não conseguiu conectar ao serviço local, feche a
 aba antiga e execute novamente o comando de inicialização. O iniciador valida

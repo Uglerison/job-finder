@@ -1,6 +1,8 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 
 import './App.css';
+import { AppNavigation } from './AppNavigation';
+import { normalizePath, type AppPath } from './routes';
 
 type WorkModel = 'remote' | 'hybrid' | 'on_site';
 type ContractType =
@@ -615,6 +617,17 @@ function aiStorageLabel(storage: AiSettings['storage']): string {
 let csrfToken: string | null = null;
 let csrfTokenRequest: Promise<void> | null = null;
 
+function scrollToTop(): void {
+  if (globalThis.navigator?.userAgent.toLowerCase().includes('jsdom')) {
+    return;
+  }
+  try {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  } catch {
+    // Scroll support is a progressive enhancement for route changes.
+  }
+}
+
 async function apiFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -646,11 +659,14 @@ async function apiFetch(
     : globalThis.fetch(input, init);
 }
 
+const fetchLocalApi = apiFetch;
+
 function App() {
-  const fetch = apiFetch;
+  const [pathname, setPathname] = useState<AppPath>(() =>
+    normalizePath(globalThis.location?.pathname ?? '/'),
+  );
   const [formState, setFormState] =
     useState<ProfileFormState>(defaultFormState);
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
@@ -756,7 +772,6 @@ function App() {
   const [providerCredential, setProviderCredential] = useState('');
   const [providerAppId, setProviderAppId] = useState('');
   const [providerAppKey, setProviderAppKey] = useState('');
-  const [providerVaultPassword, setProviderVaultPassword] = useState('');
   const [providerKey, setProviderKey] = useState<ProviderKey>('jsearch');
   const [isSavingProvider, setIsSavingProvider] = useState(false);
   const [providerSettingsMessage, setProviderSettingsMessage] = useState<
@@ -779,13 +794,30 @@ function App() {
   );
 
   useEffect(() => {
+    const handlePopState = () => {
+      setPathname(normalizePath(globalThis.location?.pathname ?? '/'));
+      scrollToTop();
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigate = (path: AppPath) => {
+    if (normalizePath(globalThis.location?.pathname ?? '/') !== path) {
+      window.history.pushState({}, '', path);
+    }
+    setPathname(path);
+    scrollToTop();
+  };
+
+  useEffect(() => {
     let isMounted = true;
 
     const loadProfile = async () => {
       try {
         const [profileResponse, historyResponse] = await Promise.all([
-          fetch('/api/profile'),
-          fetch('/api/profile/versions'),
+          fetchLocalApi('/api/profile'),
+          fetchLocalApi('/api/profile/versions'),
         ]);
 
         if (!profileResponse.ok || !historyResponse.ok) {
@@ -829,7 +861,7 @@ function App() {
 
     const loadScheduledSearches = async () => {
       try {
-        const response = await fetch('/api/scheduled-searches');
+        const response = await fetchLocalApi('/api/scheduled-searches');
         if (!response.ok) {
           throw new Error('Não foi possível carregar os agendamentos.');
         }
@@ -858,7 +890,7 @@ function App() {
 
   useEffect(() => {
     let isMounted = true;
-    void fetch('/api/search/providers')
+    void fetchLocalApi('/api/search/providers')
       .then(async (response) => {
         if (!response.ok) {
           throw new Error('Não foi possível carregar as credenciais de busca.');
@@ -901,7 +933,7 @@ function App() {
           to: to.toISOString().slice(0, 10),
           timezone: preferences.timezone,
         });
-        const response = await fetch(
+        const response = await fetchLocalApi(
           `/api/dashboard/summary?${params.toString()}`,
         );
         if (!response.ok) {
@@ -946,7 +978,7 @@ function App() {
       return;
     }
     let isMounted = true;
-    void fetch('/api/saved-filters')
+    void fetchLocalApi('/api/saved-filters')
       .then(async (response) => {
         if (!response.ok) {
           throw new Error('Não foi possível carregar filtros salvos.');
@@ -973,7 +1005,7 @@ function App() {
 
     const loadSources = async () => {
       try {
-        const response = await fetch('/api/sources');
+        const response = await fetchLocalApi('/api/sources');
         if (!response.ok) {
           throw new Error('Não foi possível carregar as fontes.');
         }
@@ -1005,7 +1037,7 @@ function App() {
 
     const loadAiSettings = async () => {
       try {
-        const response = await fetch('/api/ai/settings');
+        const response = await fetchLocalApi('/api/ai/settings');
         if (!response.ok) {
           throw new Error('Não foi possível carregar a configuração da IA.');
         }
@@ -1038,7 +1070,7 @@ function App() {
 
     const loadSourceRuns = async () => {
       try {
-        const response = await fetch('/api/search-runs?limit=12');
+        const response = await fetchLocalApi('/api/search-runs?limit=12');
         if (!response.ok) {
           throw new Error('Não foi possível carregar as execuções.');
         }
@@ -1077,7 +1109,7 @@ function App() {
 
     const loadTrash = async () => {
       try {
-        const response = await fetch('/api/trash');
+        const response = await fetchLocalApi('/api/trash');
         if (!response.ok) {
           throw new Error('Não foi possível carregar a lixeira.');
         }
@@ -1128,7 +1160,9 @@ function App() {
       try {
         const loaded = await Promise.all(
           jobs.map(async (job) => {
-            const response = await fetch(`/api/jobs/${job.id}/application`);
+            const response = await fetchLocalApi(
+              `/api/jobs/${job.id}/application`,
+            );
             if (!response.ok) {
               return null;
             }
@@ -1175,7 +1209,7 @@ function App() {
 
     const loadAgenda = async () => {
       try {
-        const response = await fetch('/api/events');
+        const response = await fetchLocalApi('/api/events');
         if (!response.ok) {
           throw new Error('Não foi possível carregar a agenda.');
         }
@@ -1206,7 +1240,7 @@ function App() {
 
     const loadJobs = async () => {
       try {
-        const response = await fetch('/api/jobs');
+        const response = await fetchLocalApi('/api/jobs');
         if (!response.ok) {
           throw new Error('Não foi possível carregar as vagas.');
         }
@@ -1239,7 +1273,7 @@ function App() {
   useEffect(() => {
     let isMounted = true;
 
-    fetch('/api/preferences')
+    fetchLocalApi('/api/preferences')
       .then(async (response) => {
         if (!response.ok) {
           throw new Error('Não foi possível carregar as preferências.');
@@ -1273,7 +1307,7 @@ function App() {
   const openProfileForm = () => {
     setFormError(null);
     setSaveMessage(null);
-    setIsFormOpen(true);
+    navigate('/perfil');
   };
 
   const handleFormChange = (
@@ -1310,7 +1344,7 @@ function App() {
     setSaveMessage(null);
 
     try {
-      const response = await fetch('/api/profile', {
+      const response = await fetchLocalApi('/api/profile', {
         body: JSON.stringify(payloadFromForm(formState)),
         headers: { 'Content-Type': 'application/json' },
         method: 'PUT',
@@ -1348,7 +1382,7 @@ function App() {
     setIsRedacting(true);
     setRedactionError(null);
     try {
-      const response = await fetch('/api/privacy/redact', {
+      const response = await fetchLocalApi('/api/privacy/redact', {
         body: JSON.stringify({ text: previewText }),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
@@ -1371,7 +1405,7 @@ function App() {
     setPreferencesMessage(null);
 
     try {
-      const response = await fetch('/api/preferences', {
+      const response = await fetchLocalApi('/api/preferences', {
         body: JSON.stringify(preferences),
         headers: { 'Content-Type': 'application/json' },
         method: 'PUT',
@@ -1413,7 +1447,7 @@ function App() {
     setAiSettingsError(null);
     setAiSettingsMessage(null);
     try {
-      const response = await fetch(
+      const response = await fetchLocalApi(
         needsUnlock ? '/api/ai/unlock' : '/api/ai/api-key',
         {
           body: JSON.stringify(
@@ -1433,7 +1467,6 @@ function App() {
       }
       setAiSettings(payload);
       setApiKeyDraft('');
-      setVaultPasswordDraft('');
       setVaultPasswordConfirmation('');
       setAiSettingsMessage(
         needsUnlock
@@ -1456,7 +1489,7 @@ function App() {
     setAiSettingsError(null);
     setAiSettingsMessage(null);
     try {
-      const response = await fetch('/api/ai/lock', { method: 'POST' });
+      const response = await fetchLocalApi('/api/ai/lock', { method: 'POST' });
       const payload = (await response.json().catch(() => null)) as
         AiSettings | { detail?: string } | null;
       if (!response.ok || !payload || !('configured' in payload)) {
@@ -1481,7 +1514,7 @@ function App() {
     setAiSettingsError(null);
     setAiSettingsMessage(null);
     try {
-      const response = await fetch('/api/ai/connection/test', {
+      const response = await fetchLocalApi('/api/ai/connection/test', {
         method: 'POST',
       });
       const payload = (await response.json().catch(() => null)) as
@@ -1509,7 +1542,9 @@ function App() {
     setAiSettingsError(null);
     setAiSettingsMessage(null);
     try {
-      const response = await fetch('/api/ai/api-key', { method: 'DELETE' });
+      const response = await fetchLocalApi('/api/ai/api-key', {
+        method: 'DELETE',
+      });
       const payload = (await response.json().catch(() => null)) as
         AiSettings | { detail?: string } | null;
       if (!response.ok || !payload || !('configured' in payload)) {
@@ -1555,7 +1590,7 @@ function App() {
     setJobFormError(null);
     setJobMessage(null);
     try {
-      const response = await fetch('/api/jobs', {
+      const response = await fetchLocalApi('/api/jobs', {
         body: JSON.stringify({
           canonical_url: manualJobForm.canonicalUrl.trim(),
           company: manualJobForm.company.trim(),
@@ -1597,7 +1632,7 @@ function App() {
     setIsLoadingJobDetail(true);
     setJobDetailError(null);
     try {
-      const response = await fetch(`/api/jobs/${jobId}`);
+      const response = await fetchLocalApi(`/api/jobs/${jobId}`);
       if (!response.ok) {
         throw new Error('Não foi possível carregar o detalhe.');
       }
@@ -1626,7 +1661,7 @@ function App() {
     setAnalysisMessage(null);
     const results = await Promise.allSettled(
       jobIds.map(async (jobId) => {
-        const response = await fetch(`/api/jobs/${jobId}/analysis`, {
+        const response = await fetchLocalApi(`/api/jobs/${jobId}/analysis`, {
           body: JSON.stringify({ mode: 'batch' }),
           headers: { 'Content-Type': 'application/json' },
           method: 'POST',
@@ -1675,7 +1710,7 @@ function App() {
   };
 
   const refreshJobs = async () => {
-    const response = await fetch('/api/jobs');
+    const response = await fetchLocalApi('/api/jobs');
     if (!response.ok) {
       throw new Error('Não foi possível atualizar a caixa de entrada.');
     }
@@ -1689,9 +1724,12 @@ function App() {
     setApplyingJobId(job.id);
     setApplicationsError(null);
     try {
-      const response = await fetch(`/api/jobs/${job.id}/application/applied`, {
-        method: 'POST',
-      });
+      const response = await fetchLocalApi(
+        `/api/jobs/${job.id}/application/applied`,
+        {
+          method: 'POST',
+        },
+      );
       const payload = (await response.json().catch(() => null)) as
         ApplicationResponse | { detail?: string } | null;
       if (!response.ok || !payload || !('id' in payload)) {
@@ -1735,7 +1773,7 @@ function App() {
     setScheduledSearchError(null);
     setScheduledSearchMessage(null);
     try {
-      const response = await fetch('/api/scheduled-searches', {
+      const response = await fetchLocalApi('/api/scheduled-searches', {
         body: JSON.stringify({
           name: scheduledSearchName.trim(),
           query: aggregatedQuery.trim(),
@@ -1774,19 +1812,22 @@ function App() {
   const toggleScheduledSearch = async (schedule: ScheduledSearch) => {
     setScheduledSearchError(null);
     try {
-      const response = await fetch(`/api/scheduled-searches/${schedule.id}`, {
-        body: JSON.stringify({
-          name: schedule.name,
-          query: schedule.query,
-          location: schedule.location,
-          work_model: schedule.work_model,
-          frequency_minutes: schedule.frequency_minutes,
-          limit: schedule.limit,
-          enabled: !schedule.enabled,
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'PUT',
-      });
+      const response = await fetchLocalApi(
+        `/api/scheduled-searches/${schedule.id}`,
+        {
+          body: JSON.stringify({
+            name: schedule.name,
+            query: schedule.query,
+            location: schedule.location,
+            work_model: schedule.work_model,
+            frequency_minutes: schedule.frequency_minutes,
+            limit: schedule.limit,
+            enabled: !schedule.enabled,
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT',
+        },
+      );
       if (!response.ok) {
         throw new Error('Não foi possível atualizar o agendamento.');
       }
@@ -1805,7 +1846,7 @@ function App() {
 
   const loadScheduledJobs = async (scheduleId: number) => {
     try {
-      const response = await fetch(
+      const response = await fetchLocalApi(
         `/api/scheduled-searches/${scheduleId}/jobs`,
       );
       if (!response.ok) {
@@ -1832,7 +1873,7 @@ function App() {
       return;
     }
     try {
-      const response = await fetch('/api/saved-filters', {
+      const response = await fetchLocalApi('/api/saved-filters', {
         body: JSON.stringify({
           name,
           query: { days: dashboardDays, q: jobSearch.trim() || null },
@@ -1877,21 +1918,24 @@ function App() {
   const toggleSource = async (source: SourceConfig) => {
     setSourcesError(null);
     try {
-      const response = await fetch(`/api/sources/${source.source_key}`, {
-        body: JSON.stringify({
-          display_name: source.display_name,
-          endpoint: source.endpoint,
-          terms_url: source.terms_url,
-          enabled: !source.enabled,
-          schedule_enabled: source.schedule_enabled,
-          frequency_minutes: source.frequency_minutes,
-          daily_limit: source.daily_limit,
-          per_run_limit: source.per_run_limit,
-          timeout_seconds: source.timeout_seconds,
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'PUT',
-      });
+      const response = await fetchLocalApi(
+        `/api/sources/${source.source_key}`,
+        {
+          body: JSON.stringify({
+            display_name: source.display_name,
+            endpoint: source.endpoint,
+            terms_url: source.terms_url,
+            enabled: !source.enabled,
+            schedule_enabled: source.schedule_enabled,
+            frequency_minutes: source.frequency_minutes,
+            daily_limit: source.daily_limit,
+            per_run_limit: source.per_run_limit,
+            timeout_seconds: source.timeout_seconds,
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT',
+        },
+      );
       if (!response.ok) {
         throw new Error('Não foi possível alterar a fonte.');
       }
@@ -1918,7 +1962,7 @@ function App() {
     setIsSearchingAggregated(true);
     setAggregatedError(null);
     try {
-      const response = await fetch('/api/search', {
+      const response = await fetchLocalApi('/api/search', {
         body: JSON.stringify({
           query,
           location: aggregatedLocation.trim() || null,
@@ -1960,7 +2004,7 @@ function App() {
 
   const saveProviderCredential = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (providerVaultPassword.length < 12) {
+    if (vaultPasswordDraft.length < 12) {
       setProviderSettingsError(
         'A senha do cofre deve ter pelo menos 12 caracteres.',
       );
@@ -1982,17 +2026,21 @@ function App() {
     setProviderSettingsError(null);
     setProviderSettingsMessage(null);
     try {
-      const response = await fetch(`/api/search/providers/${providerKey}`, {
-        body: JSON.stringify({
-          api_key:
-            providerKey === 'adzuna' ? undefined : providerCredential.trim(),
-          app_id: providerKey === 'adzuna' ? providerAppId.trim() : undefined,
-          app_key: providerKey === 'adzuna' ? providerAppKey.trim() : undefined,
-          vault_password: providerVaultPassword,
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'PUT',
-      });
+      const response = await fetchLocalApi(
+        `/api/search/providers/${providerKey}`,
+        {
+          body: JSON.stringify({
+            api_key:
+              providerKey === 'adzuna' ? undefined : providerCredential.trim(),
+            app_id: providerKey === 'adzuna' ? providerAppId.trim() : undefined,
+            app_key:
+              providerKey === 'adzuna' ? providerAppKey.trim() : undefined,
+            vault_password: vaultPasswordDraft,
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT',
+        },
+      );
       const payload = (await response.json().catch(() => null)) as
         ProviderCredentialStatus | { detail?: string } | null;
       if (!response.ok || !payload || !('provider' in payload)) {
@@ -2009,7 +2057,6 @@ function App() {
       setProviderCredential('');
       setProviderAppId('');
       setProviderAppKey('');
-      setProviderVaultPassword('');
       setProviderSettingsMessage('Credencial criptografada no banco local.');
     } catch (error) {
       setProviderSettingsError(
@@ -2022,8 +2069,8 @@ function App() {
     }
   };
 
-  const unlockProviderCredential = async (provider: ProviderKey) => {
-    if (providerVaultPassword.length < 12) {
+  const unlockAllCredentials = async () => {
+    if (vaultPasswordDraft.length < 12) {
       setProviderSettingsError(
         'Informe a senha do cofre com pelo menos 12 caracteres para desbloquear.',
       );
@@ -2032,29 +2079,63 @@ function App() {
     setIsSavingProvider(true);
     setProviderSettingsError(null);
     setProviderSettingsMessage(null);
+    setAiSettingsError(null);
+    setAiSettingsMessage(null);
     try {
-      const response = await fetch(`/api/search/providers/${provider}/unlock`, {
-        body: JSON.stringify({ vault_password: providerVaultPassword }),
+      let unlockedAi = false;
+      if (
+        aiSettings.configured &&
+        aiSettings.storage === 'encrypted_database' &&
+        !aiSettings.unlocked
+      ) {
+        const aiResponse = await fetchLocalApi('/api/ai/unlock', {
+          body: JSON.stringify({ vault_password: vaultPasswordDraft }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        });
+        const aiPayload = (await aiResponse.json().catch(() => null)) as
+          AiSettings | { detail?: string } | null;
+        if (!aiResponse.ok || !aiPayload || !('configured' in aiPayload)) {
+          const detail =
+            aiPayload && 'detail' in aiPayload ? aiPayload.detail : null;
+          throw new Error(
+            detail ?? 'Não foi possível desbloquear a chave OpenAI.',
+          );
+        }
+        setAiSettings(aiPayload);
+        unlockedAi = aiPayload.unlocked;
+      } else {
+        unlockedAi =
+          aiSettings.unlocked || aiSettings.storage === 'environment';
+      }
+
+      const response = await fetchLocalApi('/api/search/providers/unlock-all', {
+        body: JSON.stringify({ vault_password: vaultPasswordDraft }),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       });
       const payload = (await response.json().catch(() => null)) as
-        ProviderCredentialStatus | { detail?: string } | null;
-      if (!response.ok || !payload || !('provider' in payload)) {
+        ProviderCredentialStatus[] | { detail?: string } | null;
+      if (!response.ok || !Array.isArray(payload)) {
+        const detail = payload && 'detail' in payload ? payload.detail : null;
         throw new Error(
-          payload && 'detail' in payload
-            ? payload.detail
-            : 'Não foi possível desbloquear a credencial.',
+          detail ??
+            'Não foi possível desbloquear as credenciais dos providers.',
         );
       }
-      setProviderStatuses((current) => [
-        ...current.filter((item) => item.provider !== payload.provider),
-        payload,
-      ]);
-      setProviderVaultPassword('');
-      setProviderSettingsMessage(
-        `${provider.toUpperCase()} desbloqueada somente nesta execução.`,
-      );
+      setProviderStatuses(payload);
+      const unlockedProviders = payload.filter((item) => item.unlocked).length;
+      if (unlockedAi || unlockedProviders > 0) {
+        setProviderSettingsMessage(
+          'Cofre desbloqueado nesta execução para todas as credenciais cadastradas.',
+        );
+      } else {
+        setProviderSettingsMessage(
+          'Nenhuma credencial criptografada está cadastrada para desbloquear.',
+        );
+      }
+      setVaultPasswordDraft('');
+      setVaultPasswordConfirmation('');
     } catch (error) {
       setProviderSettingsError(
         error instanceof Error
@@ -2068,9 +2149,12 @@ function App() {
 
   const cancelSourceRun = async (run: SearchRun) => {
     try {
-      const response = await fetch(`/api/search-runs/${run.id}/cancel`, {
-        method: 'POST',
-      });
+      const response = await fetchLocalApi(
+        `/api/search-runs/${run.id}/cancel`,
+        {
+          method: 'POST',
+        },
+      );
       if (!response.ok) {
         throw new Error('Não foi possível cancelar a busca.');
       }
@@ -2086,7 +2170,7 @@ function App() {
   const restoreTrashJob = async (jobId: number) => {
     setTrashError(null);
     try {
-      const response = await fetch(`/api/jobs/${jobId}/restore`, {
+      const response = await fetchLocalApi(`/api/jobs/${jobId}/restore`, {
         method: 'POST',
       });
       if (!response.ok) {
@@ -2105,7 +2189,7 @@ function App() {
     }
     setTrashError(null);
     try {
-      const response = await fetch(`/api/jobs/${jobId}?confirm=true`, {
+      const response = await fetchLocalApi(`/api/jobs/${jobId}?confirm=true`, {
         method: 'DELETE',
       });
       if (!response.ok) {
@@ -2135,7 +2219,7 @@ function App() {
     setApplicationsError(null);
 
     try {
-      const response = await fetch(
+      const response = await fetchLocalApi(
         `/api/applications/${application.id}/transition`,
         {
           body: JSON.stringify({ to_status: targetStatus }),
@@ -2206,1033 +2290,2561 @@ function App() {
       ? 'CONFIGURADO'
       : 'PRONTO';
 
+  const publicSources = sources.filter((source) =>
+    ['remoteok', 'arbeitnow', 'jobicy'].includes(source.source_key),
+  );
+  const readyProviderCount =
+    publicSources.filter((source) => source.enabled).length +
+    providerStatuses.filter((status) => status.configured && status.unlocked)
+      .length;
+  const hasCompletedSearch =
+    jobs.length > 0 ||
+    sourceRuns.some((run) => ['completed', 'partial'].includes(run.status));
+  const setupSteps = [
+    {
+      complete: Boolean(profile),
+      description: 'Cargos, competências e preferências de trabalho.',
+      label: 'Perfil profissional',
+      path: '/perfil' as AppPath,
+    },
+    {
+      complete: readyProviderCount > 0,
+      description: `${readyProviderCount} fonte${readyProviderCount === 1 ? '' : 's'} pronta${readyProviderCount === 1 ? '' : 's'} para consulta.`,
+      label: 'Fontes disponíveis',
+      path: '/configuracoes/fontes' as AppPath,
+    },
+    {
+      complete: hasCompletedSearch,
+      description: 'Encontre oportunidades compatíveis com seu perfil.',
+      label: 'Primeira busca',
+      path: '/busca' as AppPath,
+    },
+    {
+      complete: pipelineEntries.length > 0,
+      description: 'Marque uma vaga como aplicada para acompanhar o processo.',
+      label: 'Primeira candidatura',
+      path: '/vagas' as AppPath,
+    },
+  ];
+  const completedSetupSteps = setupSteps.filter((step) => step.complete).length;
+  const setupPercent = Math.round(
+    (completedSetupSteps / setupSteps.length) * 100,
+  );
+  const nextSetupStep = setupSteps.find((step) => !step.complete);
+
   return (
-    <main className="paper-app">
-      <header className="site-header" role="banner">
-        <div className="header-inner">
-          <a className="brand" href="#inicio" aria-label="Job Finder, início">
-            <span className="brand-mark" aria-hidden="true" />
-            <span className="brand-name">Job Finder</span>
-          </a>
-
-          <nav aria-label="Navegação principal">
-            <a href="#como-funciona">Como funciona</a>
-            <a href="#fluxo">Fluxo</a>
-            <a href="#perfil">Perfil</a>
-            <a href="#historico">Histórico</a>
-            <a href="#busca">Busca</a>
-            <a href="#vagas">Vagas</a>
-            <a href="#agenda">Agenda</a>
-            <a href="#lixeira">Lixeira</a>
-            <a href="#ia">IA</a>
-            <a href="#dashboard">Painel</a>
-            <a href="#preferencias">Preferências</a>
-          </nav>
-
-          <div className="header-meta">
-            <span className="meta-label">LOCAL · PRIVADO</span>
-            <button
-              className="header-action"
-              onClick={openProfileForm}
-              type="button"
-            >
-              Abrir perfil
-            </button>
+    <AppNavigation
+      onNavigate={navigate}
+      onOpenProfile={openProfileForm}
+      pathname={pathname}
+    >
+      {(pathname === '/busca' ||
+        pathname === '/configuracoes/fontes' ||
+        pathname === '/agenda' ||
+        pathname === '/configuracoes/historico') && (
+        <section
+          className="sources-section"
+          id="route-sources"
+          aria-labelledby="sources-title"
+        >
+          <div className="sources-intro">
+            <p className="eyebrow">
+              {pathname === '/busca'
+                ? 'BUSCA UNIFICADA'
+                : pathname === '/configuracoes/fontes'
+                  ? 'CONFIGURAÇÕES · FONTES'
+                  : pathname === '/agenda'
+                    ? 'AUTOMAÇÕES LOCAIS'
+                    : 'HISTÓRICO TÉCNICO'}
+            </p>
+            <h2 id="sources-title">
+              {pathname === '/busca'
+                ? 'Encontre uma vaga para treinar'
+                : pathname === '/configuracoes/fontes'
+                  ? 'Fontes e integrações'
+                  : pathname === '/agenda'
+                    ? 'Buscas agendadas'
+                    : 'Histórico de execuções'}
+            </h2>
+            <p>
+              {pathname === '/busca'
+                ? 'Pesquise em fontes públicas de forma seletiva. A gente organiza os resultados para você comparar oportunidades sem precisar escolher uma API.'
+                : pathname === '/configuracoes/fontes'
+                  ? 'Gerencie fontes públicas, integrações opcionais e credenciais protegidas pelo cofre local.'
+                  : pathname === '/agenda'
+                    ? 'Automatize consultas sem bloquear a busca manual. As agendas só executam enquanto o Job Finder estiver aberto.'
+                    : 'Consulte as execuções auditáveis e os contadores de cada fonte sem misturar manutenção técnica à busca.'}
+            </p>
           </div>
-        </div>
-      </header>
 
-      <section
-        className="sources-section"
-        id="busca"
-        aria-labelledby="sources-title"
-      >
-        <div className="sources-intro">
-          <p className="eyebrow">BUSCA UNIFICADA</p>
-          <h2 id="sources-title">Encontre uma vaga para treinar</h2>
-          <p>
-            Pesquise em fontes públicas de forma seletiva. A gente organiza os
-            resultados para você comparar oportunidades sem precisar escolher
-            uma API.
-          </p>
-        </div>
-
-        <div className="sources-workspace">
-          <form className="source-search-form" onSubmit={runAggregatedSearch}>
-            <div className="form-field">
-              <label htmlFor="aggregated-query">Cargo ou palavra-chave</label>
-              <input
-                id="aggregated-query"
-                onChange={(event) => setAggregatedQuery(event.target.value)}
-                placeholder="ex.: Analista de Dados"
-                value={aggregatedQuery}
-                required
-              />
-            </div>
-            <div className="form-field">
-              <label htmlFor="aggregated-location">Localização</label>
-              <input
-                id="aggregated-location"
-                onChange={(event) => setAggregatedLocation(event.target.value)}
-                placeholder="ex.: Curitiba, PR"
-                value={aggregatedLocation}
-              />
-            </div>
-            <div className="form-field">
-              <label htmlFor="aggregated-work-model">Modalidade</label>
-              <select
-                id="aggregated-work-model"
-                onChange={(event) => setAggregatedWorkModel(event.target.value)}
-                value={aggregatedWorkModel}
-              >
-                <option value="all">Todos</option>
-                <option value="remote">Remoto</option>
-                <option value="hybrid">Híbrido</option>
-                <option value="on_site">Presencial</option>
-              </select>
-            </div>
-            <button
-              className="primary-button source-run-button"
-              disabled={isSearchingAggregated}
-              type="submit"
-            >
-              {isSearchingAggregated ? 'Buscando…' : 'Buscar vagas'}
-            </button>
-          </form>
-
-          {aggregatedError && (
-            <p className="sources-feedback is-error" role="status">
-              {aggregatedError}
-            </p>
-          )}
-
-          {aggregatedResults && (
-            <div
-              aria-live="polite"
-              aria-label="Resultados da busca unificada"
-              className="aggregated-results"
-              role="region"
-            >
-              <div
-                className={`aggregated-search-summary is-${aggregatedResults.outcome}`}
-              >
-                <strong>{aggregatedResults.message}</strong>
-                <span>
-                  {providerRunSummary(aggregatedResults.provider_runs)}
-                </span>
-              </div>
-              <div className="source-list-heading">
-                <span className="meta-label">
-                  {aggregatedResults.jobs.length} VAGAS ENCONTRADAS
-                </span>
-                <span className="mono-note">
-                  {aggregatedResults.cache_hit
-                    ? 'RESULTADO EM CACHE'
-                    : 'ATUALIZADO AGORA'}
-                </span>
-              </div>
-              {aggregatedResults.jobs.length === 0 ? (
-                <p className="sources-empty">
-                  Tente ampliar a localização, trocar a modalidade ou revisar as
-                  credenciais opcionais abaixo.
-                </p>
-              ) : (
-                <ul className="aggregated-job-list">
-                  {aggregatedResults.jobs.map((job) => (
-                    <li
-                      className="aggregated-job-card"
-                      key={`${job.url}-${job.title}`}
-                    >
-                      <div className="aggregated-job-card-main">
-                        <p className="eyebrow">
-                          {job.source || 'VAGA ENCONTRADA'}
-                        </p>
-                        <h3>{job.title}</h3>
-                        <p className="aggregated-job-company">{job.company}</p>
-                        <p className="aggregated-job-meta">
-                          {job.location || 'Localização não informada'}
-                          {job.work_model && job.work_model !== 'unknown'
-                            ? ` · ${
-                                job.work_model === 'on_site'
-                                  ? 'Presencial'
-                                  : job.work_model === 'hybrid'
-                                    ? 'Híbrido'
-                                    : 'Remoto'
-                              }`
-                            : ''}
-                          {job.published_at
-                            ? ` · ${formatRunDate(job.published_at)}`
-                            : ''}
-                        </p>
-                        <p className="aggregated-job-description">
-                          {job.description}
-                        </p>
-                        {job.salary && (
-                          <p className="aggregated-job-salary">{job.salary}</p>
-                        )}
-                        {job.review_required && (
-                          <p className="mono-note">
-                            Possível duplicata: revise antes de criar uma
-                            candidatura.
-                          </p>
-                        )}
-                      </div>
-                      <div className="aggregated-job-actions">
-                        {typeof job.job_id === 'number' && (
-                          <button
-                            className="primary-button"
-                            disabled={applyingJobId === job.job_id}
-                            onClick={() =>
-                              void markJobApplied({
-                                id: job.job_id as number,
-                                title: job.title,
-                              })
-                            }
-                            type="button"
-                          >
-                            {applyingJobId === job.job_id
-                              ? 'Salvando…'
-                              : 'Marcar como aplicada'}
-                          </button>
-                        )}
-                        <a
-                          className="card-link"
-                          href={job.url}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          Ver vaga ↗
-                        </a>
-                        <a
-                          className="text-button text-button-plain"
-                          href="https://sepreparai.com.br/"
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          Treinar entrevista no Se Prepara AI ↗
-                        </a>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <details className="aggregated-diagnostics">
-                <summary>Ver detalhes da busca e do log</summary>
-                <ul>
-                  {aggregatedResults.provider_runs.map((run) => (
-                    <li key={run.provider}>
-                      <span>
-                        <strong>{run.display_name}</strong> ·{' '}
-                        {providerRunStatusLabel(run.status)}
-                      </span>
-                      <span>
-                        {run.candidates} vaga(s) · {run.duration_ms} ms
-                        {run.error ? ` · ${run.error}` : ''}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                {aggregatedResults.warnings.length > 0 && (
-                  <p role="status">{aggregatedResults.warnings.join(' · ')}</p>
-                )}
-              </details>
-            </div>
-          )}
-
-          <section
-            aria-labelledby="provider-credentials-title"
-            className="provider-credentials"
-          >
-            <div className="source-list-heading">
-              <span className="meta-label" id="provider-credentials-title">
-                CREDENCIAIS OPCIONAIS
-              </span>
-              <span className="mono-note">CIFRADAS NO BANCO LOCAL</span>
-            </div>
-            <p className="sources-feedback">
-              Cadastre as chaves uma vez para ampliar a busca brasileira. A
-              senha do cofre não é armazenada.
-            </p>
-            <form
-              className="provider-credentials-form"
-              onSubmit={saveProviderCredential}
-            >
-              <div className="form-field">
-                <label htmlFor="provider-key">Provider</label>
-                <select
-                  id="provider-key"
-                  onChange={(event) =>
-                    setProviderKey(event.target.value as ProviderKey)
-                  }
-                  value={providerKey}
+          <div className="sources-workspace">
+            {pathname === '/busca' && (
+              <>
+                <form
+                  className="source-search-form"
+                  onSubmit={runAggregatedSearch}
                 >
-                  <option value="jsearch">JSearch</option>
-                  <option value="adzuna">Adzuna</option>
-                  <option value="jooble">Jooble</option>
-                </select>
-              </div>
-              {providerKey === 'adzuna' ? (
-                <>
                   <div className="form-field">
-                    <label htmlFor="provider-app-id">Adzuna app ID</label>
+                    <label htmlFor="aggregated-query">
+                      Cargo ou palavra-chave
+                    </label>
                     <input
-                      id="provider-app-id"
-                      onChange={(event) => setProviderAppId(event.target.value)}
-                      type="password"
-                      value={providerAppId}
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label htmlFor="provider-app-key">Adzuna app key</label>
-                    <input
-                      id="provider-app-key"
+                      id="aggregated-query"
                       onChange={(event) =>
-                        setProviderAppKey(event.target.value)
+                        setAggregatedQuery(event.target.value)
                       }
-                      type="password"
-                      value={providerAppKey}
+                      placeholder="ex.: Analista de Dados"
+                      value={aggregatedQuery}
+                      required
                     />
                   </div>
-                </>
-              ) : (
-                <div className="form-field">
-                  <label htmlFor="provider-credential">API key</label>
-                  <input
-                    id="provider-credential"
-                    onChange={(event) =>
-                      setProviderCredential(event.target.value)
-                    }
-                    type="password"
-                    value={providerCredential}
-                  />
-                </div>
-              )}
-              <div className="form-field">
-                <label htmlFor="provider-vault-password">Senha do cofre</label>
-                <input
-                  id="provider-vault-password"
-                  minLength={12}
-                  onChange={(event) =>
-                    setProviderVaultPassword(event.target.value)
-                  }
-                  type="password"
-                  value={providerVaultPassword}
-                />
-              </div>
-              <button
-                className="primary-button"
-                disabled={isSavingProvider}
-                type="submit"
-              >
-                {isSavingProvider ? 'Salvando…' : 'Salvar credencial'}
-              </button>
-            </form>
-            {(providerSettingsError || providerSettingsMessage) && (
-              <p
-                className={`form-message${providerSettingsError ? ' is-error' : ' is-success'}`}
-                role="status"
-              >
-                {providerSettingsError || providerSettingsMessage}
-              </p>
-            )}
-            {providerStatuses.length > 0 && (
-              <ul className="provider-status-list">
-                {providerStatuses.map((status) => (
-                  <li key={status.provider}>
-                    <span>{status.provider}</span>
-                    <span className="provider-status-action">
-                      {status.configured ? (
-                        status.unlocked ? (
-                          'disponível nesta execução'
-                        ) : (
-                          <button
-                            className="text-button text-button-plain"
-                            disabled={isSavingProvider}
-                            onClick={() =>
-                              void unlockProviderCredential(status.provider)
-                            }
-                            type="button"
-                          >
-                            Desbloquear
-                          </button>
-                        )
-                      ) : (
-                        'não configurada'
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+                  <div className="form-field">
+                    <label htmlFor="aggregated-location">Localização</label>
+                    <input
+                      id="aggregated-location"
+                      onChange={(event) =>
+                        setAggregatedLocation(event.target.value)
+                      }
+                      placeholder="ex.: Curitiba, PR"
+                      value={aggregatedLocation}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="aggregated-work-model">Modalidade</label>
+                    <select
+                      id="aggregated-work-model"
+                      onChange={(event) =>
+                        setAggregatedWorkModel(event.target.value)
+                      }
+                      value={aggregatedWorkModel}
+                    >
+                      <option value="all">Todos</option>
+                      <option value="remote">Remoto</option>
+                      <option value="hybrid">Híbrido</option>
+                      <option value="on_site">Presencial</option>
+                    </select>
+                  </div>
+                  <button
+                    className="primary-button source-run-button"
+                    disabled={isSearchingAggregated}
+                    type="submit"
+                  >
+                    {isSearchingAggregated ? 'Buscando…' : 'Buscar vagas'}
+                  </button>
+                </form>
 
-          <section
-            aria-labelledby="scheduled-searches-title"
-            className="scheduled-search-panel"
-          >
-            <div className="source-list-heading">
-              <span className="meta-label" id="scheduled-searches-title">
-                AGENDADOR LOCAL
-              </span>
-              <span className="mono-note">EXECUTA COM O APP ABERTO</span>
-            </div>
-            <p className="sources-feedback">
-              Salve filtros para consultar novas vagas depois. A agenda fica no
-              SQLite local e nunca armazena credenciais de providers.
-            </p>
-            <form
-              className="scheduled-search-form"
-              onSubmit={createScheduledSearch}
-            >
-              <div className="form-field">
-                <label htmlFor="scheduled-search-name">Nome da agenda</label>
-                <input
-                  id="scheduled-search-name"
-                  onChange={(event) =>
-                    setScheduledSearchName(event.target.value)
-                  }
-                  placeholder="Dados em Curitiba"
-                  value={scheduledSearchName}
-                />
-              </div>
-              <div className="form-field">
-                <label htmlFor="scheduled-search-frequency">Frequência</label>
-                <select
-                  id="scheduled-search-frequency"
-                  onChange={(event) =>
-                    setScheduledSearchFrequency(event.target.value)
-                  }
-                  value={scheduledSearchFrequency}
-                >
-                  <option value="60">A cada hora</option>
-                  <option value="360">A cada 6 horas</option>
-                  <option value="1440">Uma vez por dia</option>
-                  <option value="10080">Uma vez por semana</option>
-                </select>
-              </div>
-              <button className="primary-button" type="submit">
-                Salvar agenda
-              </button>
-            </form>
-            {scheduledSearchError && (
-              <p className="sources-feedback is-error" role="status">
-                {scheduledSearchError}
-              </p>
-            )}
-            {scheduledSearchMessage && (
-              <p className="sources-feedback" role="status">
-                {scheduledSearchMessage}
-              </p>
-            )}
-            {isLoadingScheduledSearches && (
-              <p className="sources-feedback" role="status">
-                Carregando agendas…
-              </p>
-            )}
-            {!isLoadingScheduledSearches && scheduledSearches.length === 0 && (
-              <p className="sources-empty">
-                Nenhuma agenda criada. Preencha a busca acima e salve uma para
-                consultar vagas no próximo ciclo.
-              </p>
-            )}
-            {scheduledSearches.length > 0 && (
-              <ul className="source-list">
-                {scheduledSearches.map((schedule) => (
-                  <li className="source-row" key={schedule.id}>
-                    <div>
-                      <span className="job-status">
-                        {schedule.enabled ? 'ATIVA' : 'PAUSADA'}
+                {aggregatedError && (
+                  <p className="sources-feedback is-error" role="status">
+                    {aggregatedError}
+                  </p>
+                )}
+
+                {aggregatedResults && (
+                  <div
+                    aria-live="polite"
+                    aria-label="Resultados da busca unificada"
+                    className="aggregated-results"
+                    role="region"
+                  >
+                    <div
+                      className={`aggregated-search-summary is-${aggregatedResults.outcome}`}
+                    >
+                      <strong>{aggregatedResults.message}</strong>
+                      <span>
+                        {providerRunSummary(aggregatedResults.provider_runs)}
                       </span>
-                      <h3>{schedule.name}</h3>
-                      <p>
-                        {schedule.query}
-                        {schedule.location ? ` · ${schedule.location}` : ''}
-                      </p>
-                      <p className="mono-note">
-                        {schedule.last_run_at
-                          ? `Última execução: ${formatRunDate(schedule.last_run_at)}`
-                          : 'Ainda não executada'}
-                      </p>
                     </div>
-                    <div className="source-row-actions">
-                      <button
-                        className="text-button text-button-plain"
-                        onClick={() => void toggleScheduledSearch(schedule)}
-                        type="button"
-                      >
-                        {schedule.enabled ? 'Pausar' : 'Ativar'}
-                      </button>
-                      <button
-                        className="card-link"
-                        onClick={() => void loadScheduledJobs(schedule.id)}
-                        type="button"
-                      >
-                        Ver vagas encontradas
-                      </button>
+                    <div className="source-list-heading">
+                      <span className="meta-label">
+                        {aggregatedResults.jobs.length} VAGAS ENCONTRADAS
+                      </span>
+                      <span className="mono-note">
+                        {aggregatedResults.cache_hit
+                          ? 'RESULTADO EM CACHE'
+                          : 'ATUALIZADO AGORA'}
+                      </span>
                     </div>
-                    {scheduledJobs[schedule.id] && (
-                      <ul className="scheduled-job-history">
-                        {scheduledJobs[schedule.id].map((item) => (
-                          <li key={item.id}>
-                            <span>
-                              <strong>{item.title}</strong> · {item.company}
-                            </span>
-                            <span className="mono-note">
-                              {item.outcome} · {item.provider} ·{' '}
-                              {formatRunDate(item.found_at)}
-                            </span>
+                    {aggregatedResults.jobs.length === 0 ? (
+                      <p className="sources-empty">
+                        Tente ampliar a localização, trocar a modalidade ou
+                        revisar as fontes configuradas em{' '}
+                        <a
+                          href="/configuracoes/fontes"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            navigate('/configuracoes/fontes');
+                          }}
+                        >
+                          Configurações → Fontes
+                        </a>
+                        .
+                      </p>
+                    ) : (
+                      <ul className="aggregated-job-list">
+                        {aggregatedResults.jobs.map((job) => (
+                          <li
+                            className="aggregated-job-card"
+                            key={`${job.url}-${job.title}`}
+                          >
+                            <div className="aggregated-job-card-main">
+                              <p className="eyebrow">
+                                {job.source || 'VAGA ENCONTRADA'}
+                              </p>
+                              <h3>{job.title}</h3>
+                              <p className="aggregated-job-company">
+                                {job.company}
+                              </p>
+                              <p className="aggregated-job-meta">
+                                {job.location || 'Localização não informada'}
+                                {job.work_model && job.work_model !== 'unknown'
+                                  ? ` · ${
+                                      job.work_model === 'on_site'
+                                        ? 'Presencial'
+                                        : job.work_model === 'hybrid'
+                                          ? 'Híbrido'
+                                          : 'Remoto'
+                                    }`
+                                  : ''}
+                                {job.published_at
+                                  ? ` · ${formatRunDate(job.published_at)}`
+                                  : ''}
+                              </p>
+                              <p className="aggregated-job-description">
+                                {job.description}
+                              </p>
+                              {job.salary && (
+                                <p className="aggregated-job-salary">
+                                  {job.salary}
+                                </p>
+                              )}
+                              {job.review_required && (
+                                <p className="mono-note">
+                                  Possível duplicata: revise antes de criar uma
+                                  candidatura.
+                                </p>
+                              )}
+                            </div>
+                            <div className="aggregated-job-actions">
+                              {typeof job.job_id === 'number' && (
+                                <button
+                                  className="primary-button"
+                                  disabled={applyingJobId === job.job_id}
+                                  onClick={() =>
+                                    void markJobApplied({
+                                      id: job.job_id as number,
+                                      title: job.title,
+                                    })
+                                  }
+                                  type="button"
+                                >
+                                  {applyingJobId === job.job_id
+                                    ? 'Salvando…'
+                                    : 'Marcar como aplicada'}
+                                </button>
+                              )}
+                              <a
+                                className="card-link"
+                                href={job.url}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                Ver vaga ↗
+                              </a>
+                              <a
+                                className="text-button text-button-plain"
+                                href="https://sepreparai.com.br/"
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                Treinar entrevista no Se Prepara AI ↗
+                              </a>
+                            </div>
                           </li>
                         ))}
                       </ul>
                     )}
+                    <details className="aggregated-diagnostics">
+                      <summary>Ver detalhes da busca e do log</summary>
+                      <ul>
+                        {aggregatedResults.provider_runs.map((run) => (
+                          <li key={run.provider}>
+                            <span>
+                              <strong>{run.display_name}</strong> ·{' '}
+                              {providerRunStatusLabel(run.status)}
+                            </span>
+                            <span>
+                              {run.candidates} vaga(s) · {run.duration_ms} ms
+                              {run.error ? ` · ${run.error}` : ''}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      {aggregatedResults.warnings.length > 0 && (
+                        <p role="status">
+                          {aggregatedResults.warnings.join(' · ')}
+                        </p>
+                      )}
+                    </details>
+                  </div>
+                )}
+
+                {aggregatedResults && aggregatedResults.jobs.length > 0 && (
+                  <button
+                    className="header-action route-result-action"
+                    onClick={() => navigate('/vagas')}
+                    type="button"
+                  >
+                    Revisar oportunidades →
+                  </button>
+                )}
+              </>
+            )}
+
+            {pathname === '/configuracoes/fontes' && (
+              <section
+                aria-labelledby="provider-credentials-title"
+                className="provider-credentials"
+              >
+                <div className="vault-status-card">
+                  <div>
+                    <span className="meta-label">SEGURANÇA LOCAL</span>
+                    <h3>Cofre local</h3>
+                    <p>
+                      API keys ficam cifradas no SQLite. Informe a senha uma
+                      única vez para desbloquear todos os providers e a chave
+                      OpenAI cadastrados nesta execução.
+                    </p>
+                  </div>
+                  <strong>
+                    {aiSettings.unlocked ||
+                    providerStatuses.some((status) => status.unlocked)
+                      ? 'Desbloqueado nesta sessão'
+                      : aiSettings.configured ||
+                          providerStatuses.some((status) => status.configured)
+                        ? 'Bloqueado'
+                        : 'Ainda não configurado'}
+                  </strong>
+                </div>
+                <div className="vault-unlock-panel">
+                  <div className="form-field">
+                    <label htmlFor="vault-password">
+                      {aiSettings.configured
+                        ? 'Senha do cofre'
+                        : 'Crie uma senha para o cofre local'}
+                    </label>
+                    <input
+                      autoComplete="new-password"
+                      id="vault-password"
+                      minLength={12}
+                      onChange={(event) => {
+                        setVaultPasswordDraft(event.target.value);
+                        setProviderSettingsError(null);
+                        setProviderSettingsMessage(null);
+                        setAiSettingsError(null);
+                        setAiSettingsMessage(null);
+                      }}
+                      spellCheck={false}
+                      type="password"
+                      value={vaultPasswordDraft}
+                    />
+                    {!aiSettings.configured && (
+                      <span>
+                        Use ao menos 12 caracteres. A mesma senha será usada
+                        para todas as integrações.
+                      </span>
+                    )}
+                  </div>
+                  {!aiSettings.configured && (
+                    <div className="form-field">
+                      <label htmlFor="vault-password-confirmation">
+                        Confirme a senha do cofre local
+                      </label>
+                      <input
+                        autoComplete="new-password"
+                        id="vault-password-confirmation"
+                        minLength={12}
+                        onChange={(event) => {
+                          setVaultPasswordConfirmation(event.target.value);
+                          setProviderSettingsError(null);
+                          setProviderSettingsMessage(null);
+                          setAiSettingsError(null);
+                          setAiSettingsMessage(null);
+                        }}
+                        spellCheck={false}
+                        type="password"
+                        value={vaultPasswordConfirmation}
+                      />
+                    </div>
+                  )}
+                  <button
+                    className="primary-button"
+                    disabled={isSavingProvider || isSavingApiKey}
+                    onClick={() => void unlockAllCredentials()}
+                    type="button"
+                  >
+                    {isSavingProvider
+                      ? 'Desbloqueando…'
+                      : 'Desbloquear credenciais cadastradas'}
+                  </button>
+                </div>
+                <div className="source-list-heading">
+                  <span className="meta-label" id="provider-credentials-title">
+                    CREDENCIAIS OPCIONAIS
+                  </span>
+                  <span className="mono-note">CIFRADAS NO BANCO LOCAL</span>
+                </div>
+                <p className="sources-feedback">
+                  Cadastre as chaves uma vez para ampliar a busca brasileira. A
+                  senha do cofre não é armazenada.
+                </p>
+                <form
+                  className="provider-credentials-form"
+                  onSubmit={saveProviderCredential}
+                >
+                  <div className="form-field">
+                    <label htmlFor="provider-key">Provider</label>
+                    <select
+                      id="provider-key"
+                      onChange={(event) =>
+                        setProviderKey(event.target.value as ProviderKey)
+                      }
+                      value={providerKey}
+                    >
+                      <option value="jsearch">JSearch</option>
+                      <option value="adzuna">Adzuna</option>
+                      <option value="jooble">Jooble</option>
+                    </select>
+                  </div>
+                  {providerKey === 'adzuna' ? (
+                    <>
+                      <div className="form-field">
+                        <label htmlFor="provider-app-id">Adzuna app ID</label>
+                        <input
+                          id="provider-app-id"
+                          onChange={(event) =>
+                            setProviderAppId(event.target.value)
+                          }
+                          type="password"
+                          value={providerAppId}
+                        />
+                      </div>
+                      <div className="form-field">
+                        <label htmlFor="provider-app-key">Adzuna app key</label>
+                        <input
+                          id="provider-app-key"
+                          onChange={(event) =>
+                            setProviderAppKey(event.target.value)
+                          }
+                          type="password"
+                          value={providerAppKey}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="form-field">
+                      <label htmlFor="provider-credential">API key</label>
+                      <input
+                        id="provider-credential"
+                        onChange={(event) =>
+                          setProviderCredential(event.target.value)
+                        }
+                        type="password"
+                        value={providerCredential}
+                      />
+                    </div>
+                  )}
+                  <button
+                    className="primary-button"
+                    disabled={isSavingProvider}
+                    type="submit"
+                  >
+                    {isSavingProvider ? 'Salvando…' : 'Salvar credencial'}
+                  </button>
+                </form>
+                {(providerSettingsError || providerSettingsMessage) && (
+                  <p
+                    className={`form-message${providerSettingsError ? ' is-error' : ' is-success'}`}
+                    role="status"
+                  >
+                    {providerSettingsError || providerSettingsMessage}
+                  </p>
+                )}
+                {providerStatuses.length > 0 && (
+                  <ul className="provider-status-list">
+                    {providerStatuses.map((status) => (
+                      <li key={status.provider}>
+                        <span>{status.provider}</span>
+                        <span className="provider-status-action">
+                          {status.configured
+                            ? status.unlocked
+                              ? 'disponível nesta execução'
+                              : 'aguardando desbloqueio acima'
+                            : 'não configurada'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
+
+            {pathname === '/agenda' && (
+              <section
+                aria-labelledby="scheduled-searches-title"
+                className="scheduled-search-panel"
+              >
+                <div className="source-list-heading">
+                  <span className="meta-label" id="scheduled-searches-title">
+                    AGENDADOR LOCAL
+                  </span>
+                  <span className="mono-note">EXECUTA COM O APP ABERTO</span>
+                </div>
+                <p className="sources-feedback">
+                  Salve filtros para consultar novas vagas depois. A agenda fica
+                  no SQLite local e nunca armazena credenciais de providers.
+                </p>
+                <form
+                  className="scheduled-search-form"
+                  onSubmit={createScheduledSearch}
+                >
+                  <div className="form-field">
+                    <label htmlFor="scheduled-search-name">
+                      Nome da agenda
+                    </label>
+                    <input
+                      id="scheduled-search-name"
+                      onChange={(event) =>
+                        setScheduledSearchName(event.target.value)
+                      }
+                      placeholder="Dados em Curitiba"
+                      value={scheduledSearchName}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="scheduled-search-frequency">
+                      Frequência
+                    </label>
+                    <select
+                      id="scheduled-search-frequency"
+                      onChange={(event) =>
+                        setScheduledSearchFrequency(event.target.value)
+                      }
+                      value={scheduledSearchFrequency}
+                    >
+                      <option value="60">A cada hora</option>
+                      <option value="360">A cada 6 horas</option>
+                      <option value="1440">Uma vez por dia</option>
+                      <option value="10080">Uma vez por semana</option>
+                    </select>
+                  </div>
+                  <button className="primary-button" type="submit">
+                    Salvar agenda
+                  </button>
+                </form>
+                {scheduledSearchError && (
+                  <p className="sources-feedback is-error" role="status">
+                    {scheduledSearchError}
+                  </p>
+                )}
+                {scheduledSearchMessage && (
+                  <p className="sources-feedback" role="status">
+                    {scheduledSearchMessage}
+                  </p>
+                )}
+                {isLoadingScheduledSearches && (
+                  <p className="sources-feedback" role="status">
+                    Carregando agendas…
+                  </p>
+                )}
+                {!isLoadingScheduledSearches &&
+                  scheduledSearches.length === 0 && (
+                    <p className="sources-empty">
+                      Nenhuma agenda criada. Preencha a busca acima e salve uma
+                      para consultar vagas no próximo ciclo.
+                    </p>
+                  )}
+                {scheduledSearches.length > 0 && (
+                  <ul className="source-list">
+                    {scheduledSearches.map((schedule) => (
+                      <li className="source-row" key={schedule.id}>
+                        <div>
+                          <span className="job-status">
+                            {schedule.enabled ? 'ATIVA' : 'PAUSADA'}
+                          </span>
+                          <h3>{schedule.name}</h3>
+                          <p>
+                            {schedule.query}
+                            {schedule.location ? ` · ${schedule.location}` : ''}
+                          </p>
+                          <p className="mono-note">
+                            {schedule.last_run_at
+                              ? `Última execução: ${formatRunDate(schedule.last_run_at)}`
+                              : 'Ainda não executada'}
+                          </p>
+                        </div>
+                        <div className="source-row-actions">
+                          <button
+                            className="text-button text-button-plain"
+                            onClick={() => void toggleScheduledSearch(schedule)}
+                            type="button"
+                          >
+                            {schedule.enabled ? 'Pausar' : 'Ativar'}
+                          </button>
+                          <button
+                            className="card-link"
+                            onClick={() => void loadScheduledJobs(schedule.id)}
+                            type="button"
+                          >
+                            Ver vagas encontradas
+                          </button>
+                        </div>
+                        {scheduledJobs[schedule.id] && (
+                          <ul className="scheduled-job-history">
+                            {scheduledJobs[schedule.id].map((item) => (
+                              <li key={item.id}>
+                                <span>
+                                  <strong>{item.title}</strong> · {item.company}
+                                </span>
+                                <span className="mono-note">
+                                  {item.outcome} · {item.provider} ·{' '}
+                                  {formatRunDate(item.found_at)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
+
+            {pathname === '/configuracoes/fontes' && (
+              <>
+                <div className="source-list-heading">
+                  <span className="meta-label">FONTES PÚBLICAS</span>
+                  <span className="mono-note">SEM CREDENCIAL</span>
+                </div>
+                {isLoadingSources && (
+                  <p className="sources-feedback" role="status">
+                    Carregando fontes…
+                  </p>
+                )}
+                {!isLoadingSources && sources.length === 0 && !sourcesError && (
+                  <p className="sources-feedback" role="status">
+                    Nenhuma fonte configurada.
+                  </p>
+                )}
+                {!isLoadingSources && sources.length > 0 && (
+                  <ul className="source-list">
+                    {sources.map((source) => (
+                      <li className="source-row" key={source.source_key}>
+                        <div>
+                          <span className="job-status">
+                            {source.enabled ? 'ATIVA' : 'PAUSADA'}
+                          </span>
+                          <h3>{source.display_name}</h3>
+                          <p>
+                            {source.per_run_limit} vagas por execução · limite
+                            diário {source.daily_limit}
+                          </p>
+                          {source.last_error && (
+                            <span className="source-error-note">
+                              {source.last_error}
+                            </span>
+                          )}
+                        </div>
+                        <div className="source-row-actions">
+                          <button
+                            className="text-button text-button-plain"
+                            onClick={() => void toggleSource(source)}
+                            type="button"
+                          >
+                            {source.enabled ? 'Pausar' : 'Ativar'}
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+
+            {pathname === '/configuracoes/historico' && (
+              <>
+                <div className="source-list-heading source-run-heading">
+                  <span className="meta-label">HISTÓRICO DE EXECUÇÕES</span>
+                  <span className="mono-note">CONTADORES AUDITÁVEIS</span>
+                </div>
+                {isLoadingSourceRuns && (
+                  <p className="sources-feedback" role="status">
+                    Carregando execuções…
+                  </p>
+                )}
+                {sourceRunsError && (
+                  <p className="sources-feedback is-error" role="status">
+                    {sourceRunsError}
+                  </p>
+                )}
+                {!isLoadingSourceRuns &&
+                  sourceRuns.length === 0 &&
+                  !sourceRunsError && (
+                    <div className="sources-empty">
+                      <span className="meta-label">NENHUMA BUSCA AINDA</span>
+                      <p>As execuções manuais e agendadas aparecerão aqui.</p>
+                    </div>
+                  )}
+                {!isLoadingSourceRuns && sourceRuns.length > 0 && (
+                  <ul className="source-run-list">
+                    {sourceRuns.map((run) => (
+                      <li className="source-run-row" key={run.id}>
+                        <div>
+                          <span
+                            className={`job-status source-run-status is-${run.status}`}
+                          >
+                            {sourceRunStatusLabel(run.status)}
+                          </span>
+                          <h3>{run.source_name}</h3>
+                          <p>
+                            {run.query.query || 'todos os cargos'}
+                            {run.query.location
+                              ? ` · ${run.query.location}`
+                              : ''}
+                          </p>
+                        </div>
+                        <div className="source-run-metrics">
+                          <span>{run.candidates_seen} encontradas</span>
+                          <span>{run.jobs_created} novas</span>
+                          <span>{run.exact_duplicates} exatas</span>
+                          <span>{run.approximate_duplicates} para revisar</span>
+                          <time dateTime={run.requested_at}>
+                            {formatRunDate(run.requested_at)}
+                          </time>
+                          {(run.status === 'pending' ||
+                            run.status === 'running') && (
+                            <button
+                              className="text-button text-button-plain danger-button"
+                              onClick={() => void cancelSourceRun(run)}
+                              type="button"
+                            >
+                              Cancelar
+                            </button>
+                          )}
+                        </div>
+                        {run.error_message && (
+                          <p className="source-error-note">
+                            {run.error_message}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+      )}
+
+      {pathname === '/configuracoes/fontes' && (
+        <section
+          className="preferences-section ai-settings-section"
+          id="ia"
+          aria-labelledby="ai-settings-title"
+        >
+          <div className="preferences-intro">
+            <p className="eyebrow">CHAVES E COFRE LOCAL</p>
+            <h2 id="ai-settings-title">Integrações protegidas</h2>
+            <p>
+              JSearch, Adzuna, Jooble e OpenAI ficam nesta área. As chaves são
+              criptografadas no banco local; a senha do cofre não é gravada e
+              desbloqueia todas as credenciais cadastradas nesta execução do
+              app.
+            </p>
+          </div>
+
+          <form className="preferences-form" onSubmit={handleApiKeySubmit}>
+            {!aiSettings.configured && (
+              <div className="form-field form-field-wide">
+                <label htmlFor="openai-api-key">Chave da API OpenAI</label>
+                <input
+                  autoComplete="new-password"
+                  id="openai-api-key"
+                  onChange={(event) => {
+                    setApiKeyDraft(event.target.value);
+                    setAiSettingsError(null);
+                    setAiSettingsMessage(null);
+                  }}
+                  placeholder="sk-…"
+                  spellCheck={false}
+                  type="password"
+                  value={apiKeyDraft}
+                />
+                <span>
+                  Modelo preparado: {aiSettings.model}. Nenhuma análise é
+                  iniciada automaticamente.
+                </span>
+              </div>
+            )}
+
+            <div className="form-field form-field-wide">
+              <span className="meta-label">
+                {isLoadingAiSettings
+                  ? 'VERIFICANDO CONFIGURAÇÃO…'
+                  : aiSettings.configured
+                    ? aiSettings.unlocked
+                      ? 'CHAVE CONFIGURADA E DESBLOQUEADA'
+                      : 'CHAVE CONFIGURADA E BLOQUEADA'
+                    : 'CHAVE AINDA NÃO CONFIGURADA'}
+              </span>
+              {!isLoadingAiSettings && (
+                <span>
+                  Armazenamento: {aiStorageLabel(aiSettings.storage)}.
+                </span>
+              )}
+            </div>
+
+            {(aiSettingsError || aiSettingsMessage) && (
+              <p
+                className={`form-message${aiSettingsError ? ' is-error' : ' is-success'}`}
+                role="status"
+              >
+                {aiSettingsError || aiSettingsMessage}
+              </p>
+            )}
+
+            <div className="form-actions form-field-wide">
+              {!aiSettings.configured && (
+                <button
+                  className="primary-button"
+                  disabled={
+                    isSavingApiKey || aiSettings.storage === 'environment'
+                  }
+                  type="submit"
+                >
+                  {isSavingApiKey ? 'Salvando…' : 'Criptografar e salvar chave'}
+                </button>
+              )}
+              {aiSettings.configured &&
+                aiSettings.storage === 'encrypted_database' && (
+                  <>
+                    {aiSettings.unlocked && (
+                      <>
+                        <button
+                          className="text-button text-button-plain"
+                          disabled={isSavingApiKey || isTestingAiConnection}
+                          onClick={() => void handleOpenAiConnectionTest()}
+                          type="button"
+                        >
+                          {isTestingAiConnection
+                            ? 'Testando conexão…'
+                            : 'Testar conexão'}
+                        </button>
+                        <button
+                          className="text-button text-button-plain"
+                          disabled={isSavingApiKey || isTestingAiConnection}
+                          onClick={() => void handleApiKeyLock()}
+                          type="button"
+                        >
+                          Bloquear cofre
+                        </button>
+                      </>
+                    )}
+                    <button
+                      className="text-button text-button-plain danger-button"
+                      disabled={isSavingApiKey}
+                      onClick={() => void handleApiKeyRemoval()}
+                      type="button"
+                    >
+                      Remover chave local
+                    </button>
+                  </>
+                )}
+            </div>
+          </form>
+        </section>
+      )}
+
+      {pathname === '/insights' && (
+        <section aria-labelledby="insights-title" className="insights-section">
+          <div className="page-intro">
+            <p className="eyebrow">IA E ANÁLISES</p>
+            <h1 id="insights-title">Decisões com contexto, não no escuro.</h1>
+            <p>
+              Analise uma vaga sob demanda, confira as evidências e mantenha a
+              decisão final sob seu controle. A configuração das integrações
+              fica separada em Fontes e integrações.
+            </p>
+          </div>
+          <div className="insights-card-grid">
+            <article className="insights-card">
+              <span className="meta-label">ANÁLISES NESTA SESSÃO</span>
+              <strong>{Object.keys(jobAnalyses).length}</strong>
+              <p>Resultados recentes ficam associados às vagas analisadas.</p>
+            </article>
+            <article className="insights-card">
+              <span className="meta-label">MODELO PREPARADO</span>
+              <strong>{aiSettings.model}</strong>
+              <p>A IA só é acionada quando você pede uma análise explícita.</p>
+            </article>
+            <article className="insights-card">
+              <span className="meta-label">PRIVACIDADE</span>
+              <strong>Local</strong>
+              <p>O backend redige dados pessoais antes de enviar o anúncio.</p>
+            </article>
+          </div>
+          <div className="form-actions insights-actions">
+            <button
+              className="primary-button"
+              onClick={() => navigate('/vagas')}
+              type="button"
+            >
+              Abrir minhas vagas
+            </button>
+            <button
+              className="text-button text-button-plain"
+              onClick={() => navigate('/configuracoes/fontes')}
+              type="button"
+            >
+              Configurar integrações
+            </button>
+          </div>
+        </section>
+      )}
+
+      {pathname === '/' && (
+        <section
+          className="editorial-hero"
+          id="inicio"
+          aria-labelledby="page-title"
+        >
+          <div className="hero-copy">
+            <p className="eyebrow">PLATAFORMA LOCAL DE VAGAS</p>
+            <h1
+              id="page-title"
+              aria-label="Encontre oportunidades. Prepare-se para avançar."
+            >
+              Encontre oportunidades.
+              <br />
+              <em>Prepare-se para avançar.</em>
+            </h1>
+            <p className="lede">
+              Um espaço simples para transformar sua busca de emprego em um
+              processo que você consegue acompanhar.
+            </p>
+            <div className="hero-actions">
+              <button
+                className="primary-button"
+                onClick={openProfileForm}
+                type="button"
+              >
+                Configurar meu perfil
+              </button>
+              <button
+                className="text-button text-button-plain"
+                onClick={() => navigate('/perfil')}
+                type="button"
+              >
+                Ver primeiro passo <span aria-hidden="true">↗</span>
+              </button>
+            </div>
+            <p className="privacy-note">
+              <span className="status-dot" aria-hidden="true" />
+              Dados ficam neste computador.
+            </p>
+          </div>
+
+          <aside
+            className="workspace-card"
+            id="perfil"
+            aria-labelledby="workspace-title"
+          >
+            <div className="card-topline">
+              <span className="meta-label">01 · SEU ESPAÇO DE BUSCA</span>
+              <span className="card-status">{profileStatus}</span>
+            </div>
+            <div className="card-body">
+              <p className="card-kicker">PRIMEIRO PASSO</p>
+              <h2 id="workspace-title">
+                {profile
+                  ? 'Seu perfil está pronto para buscar oportunidades.'
+                  : 'Seu perfil ainda não foi configurado.'}
+              </h2>
+              <p>
+                {profile
+                  ? `Versão ${profile.version_number} está salva neste computador.`
+                  : 'Comece dizendo que tipo de oportunidade faz sentido para você. O restante do espaço se adapta a essas escolhas.'}
+              </p>
+              <div
+                className="progress-line"
+                aria-label={profile ? 'Perfil configurado' : 'Etapa 1 de 3'}
+              >
+                <span
+                  className={`progress-fill${profile ? ' profile-ready' : ''}`}
+                />
+              </div>
+              <div className="progress-caption">
+                <span>Perfil</span>
+                <span>{profile ? 'configurado' : '1 de 3 etapas'}</span>
+              </div>
+            </div>
+            <div className="card-footer">
+              <span className="mono-note">SEM CONTA · SEM NUVEM</span>
+              <button
+                className="card-link"
+                onClick={openProfileForm}
+                type="button"
+              >
+                {profile ? 'Editar' : 'Começar'}{' '}
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </aside>
+        </section>
+      )}
+
+      {pathname === '/' && (
+        <section className="home-guidance" aria-labelledby="setup-title">
+          <div className="home-guidance-heading">
+            <div>
+              <p className="eyebrow">PREPARE SUA BUSCA</p>
+              <h2 id="setup-title">
+                {profile
+                  ? 'Seu espaço está evoluindo.'
+                  : 'Vamos preparar sua próxima busca.'}
+              </h2>
+              <p>
+                {nextSetupStep
+                  ? nextSetupStep.description
+                  : 'Tudo pronto para revisar oportunidades e acompanhar suas candidaturas.'}
+              </p>
+            </div>
+            {nextSetupStep ? (
+              <button
+                className="primary-button"
+                onClick={() => navigate(nextSetupStep.path)}
+                type="button"
+              >
+                {nextSetupStep.complete
+                  ? 'Ver progresso'
+                  : 'Continuar configuração'}
+              </button>
+            ) : (
+              <button
+                className="primary-button"
+                onClick={() => navigate('/busca')}
+                type="button"
+              >
+                Buscar vagas
+              </button>
+            )}
+          </div>
+
+          <div
+            className="setup-progress"
+            aria-label={`${setupPercent}% da configuração concluída`}
+          >
+            <div className="setup-progress-topline">
+              <strong>Sua busca está {setupPercent}% pronta</strong>
+              <span>
+                {completedSetupSteps} de {setupSteps.length} etapas
+              </span>
+            </div>
+            <div className="setup-progress-bar" aria-hidden="true">
+              <span style={{ width: `${setupPercent}%` }} />
+            </div>
+            <ol className="setup-step-list">
+              {setupSteps.map((step) => (
+                <li
+                  className={step.complete ? 'is-complete' : undefined}
+                  key={step.label}
+                >
+                  <button onClick={() => navigate(step.path)} type="button">
+                    <span className="setup-step-marker" aria-hidden="true">
+                      {step.complete ? '✓' : '○'}
+                    </span>
+                    <span>
+                      <strong>{step.label}</strong>
+                      <small>
+                        {step.complete ? 'Concluída' : step.description}
+                      </small>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <div className="home-summary-cards" aria-label="Resumo da busca">
+            <article>
+              <span className="meta-label">VAGAS NOVAS</span>
+              <strong>{dashboard?.cards.jobs_found ?? jobs.length}</strong>
+              <button onClick={() => navigate('/vagas')} type="button">
+                Ver oportunidades
+              </button>
+            </article>
+            <article>
+              <span className="meta-label">CANDIDATURAS ATIVAS</span>
+              <strong>
+                {dashboard?.cards.active_pipeline ?? pipelineEntries.length}
+              </strong>
+              <button onClick={() => navigate('/candidaturas')} type="button">
+                Acompanhar processo
+              </button>
+            </article>
+            <article>
+              <span className="meta-label">PRÓXIMOS EVENTOS</span>
+              <strong>{agendaUpcoming.length}</strong>
+              <button onClick={() => navigate('/agenda')} type="button">
+                Abrir agenda
+              </button>
+            </article>
+          </div>
+        </section>
+      )}
+
+      {pathname === '/configuracoes' && (
+        <section className="settings-index" aria-labelledby="settings-title">
+          <div className="page-intro">
+            <p className="eyebrow">CONFIGURAÇÕES</p>
+            <h1 id="settings-title">Ajuste o ambiente do Job Finder</h1>
+            <p>
+              Configurações técnicas e de manutenção ficam aqui, fora do fluxo
+              de encontrar e acompanhar vagas.
+            </p>
+          </div>
+          <div className="settings-card-grid">
+            {[
+              [
+                '/perfil',
+                'Perfil profissional',
+                'Cargos, competências, localização e restrições.',
+              ],
+              [
+                '/configuracoes/fontes',
+                'Fontes e integrações',
+                'Providers públicos, API keys e cofre local.',
+              ],
+              [
+                '/configuracoes/preferencias',
+                'Preferências',
+                'Idioma, moeda, fuso horário e retenção.',
+              ],
+              [
+                '/configuracoes/historico',
+                'Histórico técnico',
+                'Execuções de busca e versões do perfil.',
+              ],
+              [
+                '/configuracoes/lixeira',
+                'Lixeira',
+                'Recupere ou remova definitivamente vagas.',
+              ],
+            ].map(([path, title, description]) => (
+              <button
+                className="settings-card"
+                key={path}
+                onClick={() => navigate(path as AppPath)}
+                type="button"
+              >
+                <strong>{title}</strong>
+                <span>{description}</span>
+                <small>Abrir →</small>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {pathname === '/perfil' && (
+        <>
+          <section className="page-intro" aria-labelledby="profile-page-title">
+            <p className="eyebrow">CONFIGURAÇÃO DO PERFIL</p>
+            <h1 id="profile-page-title">Seu contexto de busca</h1>
+            <p>
+              Defina o que faz sentido para você. Essas escolhas orientam a
+              busca e permanecem somente no banco local.
+            </p>
+          </section>
+          <section
+            className="profile-form-section"
+            aria-labelledby="profile-form-title"
+          >
+            <div className="profile-form-intro">
+              <p className="eyebrow">CONFIGURAÇÃO DO PERFIL</p>
+              <h2 id="profile-form-title">Configure seu perfil</h2>
+              <p>
+                Esses critérios orientam a busca e ficam somente no banco local
+                do Job Finder.
+              </p>
+            </div>
+
+            <form className="profile-form" onSubmit={handleSubmit}>
+              <div className="form-field form-field-wide">
+                <label htmlFor="target-roles">Cargos desejados</label>
+                <input
+                  id="target-roles"
+                  onChange={(event) => handleFormChange('targetRoles', event)}
+                  placeholder="Ex.: Backend Engineer, Python Developer"
+                  value={formState.targetRoles}
+                />
+                <span>Separe mais de um cargo por vírgula.</span>
+              </div>
+
+              <div className="form-field form-field-wide">
+                <label htmlFor="skills">Competências</label>
+                <textarea
+                  id="skills"
+                  onChange={(event) => handleFormChange('skills', event)}
+                  placeholder="Ex.: Python, FastAPI, SQL"
+                  rows={3}
+                  value={formState.skills}
+                />
+                <span>Use palavras-chave que aparecem nas vagas.</span>
+              </div>
+
+              <fieldset className="form-field form-field-wide">
+                <legend>Modalidades de trabalho</legend>
+                <div className="checkbox-grid">
+                  {(
+                    [
+                      ['remote', 'Remoto'],
+                      ['hybrid', 'Híbrido'],
+                      ['on_site', 'Presencial'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <label className="checkbox-label" key={value}>
+                      <input
+                        checked={formState.workModels.includes(value)}
+                        onChange={() => toggleWorkModel(value)}
+                        type="checkbox"
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <div className="form-field">
+                <label htmlFor="countries">Países permitidos</label>
+                <input
+                  id="countries"
+                  onChange={(event) => handleFormChange('countries', event)}
+                  placeholder="Ex.: Brasil, Portugal"
+                  value={formState.countries}
+                />
+                <span>Filtro obrigatório; deixe vazio para aceitar todos.</span>
+              </div>
+
+              <fieldset className="form-field">
+                <legend>Tipos de contrato</legend>
+                <div className="checkbox-grid">
+                  {(
+                    [
+                      ['full_time', 'Tempo integral'],
+                      ['part_time', 'Meio período'],
+                      ['contract', 'Contrato'],
+                      ['temporary', 'Temporário'],
+                      ['internship', 'Estágio'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <label className="checkbox-label" key={value}>
+                      <input
+                        checked={formState.contractTypes.includes(value)}
+                        onChange={() => {
+                          setFormState((current) => ({
+                            ...current,
+                            contractTypes: current.contractTypes.includes(value)
+                              ? current.contractTypes.filter(
+                                  (item) => item !== value,
+                                )
+                              : [...current.contractTypes, value],
+                          }));
+                          setFormError(null);
+                        }}
+                        type="checkbox"
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                <span>Vazio significa aceitar qualquer tipo.</span>
+              </fieldset>
+
+              <div className="form-field">
+                <label htmlFor="locations">Localizações preferidas</label>
+                <input
+                  id="locations"
+                  onChange={(event) => handleFormChange('locations', event)}
+                  placeholder="Ex.: Brasil, São Paulo"
+                  value={formState.locations}
+                />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="excluded-keywords">Palavras a evitar</label>
+                <input
+                  id="excluded-keywords"
+                  onChange={(event) =>
+                    handleFormChange('excludedKeywords', event)
+                  }
+                  placeholder="Ex.: estágio, presencial"
+                  value={formState.excludedKeywords}
+                />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="language-code">Idioma principal</label>
+                <input
+                  id="language-code"
+                  maxLength={5}
+                  onChange={(event) => handleFormChange('languageCode', event)}
+                  placeholder="Ex.: en"
+                  value={formState.languageCode}
+                />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="language-level">Nível mínimo</label>
+                <select
+                  id="language-level"
+                  onChange={(event) => handleFormChange('languageLevel', event)}
+                  value={formState.languageLevel}
+                >
+                  <option value="basic">Básico</option>
+                  <option value="intermediate">Intermediário</option>
+                  <option value="professional">Profissional</option>
+                  <option value="native">Nativo</option>
+                </select>
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="minimum-monthly">Pretensão mínima mensal</label>
+                <input
+                  id="minimum-monthly"
+                  min="0"
+                  onChange={(event) =>
+                    handleFormChange('minimumMonthly', event)
+                  }
+                  placeholder="Opcional"
+                  type="number"
+                  value={formState.minimumMonthly}
+                />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="maximum-monthly">Pretensão máxima mensal</label>
+                <input
+                  id="maximum-monthly"
+                  min="0"
+                  onChange={(event) =>
+                    handleFormChange('maximumMonthly', event)
+                  }
+                  placeholder="Opcional"
+                  type="number"
+                  value={formState.maximumMonthly}
+                />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="currency">Moeda</label>
+                <select
+                  id="currency"
+                  onChange={(event) => handleFormChange('currency', event)}
+                  value={formState.currency}
+                >
+                  <option value="BRL">BRL · Real</option>
+                  <option value="USD">USD · Dólar</option>
+                  <option value="EUR">EUR · Euro</option>
+                </select>
+              </div>
+
+              <div className="weight-note form-field-wide">
+                <span className="meta-label">PESOS INICIAIS DA ANÁLISE</span>
+                <span>
+                  Competências 40% · Experiência 35% · Localização 25%
+                </span>
+              </div>
+
+              <div className="redaction-preview form-field-wide">
+                <div className="redaction-heading">
+                  <div>
+                    <label htmlFor="ai-preview-input">
+                      Texto para análise da IA
+                    </label>
+                    <span>
+                      Veja exatamente o que poderá ser enviado depois da
+                      redação.
+                    </span>
+                  </div>
+                  <button
+                    className="header-action"
+                    disabled={isRedacting}
+                    onClick={handleRedactionPreview}
+                    type="button"
+                  >
+                    {isRedacting ? 'Redigindo…' : 'Gerar prévia segura'}
+                  </button>
+                </div>
+                <textarea
+                  id="ai-preview-input"
+                  onChange={(event) => {
+                    setPreviewText(event.target.value);
+                    setRedactionPreview(null);
+                    setRedactionError(null);
+                  }}
+                  placeholder="Cole aqui um trecho de currículo ou descrição de vaga..."
+                  rows={4}
+                  value={previewText}
+                />
+                {redactionError && (
+                  <p className="form-message is-error" role="status">
+                    {redactionError}
+                  </p>
+                )}
+                {redactionPreview && (
+                  <div className="redaction-result">
+                    <span className="meta-label">PRÉVIA SEGURA PARA A IA</span>
+                    <output aria-label="Prévia segura para a IA">
+                      {redactionPreview.redacted_text}
+                    </output>
+                    <div className="redaction-counts">
+                      {redactionPreview.replacements.map((replacement) => (
+                        <span key={replacement.kind}>
+                          {replacement.count}{' '}
+                          {replacementLabel(replacement.kind)} removido
+                          {replacement.count > 1 ? 's' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {(formError || loadError || saveMessage) && (
+                <p
+                  className={`form-message${formError || loadError ? ' is-error' : ' is-success'}`}
+                  role="status"
+                >
+                  {formError || loadError || saveMessage}
+                </p>
+              )}
+
+              <div className="form-actions form-field-wide">
+                <button
+                  className="primary-button"
+                  disabled={isSaving}
+                  type="submit"
+                >
+                  {isSaving ? 'Salvando…' : 'Salvar perfil'}
+                </button>
+                <button
+                  className="text-button text-button-plain"
+                  onClick={() => navigate('/')}
+                  type="button"
+                >
+                  Voltar para início
+                </button>
+              </div>
+            </form>
+          </section>
+        </>
+      )}
+
+      {pathname === '/configuracoes/historico' &&
+        profile &&
+        profileHistory.length > 0 && (
+          <section
+            className="history-section"
+            id="historico"
+            aria-labelledby="history-title"
+          >
+            <div className="history-intro">
+              <p className="eyebrow">HISTÓRICO DO PERFIL</p>
+              <h2 id="history-title">
+                Cada versão preserva o contexto da busca.
+              </h2>
+              <p>
+                Editar o perfil cria uma nova versão. As anteriores continuam
+                disponíveis para entender quando seus critérios mudaram.
+              </p>
+            </div>
+
+            <ol className="history-list">
+              {[...profileHistory]
+                .sort(
+                  (left, right) => right.version_number - left.version_number,
+                )
+                .map((version) => {
+                  const isActive =
+                    version.version_number === profile.version_number;
+                  return (
+                    <li
+                      className={`history-row${isActive ? ' is-active' : ''}`}
+                      key={version.version_number}
+                    >
+                      <div className="history-version">
+                        <span>Versão {version.version_number}</span>
+                        {isActive && <strong>Ativa</strong>}
+                      </div>
+                      <div className="history-content">
+                        <h3>{version.criteria.target_roles.join(' · ')}</h3>
+                        <p>
+                          {version.criteria.skills.length > 0
+                            ? version.criteria.skills.join(', ')
+                            : 'Sem competências adicionais'}
+                        </p>
+                      </div>
+                      <time dateTime={version.created_at}>
+                        {formatVersionDate(version.created_at)}
+                      </time>
+                    </li>
+                  );
+                })}
+            </ol>
+          </section>
+        )}
+
+      {pathname === '/configuracoes/historico' &&
+        (!profile || profileHistory.length === 0) && (
+          <section
+            className="history-section"
+            aria-labelledby="history-empty-title"
+          >
+            <div className="history-intro">
+              <p className="eyebrow">HISTÓRICO TÉCNICO</p>
+              <h2 id="history-empty-title">
+                Ainda não há versões ou execuções
+              </h2>
+              <p>
+                Quando você salvar o perfil ou fizer uma busca, os registros
+                auditáveis aparecerão aqui.
+              </p>
+            </div>
+          </section>
+        )}
+
+      {pathname === '/agenda' && (
+        <section
+          className="agenda-section"
+          id="agenda"
+          aria-labelledby="agenda-title"
+        >
+          <div className="agenda-intro">
+            <p className="eyebrow">PRÓXIMOS PASSOS</p>
+            <h2 id="agenda-title">Agenda do processo seletivo</h2>
+            <p>
+              Entrevistas, desafios e prazos ficam agrupados por período para
+              você saber o que exige atenção agora.
+            </p>
+          </div>
+
+          <div className="agenda-workspace">
+            {isLoadingAgenda && (
+              <p className="agenda-feedback" role="status">
+                Carregando agenda…
+              </p>
+            )}
+            {!isLoadingAgenda && agendaError && (
+              <p className="agenda-feedback is-error" role="status">
+                {agendaError}
+              </p>
+            )}
+            {!isLoadingAgenda && !agendaError && agendaEvents.length === 0 && (
+              <div className="agenda-empty">
+                <span className="meta-label">AGENDA LIVRE</span>
+                <p>
+                  Registre uma entrevista, desafio ou prazo para acompanhar
+                  aqui.
+                </p>
+              </div>
+            )}
+            {!isLoadingAgenda && !agendaError && agendaEvents.length > 0 && (
+              <div className="agenda-groups">
+                <div className="agenda-group">
+                  <div className="agenda-group-heading">
+                    <h3>Próximos</h3>
+                    <span>{agendaUpcoming.length}</span>
+                  </div>
+                  {agendaUpcoming.length === 0 ? (
+                    <p className="agenda-group-empty">Nenhum evento próximo.</p>
+                  ) : (
+                    <ul className="agenda-list">
+                      {agendaUpcoming.map((event) => (
+                        <li className="agenda-item" key={event.id}>
+                          <div>
+                            <span className="agenda-status is-upcoming">
+                              PRÓXIMO
+                            </span>
+                            <h4>{event.title}</h4>
+                            <p>
+                              {event.kind} · candidatura #{event.application_id}
+                            </p>
+                          </div>
+                          <time dateTime={event.starts_at}>
+                            {formatAgendaDate(
+                              event.starts_at,
+                              event.timezone_name,
+                            )}
+                          </time>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="agenda-group">
+                  <div className="agenda-group-heading">
+                    <h3>Vencidos</h3>
+                    <span>{agendaOverdue.length}</span>
+                  </div>
+                  {agendaOverdue.length === 0 ? (
+                    <p className="agenda-group-empty">Nenhum prazo vencido.</p>
+                  ) : (
+                    <ul className="agenda-list">
+                      {agendaOverdue.map((event) => (
+                        <li className="agenda-item is-overdue" key={event.id}>
+                          <div>
+                            <span className="agenda-status is-overdue">
+                              VENCIDO
+                            </span>
+                            <h4>{event.title}</h4>
+                            <p>
+                              {event.kind} · candidatura #{event.application_id}
+                            </p>
+                          </div>
+                          <time dateTime={event.starts_at}>
+                            {formatAgendaDate(
+                              event.starts_at,
+                              event.timezone_name,
+                            )}
+                          </time>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {pathname === '/configuracoes/lixeira' && (
+        <section
+          className="trash-section"
+          id="lixeira"
+          aria-labelledby="trash-title"
+        >
+          <div className="trash-intro">
+            <p className="eyebrow">RETENÇÃO LOCAL</p>
+            <h2 id="trash-title">Lixeira recuperável</h2>
+            <p>
+              Vagas removidas ficam disponíveis até a data de retenção.
+              Restaurar mantém o histórico; excluir definitivamente exige
+              confirmação.
+            </p>
+          </div>
+
+          <div className="trash-workspace">
+            {isLoadingTrash && (
+              <p className="trash-feedback" role="status">
+                Carregando lixeira…
+              </p>
+            )}
+            {!isLoadingTrash && trashError && (
+              <p className="trash-feedback is-error" role="status">
+                {trashError}
+              </p>
+            )}
+            {!isLoadingTrash && !trashError && trashJobs.length === 0 && (
+              <div className="trash-empty">
+                <span className="meta-label">LIXEIRA VAZIA</span>
+                <p>
+                  Vagas removidas aparecerão aqui enquanto puderem ser
+                  restauradas.
+                </p>
+              </div>
+            )}
+            {!isLoadingTrash && trashJobs.length > 0 && (
+              <ul className="trash-list">
+                {trashJobs.map((job) => (
+                  <li className="trash-item" key={job.id}>
+                    <div>
+                      <span className="job-status">REMOVIDA</span>
+                      <h3>{job.title}</h3>
+                      <p>{job.company}</p>
+                      <span className="mono-note">
+                        Expira em {formatVersionDate(job.purge_after)}
+                      </span>
+                    </div>
+                    <div className="trash-actions">
+                      <button
+                        className="card-link"
+                        onClick={() => void restoreTrashJob(job.id)}
+                        type="button"
+                      >
+                        Restaurar vaga
+                      </button>
+                      <button
+                        className="text-button text-button-plain danger-button"
+                        onClick={() => void permanentlyDeleteTrashJob(job.id)}
+                        type="button"
+                      >
+                        Excluir definitivamente
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
-          </section>
-
-          <div className="source-list-heading">
-            <span className="meta-label">CONFIGURAÇÕES TÉCNICAS</span>
-            <span className="mono-note">OPCIONAL · SEM SELEÇÃO NA BUSCA</span>
           </div>
-          {isLoadingSources && (
-            <p className="sources-feedback" role="status">
-              Carregando fontes…
+        </section>
+      )}
+
+      {pathname === '/painel' && (
+        <section
+          className="dashboard-section"
+          id="dashboard"
+          aria-labelledby="dashboard-title"
+        >
+          <div className="dashboard-intro">
+            <p className="eyebrow">PAINEL OPERACIONAL</p>
+            <h2 id="dashboard-title">O movimento da sua busca</h2>
+            <p>
+              Métricas locais, com denominadores visíveis e crédito de fonte
+              definido.
             </p>
-          )}
-          {!isLoadingSources && sources.length === 0 && !sourcesError && (
-            <p className="sources-feedback" role="status">
-              Nenhuma fonte configurada.
-            </p>
-          )}
-          {!isLoadingSources && sources.length > 0 && (
-            <ul className="source-list">
-              {sources.map((source) => (
-                <li className="source-row" key={source.source_key}>
-                  <div>
-                    <span className="job-status">
-                      {source.enabled ? 'ATIVA' : 'PAUSADA'}
-                    </span>
-                    <h3>{source.display_name}</h3>
-                    <p>
-                      {source.per_run_limit} vagas por execução · limite diário{' '}
-                      {source.daily_limit}
-                    </p>
-                    {source.last_error && (
-                      <span className="source-error-note">
-                        {source.last_error}
+          </div>
+          <div className="dashboard-workspace">
+            <div className="dashboard-toolbar">
+              <label htmlFor="dashboard-period">Período do painel</label>
+              <select
+                id="dashboard-period"
+                onChange={(event) => setDashboardDays(event.target.value)}
+                value={dashboardDays}
+              >
+                <option value="30">Últimos 30 dias</option>
+                <option value="90">Últimos 90 dias</option>
+                <option value="365">Último ano</option>
+              </select>
+            </div>
+            {isLoadingDashboard && (
+              <p className="dashboard-feedback" role="status">
+                Calculando métricas…
+              </p>
+            )}
+            {!isLoadingDashboard && dashboardError && (
+              <p className="dashboard-feedback is-error" role="status">
+                {dashboardError}
+              </p>
+            )}
+            {!isLoadingDashboard && !dashboardError && dashboard && (
+              <>
+                <div className="dashboard-cards" aria-label="Resumo do período">
+                  {(
+                    [
+                      ['jobs_found', 'Vagas encontradas'],
+                      ['applications', 'Candidaturas'],
+                      ['interviews', 'Entrevistas'],
+                      ['offers', 'Ofertas'],
+                      ['hired', 'Contratações'],
+                      ['active_pipeline', 'Pipeline ativo'],
+                    ] as [keyof DashboardSummary['cards'], string][]
+                  ).map(([key, label]) => (
+                    <article className="dashboard-card" key={key}>
+                      <span className="meta-label">{label}</span>
+                      <strong>{dashboard.cards[key]}</strong>
+                    </article>
+                  ))}
+                </div>
+                <div className="dashboard-grid">
+                  <section
+                    className="dashboard-panel"
+                    aria-labelledby="dashboard-funnel-title"
+                  >
+                    <div className="dashboard-panel-heading">
+                      <h3 id="dashboard-funnel-title">Funil de conversão</h3>
+                      <span className="mono-note">denominador visível</span>
+                    </div>
+                    <ol className="dashboard-funnel">
+                      {dashboard.funnel.map((stage) => (
+                        <li key={stage.key}>
+                          <div>
+                            <span>{stage.label}</span>
+                            <strong>{stage.count}</strong>
+                          </div>
+                          <progress
+                            aria-label={`${stage.label}: ${stage.count} de ${stage.denominator}`}
+                            max={stage.denominator || 1}
+                            value={stage.count}
+                          />
+                          <small>
+                            {stage.conversion_percent == null
+                              ? 'sem base'
+                              : `${stage.conversion_percent}% de ${stage.denominator}`}
+                          </small>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                  <section
+                    className="dashboard-panel"
+                    aria-labelledby="dashboard-agenda-title"
+                  >
+                    <div className="dashboard-panel-heading">
+                      <h3 id="dashboard-agenda-title">Agenda</h3>
+                      <button
+                        className="card-link"
+                        onClick={() => navigate('/agenda')}
+                        type="button"
+                      >
+                        Abrir agenda
+                      </button>
+                    </div>
+                    <div className="dashboard-agenda-summary">
+                      <strong>{dashboard.agenda.upcoming}</strong>
+                      <span>próximos</span>
+                      <strong
+                        className={
+                          dashboard.agenda.overdue > 0 ? 'is-warning' : ''
+                        }
+                      >
+                        {dashboard.agenda.overdue}
+                      </strong>
+                      <span>atrasados</span>
+                    </div>
+                  </section>
+                </div>
+                <div className="dashboard-grid">
+                  <section
+                    className="dashboard-panel"
+                    aria-labelledby="dashboard-series-title"
+                  >
+                    <div className="dashboard-panel-heading">
+                      <h3 id="dashboard-series-title">Evolução semanal</h3>
+                      <span className="mono-note">
+                        vagas · candidaturas · entrevistas
                       </span>
-                    )}
-                  </div>
-                  <div className="source-row-actions">
-                    <button
-                      className="text-button text-button-plain"
-                      onClick={() => void toggleSource(source)}
-                      type="button"
-                    >
-                      {source.enabled ? 'Pausar' : 'Ativar'}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <div className="source-list-heading source-run-heading">
-            <span className="meta-label">HISTÓRICO DE EXECUÇÕES</span>
-            <span className="mono-note">CONTADORES AUDITÁVEIS</span>
+                    </div>
+                    <div className="dashboard-table-wrap">
+                      <table>
+                        <caption className="visually-hidden">
+                          Evolução semanal da busca
+                        </caption>
+                        <thead>
+                          <tr>
+                            <th scope="col">Semana</th>
+                            <th scope="col">Vagas</th>
+                            <th scope="col">Candidaturas</th>
+                            <th scope="col">Entrevistas</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dashboard.series.map((point) => (
+                            <tr key={point.period_start}>
+                              <th scope="row">{point.period_start}</th>
+                              <td>{point.jobs}</td>
+                              <td>{point.applications}</td>
+                              <td>{point.interviews}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                  <section
+                    className="dashboard-panel"
+                    aria-labelledby="dashboard-sources-title"
+                  >
+                    <div className="dashboard-panel-heading">
+                      <h3 id="dashboard-sources-title">Desempenho por fonte</h3>
+                      <span className="mono-note">
+                        crédito na primeira origem
+                      </span>
+                    </div>
+                    <div className="dashboard-table-wrap">
+                      <table>
+                        <caption className="visually-hidden">
+                          Desempenho por fonte
+                        </caption>
+                        <thead>
+                          <tr>
+                            <th scope="col">Fonte</th>
+                            <th scope="col">Vagas</th>
+                            <th scope="col">Aplicação</th>
+                            <th scope="col">Erros</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dashboard.sources.map((source) => (
+                            <tr key={source.source_key}>
+                              <th scope="row">{source.source_key}</th>
+                              <td>{source.jobs}</td>
+                              <td>
+                                {source.application_rate_percent == null
+                                  ? '—'
+                                  : `${source.application_rate_percent}%`}
+                              </td>
+                              <td>{source.errors}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                </div>
+              </>
+            )}
           </div>
-          {isLoadingSourceRuns && (
-            <p className="sources-feedback" role="status">
-              Carregando execuções…
+        </section>
+      )}
+
+      {pathname === '/candidaturas' && (
+        <section
+          className="pipeline-section"
+          id="pipeline"
+          aria-labelledby="pipeline-title"
+        >
+          <div className="pipeline-intro">
+            <p className="eyebrow">ACOMPANHAMENTO</p>
+            <h2 id="pipeline-title">Pipeline de candidaturas</h2>
+            <p>
+              Cada movimento fica registrado no histórico local. Use o teclado
+              para escolher a próxima fase e confirmar a mudança.
             </p>
-          )}
-          {sourceRunsError && (
-            <p className="sources-feedback is-error" role="status">
-              {sourceRunsError}
-            </p>
-          )}
-          {!isLoadingSourceRuns &&
-            sourceRuns.length === 0 &&
-            !sourceRunsError && (
-              <div className="sources-empty">
-                <span className="meta-label">NENHUMA BUSCA AINDA</span>
-                <p>As execuções manuais e agendadas aparecerão aqui.</p>
+          </div>
+
+          <div className="pipeline-workspace">
+            {isLoadingApplications && (
+              <p className="pipeline-feedback" role="status">
+                Carregando candidaturas…
+              </p>
+            )}
+            {!isLoadingApplications && applicationsError && (
+              <p className="pipeline-feedback is-error" role="status">
+                {applicationsError}
+              </p>
+            )}
+            {!isLoadingApplications &&
+              !applicationsError &&
+              pipelineEntries.length === 0 && (
+                <div className="pipeline-empty">
+                  <span className="meta-label">NENHUMA CANDIDATURA</span>
+                  <p>
+                    Crie uma candidatura a partir de uma vaga para acompanhar as
+                    fases neste quadro.
+                  </p>
+                </div>
+              )}
+            {!isLoadingApplications && pipelineEntries.length > 0 && (
+              <div className="pipeline-board">
+                {pipelineStages.map((stage) => {
+                  const stageEntries = pipelineEntries.filter(
+                    ({ application }) =>
+                      application.current_status === stage.value,
+                  );
+                  return (
+                    <section
+                      className="pipeline-column"
+                      key={stage.value}
+                      aria-labelledby={`pipeline-${stage.value}`}
+                    >
+                      <div className="pipeline-column-heading">
+                        <h3 id={`pipeline-${stage.value}`}>{stage.label}</h3>
+                        <span>{stageEntries.length}</span>
+                      </div>
+                      <ul className="pipeline-card-list">
+                        {stageEntries.map(({ application, job }) => (
+                          <li className="pipeline-card" key={application.id}>
+                            <span className="job-status">
+                              {pipelineStatusLabel(application.current_status)}
+                            </span>
+                            <h4>{job.title}</h4>
+                            <p>{job.company}</p>
+                            <label
+                              htmlFor={`pipeline-target-${application.id}`}
+                            >
+                              Próxima fase para {job.title}
+                            </label>
+                            <select
+                              id={`pipeline-target-${application.id}`}
+                              onChange={(event) =>
+                                setPipelineTargets((current) => ({
+                                  ...current,
+                                  [application.id]: event.target
+                                    .value as ApplicationStatus,
+                                }))
+                              }
+                              value={
+                                pipelineTargets[application.id] ??
+                                application.current_status
+                              }
+                            >
+                              {pipelineStages.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              className="card-link pipeline-move-button"
+                              disabled={pipelineActionId === application.id}
+                              onClick={() =>
+                                void moveApplication(application, job)
+                              }
+                              type="button"
+                            >
+                              {pipelineActionId === application.id
+                                ? 'Movendo…'
+                                : 'Mover candidatura'}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  );
+                })}
               </div>
             )}
-          {!isLoadingSourceRuns && sourceRuns.length > 0 && (
-            <ul className="source-run-list">
-              {sourceRuns.map((run) => (
-                <li className="source-run-row" key={run.id}>
-                  <div>
-                    <span
-                      className={`job-status source-run-status is-${run.status}`}
-                    >
-                      {sourceRunStatusLabel(run.status)}
-                    </span>
-                    <h3>{run.source_name}</h3>
-                    <p>
-                      {run.query.query || 'todos os cargos'}
-                      {run.query.location ? ` · ${run.query.location}` : ''}
-                    </p>
-                  </div>
-                  <div className="source-run-metrics">
-                    <span>{run.candidates_seen} encontradas</span>
-                    <span>{run.jobs_created} novas</span>
-                    <span>{run.exact_duplicates} exatas</span>
-                    <span>{run.approximate_duplicates} para revisar</span>
-                    <time dateTime={run.requested_at}>
-                      {formatRunDate(run.requested_at)}
-                    </time>
-                    {(run.status === 'pending' || run.status === 'running') && (
-                      <button
-                        className="text-button text-button-plain danger-button"
-                        onClick={() => void cancelSourceRun(run)}
-                        type="button"
-                      >
-                        Cancelar
-                      </button>
-                    )}
-                  </div>
-                  {run.error_message && (
-                    <p className="source-error-note">{run.error_message}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
+          </div>
+        </section>
+      )}
 
-      <section
-        className="preferences-section ai-settings-section"
-        id="ia"
-        aria-labelledby="ai-settings-title"
-      >
-        <div className="preferences-intro">
-          <p className="eyebrow">IA LOCAL E CONTROLADA</p>
-          <h2 id="ai-settings-title">Conecte sua chave OpenAI</h2>
-          <p>
-            A chave é criptografada no banco local. A senha do cofre não é
-            gravada: ela apenas desbloqueia a chave nesta execução do app.
-          </p>
-        </div>
-
-        <form className="preferences-form" onSubmit={handleApiKeySubmit}>
-          {!aiSettings.configured && (
-            <div className="form-field form-field-wide">
-              <label htmlFor="openai-api-key">Chave da API OpenAI</label>
-              <input
-                autoComplete="new-password"
-                id="openai-api-key"
-                onChange={(event) => {
-                  setApiKeyDraft(event.target.value);
-                  setAiSettingsError(null);
-                  setAiSettingsMessage(null);
-                }}
-                placeholder="sk-…"
-                spellCheck={false}
-                type="password"
-                value={apiKeyDraft}
-              />
-              <span>
-                Modelo preparado: {aiSettings.model}. Nenhuma análise é iniciada
-                automaticamente.
-              </span>
-            </div>
-          )}
-
-          {aiSettings.storage !== 'environment' && !aiSettings.unlocked && (
-            <div className="form-field form-field-wide">
-              <label htmlFor="vault-password">
-                {aiSettings.configured
-                  ? 'Senha do cofre local'
-                  : 'Crie uma senha para o cofre local'}
-              </label>
-              <input
-                autoComplete="new-password"
-                id="vault-password"
-                minLength={12}
-                onChange={(event) => {
-                  setVaultPasswordDraft(event.target.value);
-                  setAiSettingsError(null);
-                  setAiSettingsMessage(null);
-                }}
-                spellCheck={false}
-                type="password"
-                value={vaultPasswordDraft}
-              />
-              {!aiSettings.configured && (
-                <span>Use ao menos 12 caracteres e guarde esta senha.</span>
-              )}
-            </div>
-          )}
-
-          {!aiSettings.configured && (
-            <div className="form-field form-field-wide">
-              <label htmlFor="vault-password-confirmation">
-                Confirme a senha do cofre local
-              </label>
-              <input
-                autoComplete="new-password"
-                id="vault-password-confirmation"
-                minLength={12}
-                onChange={(event) => {
-                  setVaultPasswordConfirmation(event.target.value);
-                  setAiSettingsError(null);
-                  setAiSettingsMessage(null);
-                }}
-                spellCheck={false}
-                type="password"
-                value={vaultPasswordConfirmation}
-              />
-            </div>
-          )}
-
-          <div className="form-field form-field-wide">
-            <span className="meta-label">
-              {isLoadingAiSettings
-                ? 'VERIFICANDO CONFIGURAÇÃO…'
-                : aiSettings.configured
-                  ? aiSettings.unlocked
-                    ? 'CHAVE CONFIGURADA E DESBLOQUEADA'
-                    : 'CHAVE CONFIGURADA E BLOQUEADA'
-                  : 'CHAVE AINDA NÃO CONFIGURADA'}
-            </span>
-            {!isLoadingAiSettings && (
-              <span>Armazenamento: {aiStorageLabel(aiSettings.storage)}.</span>
-            )}
+      {pathname === '/vagas' && (
+        <section
+          className="jobs-section"
+          id="vagas"
+          aria-labelledby="jobs-title"
+        >
+          <div className="jobs-intro">
+            <p className="eyebrow">CAIXA DE ENTRADA</p>
+            <h2 id="jobs-title">Caixa de entrada de vagas</h2>
+            <p>
+              Revise oportunidades encontradas, mantenha a origem registrada e
+              escolha o próximo passo sem sair do computador.
+            </p>
           </div>
 
-          {(aiSettingsError || aiSettingsMessage) && (
-            <p
-              className={`form-message${aiSettingsError ? ' is-error' : ' is-success'}`}
-              role="status"
-            >
-              {aiSettingsError || aiSettingsMessage}
-            </p>
-          )}
+          <div className="jobs-workspace">
+            <div className="jobs-toolbar">
+              <div className="job-search-field">
+                <label htmlFor="job-search">Buscar na caixa de entrada</label>
+                <input
+                  id="job-search"
+                  onChange={(event) => setJobSearch(event.target.value)}
+                  placeholder="Cargo, empresa ou local"
+                  value={jobSearch}
+                />
+              </div>
+              <button
+                className="header-action"
+                onClick={openJobForm}
+                type="button"
+              >
+                Adicionar vaga
+              </button>
+            </div>
+            <div className="saved-filter-toolbar">
+              <label htmlFor="saved-filter-select">Filtro salvo</label>
+              <select
+                id="saved-filter-select"
+                onChange={(event) => applySavedFilter(event.target.value)}
+                value={selectedSavedFilter}
+              >
+                <option value="">Nenhum filtro salvo</option>
+                {savedFilters.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {filter.name}
+                  </option>
+                ))}
+              </select>
+              <label className="saved-filter-name" htmlFor="saved-filter-name">
+                Nome
+                <input
+                  id="saved-filter-name"
+                  onChange={(event) => setSavedFilterName(event.target.value)}
+                  placeholder="ex.: Backend remoto"
+                  value={savedFilterName}
+                />
+              </label>
+              <button
+                className="card-link"
+                onClick={() => void saveCurrentFilter()}
+                type="button"
+              >
+                Salvar filtro atual
+              </button>
+            </div>
+            {savedFilterMessage && (
+              <p className="form-message" role="status">
+                {savedFilterMessage}
+              </p>
+            )}
 
-          <div className="form-actions form-field-wide">
-            <button
-              className="primary-button"
-              disabled={isSavingApiKey || aiSettings.storage === 'environment'}
-              type="submit"
-            >
-              {isSavingApiKey
-                ? 'Salvando…'
-                : aiSettings.unlocked
-                  ? 'Chave disponível nesta execução'
-                  : aiSettings.configured
-                    ? 'Desbloquear chave'
-                    : 'Criptografar e salvar chave'}
-            </button>
-            {aiSettings.configured &&
-              aiSettings.storage === 'encrypted_database' && (
-                <>
-                  {aiSettings.unlocked && (
-                    <>
-                      <button
-                        className="text-button text-button-plain"
-                        disabled={isSavingApiKey || isTestingAiConnection}
-                        onClick={() => void handleOpenAiConnectionTest()}
-                        type="button"
-                      >
-                        {isTestingAiConnection
-                          ? 'Testando conexão…'
-                          : 'Testar conexão'}
-                      </button>
-                      <button
-                        className="text-button text-button-plain"
-                        disabled={isSavingApiKey || isTestingAiConnection}
-                        onClick={() => void handleApiKeyLock()}
-                        type="button"
-                      >
-                        Bloquear cofre
-                      </button>
-                    </>
-                  )}
+            {isLoadingJobDetail && (
+              <p className="jobs-feedback" role="status">
+                Carregando detalhe…
+              </p>
+            )}
+            {jobDetailError && (
+              <p className="jobs-feedback is-error" role="status">
+                {jobDetailError}
+              </p>
+            )}
+            {selectedJob && !isLoadingJobDetail && (
+              <article
+                className="job-detail"
+                aria-labelledby="job-detail-title"
+              >
+                <div className="job-detail-topline">
+                  <span className="meta-label">DETALHE DA VAGA</span>
                   <button
-                    className="text-button text-button-plain danger-button"
-                    disabled={isSavingApiKey}
-                    onClick={() => void handleApiKeyRemoval()}
+                    className="text-button text-button-plain"
+                    onClick={() => setSelectedJob(null)}
                     type="button"
                   >
-                    Remover chave local
+                    Fechar detalhe
                   </button>
-                </>
+                </div>
+                <span className="job-status">{selectedJob.status_label}</span>
+                <h3 id="job-detail-title">Detalhe da vaga</h3>
+                <h4>{selectedJob.title}</h4>
+                <p className="job-detail-company">
+                  {selectedJob.company}
+                  {selectedJob.location ? ` · ${selectedJob.location}` : ''}
+                </p>
+                <div className="job-analysis-actions">
+                  {(() => {
+                    const application = Object.values(applications).find(
+                      (candidate) => candidate.job_id === selectedJob.id,
+                    );
+                    if (
+                      application &&
+                      application.current_status !== 'found' &&
+                      application.current_status !== 'pending'
+                    ) {
+                      return (
+                        <span className="job-status">
+                          {pipelineStatusLabel(application.current_status)}
+                        </span>
+                      );
+                    }
+                    return (
+                      <button
+                        className="primary-button"
+                        disabled={applyingJobId === selectedJob.id}
+                        onClick={() => void markJobApplied(selectedJob)}
+                        type="button"
+                      >
+                        {applyingJobId === selectedJob.id
+                          ? 'Salvando…'
+                          : 'Marcar como aplicada'}
+                      </button>
+                    );
+                  })()}
+                  <button
+                    className="primary-button"
+                    disabled={isAnalyzingJob}
+                    onClick={() => void analyzeSelectedJobs([selectedJob.id])}
+                    type="button"
+                  >
+                    {isAnalyzingJob
+                      ? 'Analisando…'
+                      : 'Analisar esta vaga com IA'}
+                  </button>
+                  {jobAnalyses[selectedJob.id] && (
+                    <span className="mono-note">
+                      Versão {jobAnalyses[selectedJob.id].analysis_version} ·{' '}
+                      {jobAnalyses[selectedJob.id].usage.fallback
+                        ? 'triagem local limitada'
+                        : `${jobAnalyses[selectedJob.id].usage.estimated_cost_usd == null ? 'custo indisponível' : `US$ ${jobAnalyses[selectedJob.id].usage.estimated_cost_usd!.toFixed(4)}`}`}
+                    </span>
+                  )}
+                </div>
+                {jobAnalyses[selectedJob.id] && (
+                  <div className="job-analysis-summary" role="status">
+                    <strong>
+                      Aderência: {jobAnalyses[selectedJob.id].fit.score}/100
+                    </strong>
+                    <p>
+                      {jobAnalyses[selectedJob.id].analysis.assessment.summary}
+                    </p>
+                    {jobAnalyses[selectedJob.id].analysis.assessment.warnings
+                      .length > 0 && (
+                      <p className="mono-note">
+                        {jobAnalyses[
+                          selectedJob.id
+                        ].analysis.assessment.warnings.join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                )}
+                <div className="job-detail-grid">
+                  <div>
+                    <span className="meta-label">ORIGENS</span>
+                    <ul className="job-origin-list">
+                      {selectedJob.origins.map((origin) => (
+                        <li key={origin.id}>
+                          <span>{origin.source}</span>
+                          {origin.url && (
+                            <a
+                              href={origin.url}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              Abrir URL
+                            </a>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <span className="meta-label">CONTEÚDO VERSIONADO</span>
+                    <ol className="job-content-history">
+                      {[...selectedJob.content_versions]
+                        .sort(
+                          (left, right) =>
+                            right.version_number - left.version_number,
+                        )
+                        .map((version) => (
+                          <li key={version.id}>
+                            <span>Versão {version.version_number}</span>
+                            <pre className="job-detail-content">
+                              {version.raw_content}
+                            </pre>
+                          </li>
+                        ))}
+                    </ol>
+                  </div>
+                </div>
+              </article>
+            )}
+
+            {isJobFormOpen && (
+              <form className="job-form" onSubmit={handleManualJobSubmit}>
+                <div className="form-field">
+                  <label htmlFor="manual-job-url">URL canônica</label>
+                  <input
+                    id="manual-job-url"
+                    onChange={(event) =>
+                      setManualJobForm((current) => ({
+                        ...current,
+                        canonicalUrl: event.target.value,
+                      }))
+                    }
+                    type="url"
+                    value={manualJobForm.canonicalUrl}
+                  />
+                </div>
+                <div className="form-field">
+                  <label htmlFor="manual-job-title">Título da vaga</label>
+                  <input
+                    id="manual-job-title"
+                    onChange={(event) =>
+                      setManualJobForm((current) => ({
+                        ...current,
+                        title: event.target.value,
+                      }))
+                    }
+                    value={manualJobForm.title}
+                  />
+                </div>
+                <div className="form-field">
+                  <label htmlFor="manual-job-company">Empresa</label>
+                  <input
+                    id="manual-job-company"
+                    onChange={(event) =>
+                      setManualJobForm((current) => ({
+                        ...current,
+                        company: event.target.value,
+                      }))
+                    }
+                    value={manualJobForm.company}
+                  />
+                </div>
+                <div className="form-field">
+                  <label htmlFor="manual-job-location">Localização</label>
+                  <input
+                    id="manual-job-location"
+                    onChange={(event) =>
+                      setManualJobForm((current) => ({
+                        ...current,
+                        location: event.target.value,
+                      }))
+                    }
+                    placeholder="Opcional"
+                    value={manualJobForm.location}
+                  />
+                </div>
+                <div className="form-field form-field-wide">
+                  <label htmlFor="manual-job-content">Conteúdo da vaga</label>
+                  <textarea
+                    id="manual-job-content"
+                    onChange={(event) =>
+                      setManualJobForm((current) => ({
+                        ...current,
+                        content: event.target.value,
+                      }))
+                    }
+                    rows={5}
+                    value={manualJobForm.content}
+                  />
+                </div>
+                {(jobFormError || jobMessage) && (
+                  <p
+                    className={`form-message${jobFormError ? ' is-error' : ' is-success'}`}
+                    role="status"
+                  >
+                    {jobFormError || jobMessage}
+                  </p>
+                )}
+                <div className="form-actions form-field-wide">
+                  <button
+                    className="primary-button"
+                    disabled={isSavingJob}
+                    type="submit"
+                  >
+                    {isSavingJob ? 'Salvando…' : 'Salvar vaga'}
+                  </button>
+                  <button
+                    className="text-button text-button-plain"
+                    onClick={() => setIsJobFormOpen(false)}
+                    type="button"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {jobMessage && !isJobFormOpen && (
+              <p className="form-message is-success" role="status">
+                {jobMessage}
+              </p>
+            )}
+
+            {isLoadingJobs && (
+              <p className="jobs-feedback" role="status">
+                Carregando vagas…
+              </p>
+            )}
+            {!isLoadingJobs && jobsError && (
+              <p className="jobs-feedback is-error" role="status">
+                {jobsError}
+              </p>
+            )}
+            {!isLoadingJobs && !jobsError && jobs.length === 0 && (
+              <div className="jobs-empty">
+                <span className="meta-label">NENHUMA VAGA SALVA</span>
+                <p>Adicione uma vaga manualmente para começar sua revisão.</p>
+                <button
+                  className="text-button"
+                  onClick={openJobForm}
+                  type="button"
+                >
+                  Adicionar primeira vaga <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            )}
+            {!isLoadingJobs &&
+              !jobsError &&
+              jobs.length > 0 &&
+              visibleJobs.length === 0 && (
+                <p className="jobs-feedback" role="status">
+                  Nenhuma vaga corresponde à busca.
+                </p>
               )}
+            {!isLoadingJobs && !jobsError && visibleJobs.length > 0 && (
+              <>
+                <div className="job-bulk-actions">
+                  <span className="mono-note">
+                    {selectedJobIds.length} selecionada(s)
+                  </span>
+                  <button
+                    className="header-action"
+                    disabled={isAnalyzingJob || selectedJobIds.length === 0}
+                    onClick={() => void analyzeSelectedJobs(selectedJobIds)}
+                    type="button"
+                  >
+                    Analisar selecionadas
+                  </button>
+                </div>
+                {analysisMessage && (
+                  <p className="form-message is-success" role="status">
+                    {analysisMessage}
+                  </p>
+                )}
+                {analysisError && (
+                  <p className="form-message is-error" role="status">
+                    {analysisError}
+                  </p>
+                )}
+                <ul className="job-list">
+                  {visibleJobs.map((job) => {
+                    const analysis = jobAnalyses[job.id];
+                    const application = Object.values(applications).find(
+                      (candidate) => candidate.job_id === job.id,
+                    );
+                    return (
+                      <li className="job-row" key={job.id}>
+                        <div className="job-row-content">
+                          <label className="job-select-control">
+                            <input
+                              aria-label={`Selecionar ${job.title}`}
+                              checked={selectedJobIds.includes(job.id)}
+                              onChange={(event) =>
+                                setSelectedJobIds((current) =>
+                                  event.target.checked
+                                    ? [...current, job.id]
+                                    : current.filter((id) => id !== job.id),
+                                )
+                              }
+                              type="checkbox"
+                            />
+                          </label>
+                          <div className="job-row-main">
+                            <span className="job-status">
+                              {job.status_label}
+                            </span>
+                            <h3>{job.title}</h3>
+                            <p>
+                              {job.company}
+                              {job.location ? ` · ${job.location}` : ''}
+                            </p>
+                          </div>
+                          <div className="job-row-meta">
+                            <span className="mono-note">
+                              {job.origin_count} origem
+                              {job.origin_count === 1 ? '' : 'ns'}
+                            </span>
+                            {job.canonical_url && (
+                              <a
+                                className="card-link"
+                                href={job.canonical_url}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                Abrir origem <span aria-hidden="true">↗</span>
+                              </a>
+                            )}
+                            <button
+                              className="card-link"
+                              onClick={() => void openJobDetail(job.id)}
+                              type="button"
+                            >
+                              Ver detalhes
+                            </button>
+                            {(!application ||
+                              application.current_status === 'found' ||
+                              application.current_status === 'pending') && (
+                              <button
+                                className="primary-button"
+                                disabled={applyingJobId === job.id}
+                                onClick={() => void markJobApplied(job)}
+                                type="button"
+                              >
+                                {applyingJobId === job.id
+                                  ? 'Salvando…'
+                                  : 'Marcar como aplicada'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {analysis && (
+                          <section
+                            aria-label={`Análise concluída: ${job.title}`}
+                            className="job-row-analysis"
+                            role="region"
+                          >
+                            <div className="job-row-analysis-heading">
+                              <span className="meta-label">
+                                ANÁLISE CONCLUÍDA
+                              </span>
+                              <span className="mono-note">
+                                Versão {analysis.analysis_version}
+                              </span>
+                            </div>
+                            <div className="job-row-analysis-identity">
+                              <strong>{job.title}</strong>
+                              <span>{job.company}</span>
+                            </div>
+                            <div className="job-row-analysis-score">
+                              <strong>
+                                Aderência {analysis.fit.score}/100
+                              </strong>
+                              <span>
+                                Confiança{' '}
+                                {analysis.analysis.assessment.confidence}%
+                              </span>
+                            </div>
+                            <p>{analysis.analysis.assessment.summary}</p>
+                            <button
+                              className="card-link"
+                              onClick={() => void openJobDetail(job.id)}
+                              type="button"
+                            >
+                              Abrir análise completa de {job.title}
+                            </button>
+                          </section>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
           </div>
-        </form>
-      </section>
+        </section>
+      )}
 
-      <section
-        className="editorial-hero"
-        id="inicio"
-        aria-labelledby="page-title"
-      >
-        <div className="hero-copy">
-          <p className="eyebrow">PLATAFORMA LOCAL DE VAGAS</p>
-          <h1
-            id="page-title"
-            aria-label="Encontre oportunidades. Prepare-se para avançar."
-          >
-            Encontre oportunidades.
-            <br />
-            <em>Prepare-se para avançar.</em>
-          </h1>
-          <p className="lede">
-            Um espaço simples para transformar sua busca de emprego em um
-            processo que você consegue acompanhar.
-          </p>
-          <div className="hero-actions">
-            <button
-              className="primary-button"
-              onClick={openProfileForm}
-              type="button"
-            >
-              Configurar meu perfil
-            </button>
-            <a className="text-button" href="#como-funciona">
-              Ver como funciona <span aria-hidden="true">↗</span>
-            </a>
-          </div>
-          <p className="privacy-note">
-            <span className="status-dot" aria-hidden="true" />
-            Dados ficam neste computador.
-          </p>
-        </div>
-
-        <aside
-          className="workspace-card"
-          id="perfil"
-          aria-labelledby="workspace-title"
-        >
-          <div className="card-topline">
-            <span className="meta-label">01 · SEU ESPAÇO DE BUSCA</span>
-            <span className="card-status">{profileStatus}</span>
-          </div>
-          <div className="card-body">
-            <p className="card-kicker">PRIMEIRO PASSO</p>
-            <h2 id="workspace-title">
-              {profile
-                ? 'Seu perfil está pronto para buscar oportunidades.'
-                : 'Seu perfil ainda não foi configurado.'}
-            </h2>
-            <p>
-              {profile
-                ? `Versão ${profile.version_number} está salva neste computador.`
-                : 'Comece dizendo que tipo de oportunidade faz sentido para você. O restante do espaço se adapta a essas escolhas.'}
-            </p>
-            <div
-              className="progress-line"
-              aria-label={profile ? 'Perfil configurado' : 'Etapa 1 de 3'}
-            >
-              <span
-                className={`progress-fill${profile ? ' profile-ready' : ''}`}
-              />
-            </div>
-            <div className="progress-caption">
-              <span>Perfil</span>
-              <span>{profile ? 'configurado' : '1 de 3 etapas'}</span>
-            </div>
-          </div>
-          <div className="card-footer">
-            <span className="mono-note">SEM CONTA · SEM NUVEM</span>
-            <button
-              className="card-link"
-              onClick={openProfileForm}
-              type="button"
-            >
-              {profile ? 'Editar' : 'Começar'} <span aria-hidden="true">→</span>
-            </button>
-          </div>
-        </aside>
-      </section>
-
-      {isFormOpen && (
+      {pathname === '/configuracoes/preferencias' && (
         <section
-          className="profile-form-section"
-          aria-labelledby="profile-form-title"
+          className="preferences-section"
+          id="preferencias"
+          aria-labelledby="preferences-title"
         >
-          <div className="profile-form-intro">
-            <p className="eyebrow">CONFIGURAÇÃO DO PERFIL</p>
-            <h2 id="profile-form-title">Configure seu perfil</h2>
+          <div className="preferences-intro">
+            <p className="eyebrow">PREFERÊNCIAS LOCAIS</p>
+            <h2 id="preferences-title">Preferências gerais</h2>
             <p>
-              Esses critérios orientam a busca e ficam somente no banco local do
-              Job Finder.
+              Elas orientam idioma, moeda, datas e retenção sem enviar dados
+              para a nuvem.
             </p>
           </div>
 
-          <form className="profile-form" onSubmit={handleSubmit}>
-            <div className="form-field form-field-wide">
-              <label htmlFor="target-roles">Cargos desejados</label>
-              <input
-                id="target-roles"
-                onChange={(event) => handleFormChange('targetRoles', event)}
-                placeholder="Ex.: Backend Engineer, Python Developer"
-                value={formState.targetRoles}
-              />
-              <span>Separe mais de um cargo por vírgula.</span>
-            </div>
-
-            <div className="form-field form-field-wide">
-              <label htmlFor="skills">Competências</label>
-              <textarea
-                id="skills"
-                onChange={(event) => handleFormChange('skills', event)}
-                placeholder="Ex.: Python, FastAPI, SQL"
-                rows={3}
-                value={formState.skills}
-              />
-              <span>Use palavras-chave que aparecem nas vagas.</span>
-            </div>
-
-            <fieldset className="form-field form-field-wide">
-              <legend>Modalidades de trabalho</legend>
-              <div className="checkbox-grid">
-                {(
-                  [
-                    ['remote', 'Remoto'],
-                    ['hybrid', 'Híbrido'],
-                    ['on_site', 'Presencial'],
-                  ] as const
-                ).map(([value, label]) => (
-                  <label className="checkbox-label" key={value}>
-                    <input
-                      checked={formState.workModels.includes(value)}
-                      onChange={() => toggleWorkModel(value)}
-                      type="checkbox"
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
+          <form className="preferences-form" onSubmit={handlePreferencesSubmit}>
             <div className="form-field">
-              <label htmlFor="countries">Países permitidos</label>
-              <input
-                id="countries"
-                onChange={(event) => handleFormChange('countries', event)}
-                placeholder="Ex.: Brasil, Portugal"
-                value={formState.countries}
-              />
-              <span>Filtro obrigatório; deixe vazio para aceitar todos.</span>
-            </div>
-
-            <fieldset className="form-field">
-              <legend>Tipos de contrato</legend>
-              <div className="checkbox-grid">
-                {(
-                  [
-                    ['full_time', 'Tempo integral'],
-                    ['part_time', 'Meio período'],
-                    ['contract', 'Contrato'],
-                    ['temporary', 'Temporário'],
-                    ['internship', 'Estágio'],
-                  ] as const
-                ).map(([value, label]) => (
-                  <label className="checkbox-label" key={value}>
-                    <input
-                      checked={formState.contractTypes.includes(value)}
-                      onChange={() => {
-                        setFormState((current) => ({
-                          ...current,
-                          contractTypes: current.contractTypes.includes(value)
-                            ? current.contractTypes.filter(
-                                (item) => item !== value,
-                              )
-                            : [...current.contractTypes, value],
-                        }));
-                        setFormError(null);
-                      }}
-                      type="checkbox"
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              <span>Vazio significa aceitar qualquer tipo.</span>
-            </fieldset>
-
-            <div className="form-field">
-              <label htmlFor="locations">Localizações preferidas</label>
-              <input
-                id="locations"
-                onChange={(event) => handleFormChange('locations', event)}
-                placeholder="Ex.: Brasil, São Paulo"
-                value={formState.locations}
-              />
-            </div>
-
-            <div className="form-field">
-              <label htmlFor="excluded-keywords">Palavras a evitar</label>
-              <input
-                id="excluded-keywords"
-                onChange={(event) =>
-                  handleFormChange('excludedKeywords', event)
-                }
-                placeholder="Ex.: estágio, presencial"
-                value={formState.excludedKeywords}
-              />
-            </div>
-
-            <div className="form-field">
-              <label htmlFor="language-code">Idioma principal</label>
-              <input
-                id="language-code"
-                maxLength={5}
-                onChange={(event) => handleFormChange('languageCode', event)}
-                placeholder="Ex.: en"
-                value={formState.languageCode}
-              />
-            </div>
-
-            <div className="form-field">
-              <label htmlFor="language-level">Nível mínimo</label>
+              <label htmlFor="preference-locale">Idioma da interface</label>
               <select
-                id="language-level"
-                onChange={(event) => handleFormChange('languageLevel', event)}
-                value={formState.languageLevel}
+                id="preference-locale"
+                onChange={(event) => {
+                  setPreferences((current) => ({
+                    ...current,
+                    locale: event.target.value as Preferences['locale'],
+                  }));
+                  setPreferencesMessage(null);
+                }}
+                value={preferences.locale}
               >
-                <option value="basic">Básico</option>
-                <option value="intermediate">Intermediário</option>
-                <option value="professional">Profissional</option>
-                <option value="native">Nativo</option>
+                <option value="pt-BR">Português (Brasil)</option>
+                <option value="en-US">English (United States)</option>
               </select>
             </div>
 
             <div className="form-field">
-              <label htmlFor="minimum-monthly">Pretensão mínima mensal</label>
-              <input
-                id="minimum-monthly"
-                min="0"
-                onChange={(event) => handleFormChange('minimumMonthly', event)}
-                placeholder="Opcional"
-                type="number"
-                value={formState.minimumMonthly}
-              />
-            </div>
-
-            <div className="form-field">
-              <label htmlFor="maximum-monthly">Pretensão máxima mensal</label>
-              <input
-                id="maximum-monthly"
-                min="0"
-                onChange={(event) => handleFormChange('maximumMonthly', event)}
-                placeholder="Opcional"
-                type="number"
-                value={formState.maximumMonthly}
-              />
-            </div>
-
-            <div className="form-field">
-              <label htmlFor="currency">Moeda</label>
+              <label htmlFor="preference-currency">Moeda padrão</label>
               <select
-                id="currency"
-                onChange={(event) => handleFormChange('currency', event)}
-                value={formState.currency}
+                id="preference-currency"
+                onChange={(event) => {
+                  setPreferences((current) => ({
+                    ...current,
+                    currency: event.target.value,
+                  }));
+                  setPreferencesMessage(null);
+                }}
+                value={preferences.currency}
               >
                 <option value="BRL">BRL · Real</option>
                 <option value="USD">USD · Dólar</option>
@@ -3240,1243 +4852,116 @@ function App() {
               </select>
             </div>
 
-            <div className="weight-note form-field-wide">
-              <span className="meta-label">PESOS INICIAIS DA ANÁLISE</span>
-              <span>Competências 40% · Experiência 35% · Localização 25%</span>
-            </div>
-
-            <div className="redaction-preview form-field-wide">
-              <div className="redaction-heading">
-                <div>
-                  <label htmlFor="ai-preview-input">
-                    Texto para análise da IA
-                  </label>
-                  <span>
-                    Veja exatamente o que poderá ser enviado depois da redação.
-                  </span>
-                </div>
-                <button
-                  className="header-action"
-                  disabled={isRedacting}
-                  onClick={handleRedactionPreview}
-                  type="button"
-                >
-                  {isRedacting ? 'Redigindo…' : 'Gerar prévia segura'}
-                </button>
-              </div>
-              <textarea
-                id="ai-preview-input"
+            <div className="form-field">
+              <label htmlFor="preference-timezone">Fuso horário</label>
+              <select
+                id="preference-timezone"
                 onChange={(event) => {
-                  setPreviewText(event.target.value);
-                  setRedactionPreview(null);
-                  setRedactionError(null);
+                  setPreferences((current) => ({
+                    ...current,
+                    timezone: event.target.value,
+                  }));
+                  setPreferencesMessage(null);
                 }}
-                placeholder="Cole aqui um trecho de currículo ou descrição de vaga..."
-                rows={4}
-                value={previewText}
-              />
-              {redactionError && (
-                <p className="form-message is-error" role="status">
-                  {redactionError}
-                </p>
-              )}
-              {redactionPreview && (
-                <div className="redaction-result">
-                  <span className="meta-label">PRÉVIA SEGURA PARA A IA</span>
-                  <output aria-label="Prévia segura para a IA">
-                    {redactionPreview.redacted_text}
-                  </output>
-                  <div className="redaction-counts">
-                    {redactionPreview.replacements.map((replacement) => (
-                      <span key={replacement.kind}>
-                        {replacement.count} {replacementLabel(replacement.kind)}{' '}
-                        removido
-                        {replacement.count > 1 ? 's' : ''}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+                value={preferences.timezone}
+              >
+                <option value="America/Sao_Paulo">America/Sao_Paulo</option>
+                <option value="America/New_York">America/New_York</option>
+                <option value="Europe/Lisbon">Europe/Lisbon</option>
+                <option value="UTC">UTC</option>
+              </select>
             </div>
 
-            {(formError || loadError || saveMessage) && (
+            <div className="form-field">
+              <label htmlFor="preference-retention">
+                Retenção local (dias)
+              </label>
+              <input
+                id="preference-retention"
+                max="3650"
+                min="30"
+                onChange={(event) => {
+                  setPreferences((current) => ({
+                    ...current,
+                    retention_days: Number(event.target.value),
+                  }));
+                  setPreferencesMessage(null);
+                }}
+                type="number"
+                value={preferences.retention_days}
+              />
+            </div>
+
+            {(preferencesError || preferencesMessage) && (
               <p
-                className={`form-message${formError || loadError ? ' is-error' : ' is-success'}`}
+                className={`form-message${preferencesError ? ' is-error' : ' is-success'}`}
                 role="status"
               >
-                {formError || loadError || saveMessage}
+                {preferencesError || preferencesMessage}
               </p>
             )}
 
             <div className="form-actions form-field-wide">
               <button
                 className="primary-button"
-                disabled={isSaving}
+                disabled={isSavingPreferences}
                 type="submit"
               >
-                {isSaving ? 'Salvando…' : 'Salvar perfil'}
-              </button>
-              <button
-                className="text-button text-button-plain"
-                onClick={() => setIsFormOpen(false)}
-                type="button"
-              >
-                Cancelar
+                {isSavingPreferences ? 'Salvando…' : 'Salvar preferências'}
               </button>
             </div>
           </form>
         </section>
       )}
 
-      {profile && profileHistory.length > 0 && (
-        <section
-          className="history-section"
-          id="historico"
-          aria-labelledby="history-title"
-        >
-          <div className="history-intro">
-            <p className="eyebrow">HISTÓRICO DO PERFIL</p>
-            <h2 id="history-title">
-              Cada versão preserva o contexto da busca.
-            </h2>
-            <p>
-              Editar o perfil cria uma nova versão. As anteriores continuam
-              disponíveis para entender quando seus critérios mudaram.
-            </p>
-          </div>
-
-          <ol className="history-list">
-            {[...profileHistory]
-              .sort((left, right) => right.version_number - left.version_number)
-              .map((version) => {
-                const isActive =
-                  version.version_number === profile.version_number;
-                return (
-                  <li
-                    className={`history-row${isActive ? ' is-active' : ''}`}
-                    key={version.version_number}
-                  >
-                    <div className="history-version">
-                      <span>Versão {version.version_number}</span>
-                      {isActive && <strong>Ativa</strong>}
-                    </div>
-                    <div className="history-content">
-                      <h3>{version.criteria.target_roles.join(' · ')}</h3>
-                      <p>
-                        {version.criteria.skills.length > 0
-                          ? version.criteria.skills.join(', ')
-                          : 'Sem competências adicionais'}
-                      </p>
-                    </div>
-                    <time dateTime={version.created_at}>
-                      {formatVersionDate(version.created_at)}
-                    </time>
-                  </li>
-                );
-              })}
-          </ol>
-        </section>
-      )}
-
-      <section
-        className="agenda-section"
-        id="agenda"
-        aria-labelledby="agenda-title"
-      >
-        <div className="agenda-intro">
-          <p className="eyebrow">PRÓXIMOS PASSOS</p>
-          <h2 id="agenda-title">Agenda do processo seletivo</h2>
-          <p>
-            Entrevistas, desafios e prazos ficam agrupados por período para você
-            saber o que exige atenção agora.
-          </p>
-        </div>
-
-        <div className="agenda-workspace">
-          {isLoadingAgenda && (
-            <p className="agenda-feedback" role="status">
-              Carregando agenda…
-            </p>
-          )}
-          {!isLoadingAgenda && agendaError && (
-            <p className="agenda-feedback is-error" role="status">
-              {agendaError}
-            </p>
-          )}
-          {!isLoadingAgenda && !agendaError && agendaEvents.length === 0 && (
-            <div className="agenda-empty">
-              <span className="meta-label">AGENDA LIVRE</span>
-              <p>
-                Registre uma entrevista, desafio ou prazo para acompanhar aqui.
-              </p>
+      {pathname === '/' && (
+        <>
+          <section
+            className="process-section"
+            id="como-funciona"
+            aria-labelledby="process-title"
+          >
+            <div className="section-heading">
+              <p className="eyebrow">COMO FUNCIONA</p>
+              <h2 id="process-title">
+                Uma busca mais clara, do primeiro anúncio à próxima conversa.
+              </h2>
             </div>
-          )}
-          {!isLoadingAgenda && !agendaError && agendaEvents.length > 0 && (
-            <div className="agenda-groups">
-              <div className="agenda-group">
-                <div className="agenda-group-heading">
-                  <h3>Próximos</h3>
-                  <span>{agendaUpcoming.length}</span>
-                </div>
-                {agendaUpcoming.length === 0 ? (
-                  <p className="agenda-group-empty">Nenhum evento próximo.</p>
-                ) : (
-                  <ul className="agenda-list">
-                    {agendaUpcoming.map((event) => (
-                      <li className="agenda-item" key={event.id}>
-                        <div>
-                          <span className="agenda-status is-upcoming">
-                            PRÓXIMO
-                          </span>
-                          <h4>{event.title}</h4>
-                          <p>
-                            {event.kind} · candidatura #{event.application_id}
-                          </p>
-                        </div>
-                        <time dateTime={event.starts_at}>
-                          {formatAgendaDate(
-                            event.starts_at,
-                            event.timezone_name,
-                          )}
-                        </time>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="agenda-group">
-                <div className="agenda-group-heading">
-                  <h3>Vencidos</h3>
-                  <span>{agendaOverdue.length}</span>
-                </div>
-                {agendaOverdue.length === 0 ? (
-                  <p className="agenda-group-empty">Nenhum prazo vencido.</p>
-                ) : (
-                  <ul className="agenda-list">
-                    {agendaOverdue.map((event) => (
-                      <li className="agenda-item is-overdue" key={event.id}>
-                        <div>
-                          <span className="agenda-status is-overdue">
-                            VENCIDO
-                          </span>
-                          <h4>{event.title}</h4>
-                          <p>
-                            {event.kind} · candidatura #{event.application_id}
-                          </p>
-                        </div>
-                        <time dateTime={event.starts_at}>
-                          {formatAgendaDate(
-                            event.starts_at,
-                            event.timezone_name,
-                          )}
-                        </time>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
 
-      <section
-        className="trash-section"
-        id="lixeira"
-        aria-labelledby="trash-title"
-      >
-        <div className="trash-intro">
-          <p className="eyebrow">RETENÇÃO LOCAL</p>
-          <h2 id="trash-title">Lixeira recuperável</h2>
-          <p>
-            Vagas removidas ficam disponíveis até a data de retenção. Restaurar
-            mantém o histórico; excluir definitivamente exige confirmação.
-          </p>
-        </div>
-
-        <div className="trash-workspace">
-          {isLoadingTrash && (
-            <p className="trash-feedback" role="status">
-              Carregando lixeira…
-            </p>
-          )}
-          {!isLoadingTrash && trashError && (
-            <p className="trash-feedback is-error" role="status">
-              {trashError}
-            </p>
-          )}
-          {!isLoadingTrash && !trashError && trashJobs.length === 0 && (
-            <div className="trash-empty">
-              <span className="meta-label">LIXEIRA VAZIA</span>
-              <p>
-                Vagas removidas aparecerão aqui enquanto puderem ser
-                restauradas.
-              </p>
-            </div>
-          )}
-          {!isLoadingTrash && trashJobs.length > 0 && (
-            <ul className="trash-list">
-              {trashJobs.map((job) => (
-                <li className="trash-item" key={job.id}>
+            <ol className="step-list" id="fluxo">
+              {productSteps.map((step) => (
+                <li className="step-row" key={step.number}>
+                  <span className="step-number">{step.number}</span>
                   <div>
-                    <span className="job-status">REMOVIDA</span>
-                    <h3>{job.title}</h3>
-                    <p>{job.company}</p>
-                    <span className="mono-note">
-                      Expira em {formatVersionDate(job.purge_after)}
-                    </span>
+                    <h3>{step.title}</h3>
+                    <p>{step.description}</p>
                   </div>
-                  <div className="trash-actions">
-                    <button
-                      className="card-link"
-                      onClick={() => void restoreTrashJob(job.id)}
-                      type="button"
-                    >
-                      Restaurar vaga
-                    </button>
-                    <button
-                      className="text-button text-button-plain danger-button"
-                      onClick={() => void permanentlyDeleteTrashJob(job.id)}
-                      type="button"
-                    >
-                      Excluir definitivamente
-                    </button>
-                  </div>
+                  <span className="step-arrow" aria-hidden="true">
+                    ↗
+                  </span>
                 </li>
               ))}
-            </ul>
-          )}
-        </div>
-      </section>
+            </ol>
+          </section>
 
-      <section
-        className="dashboard-section"
-        id="dashboard"
-        aria-labelledby="dashboard-title"
-      >
-        <div className="dashboard-intro">
-          <p className="eyebrow">PAINEL OPERACIONAL</p>
-          <h2 id="dashboard-title">O movimento da sua busca</h2>
-          <p>
-            Métricas locais, com denominadores visíveis e crédito de fonte
-            definido.
-          </p>
-        </div>
-        <div className="dashboard-workspace">
-          <div className="dashboard-toolbar">
-            <label htmlFor="dashboard-period">Período do painel</label>
-            <select
-              id="dashboard-period"
-              onChange={(event) => setDashboardDays(event.target.value)}
-              value={dashboardDays}
-            >
-              <option value="30">Últimos 30 dias</option>
-              <option value="90">Últimos 90 dias</option>
-              <option value="365">Último ano</option>
-            </select>
-          </div>
-          {isLoadingDashboard && (
-            <p className="dashboard-feedback" role="status">
-              Calculando métricas…
-            </p>
-          )}
-          {!isLoadingDashboard && dashboardError && (
-            <p className="dashboard-feedback is-error" role="status">
-              {dashboardError}
-            </p>
-          )}
-          {!isLoadingDashboard && !dashboardError && dashboard && (
-            <>
-              <div className="dashboard-cards" aria-label="Resumo do período">
-                {(
-                  [
-                    ['jobs_found', 'Vagas encontradas'],
-                    ['applications', 'Candidaturas'],
-                    ['interviews', 'Entrevistas'],
-                    ['offers', 'Ofertas'],
-                    ['hired', 'Contratações'],
-                    ['active_pipeline', 'Pipeline ativo'],
-                  ] as [keyof DashboardSummary['cards'], string][]
-                ).map(([key, label]) => (
-                  <article className="dashboard-card" key={key}>
-                    <span className="meta-label">{label}</span>
-                    <strong>{dashboard.cards[key]}</strong>
-                  </article>
-                ))}
-              </div>
-              <div className="dashboard-grid">
-                <section
-                  className="dashboard-panel"
-                  aria-labelledby="dashboard-funnel-title"
-                >
-                  <div className="dashboard-panel-heading">
-                    <h3 id="dashboard-funnel-title">Funil de conversão</h3>
-                    <span className="mono-note">denominador visível</span>
-                  </div>
-                  <ol className="dashboard-funnel">
-                    {dashboard.funnel.map((stage) => (
-                      <li key={stage.key}>
-                        <div>
-                          <span>{stage.label}</span>
-                          <strong>{stage.count}</strong>
-                        </div>
-                        <progress
-                          aria-label={`${stage.label}: ${stage.count} de ${stage.denominator}`}
-                          max={stage.denominator || 1}
-                          value={stage.count}
-                        />
-                        <small>
-                          {stage.conversion_percent == null
-                            ? 'sem base'
-                            : `${stage.conversion_percent}% de ${stage.denominator}`}
-                        </small>
-                      </li>
-                    ))}
-                  </ol>
-                </section>
-                <section
-                  className="dashboard-panel"
-                  aria-labelledby="dashboard-agenda-title"
-                >
-                  <div className="dashboard-panel-heading">
-                    <h3 id="dashboard-agenda-title">Agenda</h3>
-                    <a className="card-link" href="#agenda">
-                      Abrir agenda
-                    </a>
-                  </div>
-                  <div className="dashboard-agenda-summary">
-                    <strong>{dashboard.agenda.upcoming}</strong>
-                    <span>próximos</span>
-                    <strong
-                      className={
-                        dashboard.agenda.overdue > 0 ? 'is-warning' : ''
-                      }
-                    >
-                      {dashboard.agenda.overdue}
-                    </strong>
-                    <span>atrasados</span>
-                  </div>
-                </section>
-              </div>
-              <div className="dashboard-grid">
-                <section
-                  className="dashboard-panel"
-                  aria-labelledby="dashboard-series-title"
-                >
-                  <div className="dashboard-panel-heading">
-                    <h3 id="dashboard-series-title">Evolução semanal</h3>
-                    <span className="mono-note">
-                      vagas · candidaturas · entrevistas
-                    </span>
-                  </div>
-                  <div className="dashboard-table-wrap">
-                    <table>
-                      <caption className="visually-hidden">
-                        Evolução semanal da busca
-                      </caption>
-                      <thead>
-                        <tr>
-                          <th scope="col">Semana</th>
-                          <th scope="col">Vagas</th>
-                          <th scope="col">Candidaturas</th>
-                          <th scope="col">Entrevistas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dashboard.series.map((point) => (
-                          <tr key={point.period_start}>
-                            <th scope="row">{point.period_start}</th>
-                            <td>{point.jobs}</td>
-                            <td>{point.applications}</td>
-                            <td>{point.interviews}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-                <section
-                  className="dashboard-panel"
-                  aria-labelledby="dashboard-sources-title"
-                >
-                  <div className="dashboard-panel-heading">
-                    <h3 id="dashboard-sources-title">Desempenho por fonte</h3>
-                    <span className="mono-note">
-                      crédito na primeira origem
-                    </span>
-                  </div>
-                  <div className="dashboard-table-wrap">
-                    <table>
-                      <caption className="visually-hidden">
-                        Desempenho por fonte
-                      </caption>
-                      <thead>
-                        <tr>
-                          <th scope="col">Fonte</th>
-                          <th scope="col">Vagas</th>
-                          <th scope="col">Aplicação</th>
-                          <th scope="col">Erros</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dashboard.sources.map((source) => (
-                          <tr key={source.source_key}>
-                            <th scope="row">{source.source_key}</th>
-                            <td>{source.jobs}</td>
-                            <td>
-                              {source.application_rate_percent == null
-                                ? '—'
-                                : `${source.application_rate_percent}%`}
-                            </td>
-                            <td>{source.errors}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-              </div>
-            </>
-          )}
-        </div>
-      </section>
-
-      <section
-        className="pipeline-section"
-        id="pipeline"
-        aria-labelledby="pipeline-title"
-      >
-        <div className="pipeline-intro">
-          <p className="eyebrow">ACOMPANHAMENTO</p>
-          <h2 id="pipeline-title">Pipeline de candidaturas</h2>
-          <p>
-            Cada movimento fica registrado no histórico local. Use o teclado
-            para escolher a próxima fase e confirmar a mudança.
-          </p>
-        </div>
-
-        <div className="pipeline-workspace">
-          {isLoadingApplications && (
-            <p className="pipeline-feedback" role="status">
-              Carregando candidaturas…
-            </p>
-          )}
-          {!isLoadingApplications && applicationsError && (
-            <p className="pipeline-feedback is-error" role="status">
-              {applicationsError}
-            </p>
-          )}
-          {!isLoadingApplications &&
-            !applicationsError &&
-            pipelineEntries.length === 0 && (
-              <div className="pipeline-empty">
-                <span className="meta-label">NENHUMA CANDIDATURA</span>
-                <p>
-                  Crie uma candidatura a partir de uma vaga para acompanhar as
-                  fases neste quadro.
-                </p>
-              </div>
-            )}
-          {!isLoadingApplications && pipelineEntries.length > 0 && (
-            <div className="pipeline-board">
-              {pipelineStages.map((stage) => {
-                const stageEntries = pipelineEntries.filter(
-                  ({ application }) =>
-                    application.current_status === stage.value,
-                );
-                return (
-                  <section
-                    className="pipeline-column"
-                    key={stage.value}
-                    aria-labelledby={`pipeline-${stage.value}`}
-                  >
-                    <div className="pipeline-column-heading">
-                      <h3 id={`pipeline-${stage.value}`}>{stage.label}</h3>
-                      <span>{stageEntries.length}</span>
-                    </div>
-                    <ul className="pipeline-card-list">
-                      {stageEntries.map(({ application, job }) => (
-                        <li className="pipeline-card" key={application.id}>
-                          <span className="job-status">
-                            {pipelineStatusLabel(application.current_status)}
-                          </span>
-                          <h4>{job.title}</h4>
-                          <p>{job.company}</p>
-                          <label htmlFor={`pipeline-target-${application.id}`}>
-                            Próxima fase para {job.title}
-                          </label>
-                          <select
-                            id={`pipeline-target-${application.id}`}
-                            onChange={(event) =>
-                              setPipelineTargets((current) => ({
-                                ...current,
-                                [application.id]: event.target
-                                  .value as ApplicationStatus,
-                              }))
-                            }
-                            value={
-                              pipelineTargets[application.id] ??
-                              application.current_status
-                            }
-                          >
-                            {pipelineStages.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            className="card-link pipeline-move-button"
-                            disabled={pipelineActionId === application.id}
-                            onClick={() =>
-                              void moveApplication(application, job)
-                            }
-                            type="button"
-                          >
-                            {pipelineActionId === application.id
-                              ? 'Movendo…'
-                              : 'Mover candidatura'}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="jobs-section" id="vagas" aria-labelledby="jobs-title">
-        <div className="jobs-intro">
-          <p className="eyebrow">CAIXA DE ENTRADA</p>
-          <h2 id="jobs-title">Caixa de entrada de vagas</h2>
-          <p>
-            Revise oportunidades encontradas, mantenha a origem registrada e
-            escolha o próximo passo sem sair do computador.
-          </p>
-        </div>
-
-        <div className="jobs-workspace">
-          <div className="jobs-toolbar">
-            <div className="job-search-field">
-              <label htmlFor="job-search">Buscar na caixa de entrada</label>
-              <input
-                id="job-search"
-                onChange={(event) => setJobSearch(event.target.value)}
-                placeholder="Cargo, empresa ou local"
-                value={jobSearch}
-              />
+          <section className="closing-cta" aria-labelledby="closing-title">
+            <div>
+              <p className="eyebrow">PRÓXIMA ETAPA</p>
+              <h2 id="closing-title">
+                Sua próxima oportunidade começa com contexto.
+              </h2>
             </div>
             <button
-              className="header-action"
-              onClick={openJobForm}
+              className="inverse-button"
+              onClick={openProfileForm}
               type="button"
             >
-              Adicionar vaga
+              Começar agora <span aria-hidden="true">↗</span>
             </button>
-          </div>
-          <div className="saved-filter-toolbar">
-            <label htmlFor="saved-filter-select">Filtro salvo</label>
-            <select
-              id="saved-filter-select"
-              onChange={(event) => applySavedFilter(event.target.value)}
-              value={selectedSavedFilter}
-            >
-              <option value="">Nenhum filtro salvo</option>
-              {savedFilters.map((filter) => (
-                <option key={filter.id} value={filter.id}>
-                  {filter.name}
-                </option>
-              ))}
-            </select>
-            <label className="saved-filter-name" htmlFor="saved-filter-name">
-              Nome
-              <input
-                id="saved-filter-name"
-                onChange={(event) => setSavedFilterName(event.target.value)}
-                placeholder="ex.: Backend remoto"
-                value={savedFilterName}
-              />
-            </label>
-            <button
-              className="card-link"
-              onClick={() => void saveCurrentFilter()}
-              type="button"
-            >
-              Salvar filtro atual
-            </button>
-          </div>
-          {savedFilterMessage && (
-            <p className="form-message" role="status">
-              {savedFilterMessage}
-            </p>
-          )}
-
-          {isLoadingJobDetail && (
-            <p className="jobs-feedback" role="status">
-              Carregando detalhe…
-            </p>
-          )}
-          {jobDetailError && (
-            <p className="jobs-feedback is-error" role="status">
-              {jobDetailError}
-            </p>
-          )}
-          {selectedJob && !isLoadingJobDetail && (
-            <article className="job-detail" aria-labelledby="job-detail-title">
-              <div className="job-detail-topline">
-                <span className="meta-label">DETALHE DA VAGA</span>
-                <button
-                  className="text-button text-button-plain"
-                  onClick={() => setSelectedJob(null)}
-                  type="button"
-                >
-                  Fechar detalhe
-                </button>
-              </div>
-              <span className="job-status">{selectedJob.status_label}</span>
-              <h3 id="job-detail-title">Detalhe da vaga</h3>
-              <h4>{selectedJob.title}</h4>
-              <p className="job-detail-company">
-                {selectedJob.company}
-                {selectedJob.location ? ` · ${selectedJob.location}` : ''}
-              </p>
-              <div className="job-analysis-actions">
-                {(() => {
-                  const application = Object.values(applications).find(
-                    (candidate) => candidate.job_id === selectedJob.id,
-                  );
-                  if (
-                    application &&
-                    application.current_status !== 'found' &&
-                    application.current_status !== 'pending'
-                  ) {
-                    return (
-                      <span className="job-status">
-                        {pipelineStatusLabel(application.current_status)}
-                      </span>
-                    );
-                  }
-                  return (
-                    <button
-                      className="primary-button"
-                      disabled={applyingJobId === selectedJob.id}
-                      onClick={() => void markJobApplied(selectedJob)}
-                      type="button"
-                    >
-                      {applyingJobId === selectedJob.id
-                        ? 'Salvando…'
-                        : 'Marcar como aplicada'}
-                    </button>
-                  );
-                })()}
-                <button
-                  className="primary-button"
-                  disabled={isAnalyzingJob}
-                  onClick={() => void analyzeSelectedJobs([selectedJob.id])}
-                  type="button"
-                >
-                  {isAnalyzingJob ? 'Analisando…' : 'Analisar esta vaga com IA'}
-                </button>
-                {jobAnalyses[selectedJob.id] && (
-                  <span className="mono-note">
-                    Versão {jobAnalyses[selectedJob.id].analysis_version} ·{' '}
-                    {jobAnalyses[selectedJob.id].usage.fallback
-                      ? 'triagem local limitada'
-                      : `${jobAnalyses[selectedJob.id].usage.estimated_cost_usd == null ? 'custo indisponível' : `US$ ${jobAnalyses[selectedJob.id].usage.estimated_cost_usd!.toFixed(4)}`}`}
-                  </span>
-                )}
-              </div>
-              {jobAnalyses[selectedJob.id] && (
-                <div className="job-analysis-summary" role="status">
-                  <strong>
-                    Aderência: {jobAnalyses[selectedJob.id].fit.score}/100
-                  </strong>
-                  <p>
-                    {jobAnalyses[selectedJob.id].analysis.assessment.summary}
-                  </p>
-                  {jobAnalyses[selectedJob.id].analysis.assessment.warnings
-                    .length > 0 && (
-                    <p className="mono-note">
-                      {jobAnalyses[
-                        selectedJob.id
-                      ].analysis.assessment.warnings.join(' · ')}
-                    </p>
-                  )}
-                </div>
-              )}
-              <div className="job-detail-grid">
-                <div>
-                  <span className="meta-label">ORIGENS</span>
-                  <ul className="job-origin-list">
-                    {selectedJob.origins.map((origin) => (
-                      <li key={origin.id}>
-                        <span>{origin.source}</span>
-                        {origin.url && (
-                          <a href={origin.url} rel="noreferrer" target="_blank">
-                            Abrir URL
-                          </a>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <span className="meta-label">CONTEÚDO VERSIONADO</span>
-                  <ol className="job-content-history">
-                    {[...selectedJob.content_versions]
-                      .sort(
-                        (left, right) =>
-                          right.version_number - left.version_number,
-                      )
-                      .map((version) => (
-                        <li key={version.id}>
-                          <span>Versão {version.version_number}</span>
-                          <pre className="job-detail-content">
-                            {version.raw_content}
-                          </pre>
-                        </li>
-                      ))}
-                  </ol>
-                </div>
-              </div>
-            </article>
-          )}
-
-          {isJobFormOpen && (
-            <form className="job-form" onSubmit={handleManualJobSubmit}>
-              <div className="form-field">
-                <label htmlFor="manual-job-url">URL canônica</label>
-                <input
-                  id="manual-job-url"
-                  onChange={(event) =>
-                    setManualJobForm((current) => ({
-                      ...current,
-                      canonicalUrl: event.target.value,
-                    }))
-                  }
-                  type="url"
-                  value={manualJobForm.canonicalUrl}
-                />
-              </div>
-              <div className="form-field">
-                <label htmlFor="manual-job-title">Título da vaga</label>
-                <input
-                  id="manual-job-title"
-                  onChange={(event) =>
-                    setManualJobForm((current) => ({
-                      ...current,
-                      title: event.target.value,
-                    }))
-                  }
-                  value={manualJobForm.title}
-                />
-              </div>
-              <div className="form-field">
-                <label htmlFor="manual-job-company">Empresa</label>
-                <input
-                  id="manual-job-company"
-                  onChange={(event) =>
-                    setManualJobForm((current) => ({
-                      ...current,
-                      company: event.target.value,
-                    }))
-                  }
-                  value={manualJobForm.company}
-                />
-              </div>
-              <div className="form-field">
-                <label htmlFor="manual-job-location">Localização</label>
-                <input
-                  id="manual-job-location"
-                  onChange={(event) =>
-                    setManualJobForm((current) => ({
-                      ...current,
-                      location: event.target.value,
-                    }))
-                  }
-                  placeholder="Opcional"
-                  value={manualJobForm.location}
-                />
-              </div>
-              <div className="form-field form-field-wide">
-                <label htmlFor="manual-job-content">Conteúdo da vaga</label>
-                <textarea
-                  id="manual-job-content"
-                  onChange={(event) =>
-                    setManualJobForm((current) => ({
-                      ...current,
-                      content: event.target.value,
-                    }))
-                  }
-                  rows={5}
-                  value={manualJobForm.content}
-                />
-              </div>
-              {(jobFormError || jobMessage) && (
-                <p
-                  className={`form-message${jobFormError ? ' is-error' : ' is-success'}`}
-                  role="status"
-                >
-                  {jobFormError || jobMessage}
-                </p>
-              )}
-              <div className="form-actions form-field-wide">
-                <button
-                  className="primary-button"
-                  disabled={isSavingJob}
-                  type="submit"
-                >
-                  {isSavingJob ? 'Salvando…' : 'Salvar vaga'}
-                </button>
-                <button
-                  className="text-button text-button-plain"
-                  onClick={() => setIsJobFormOpen(false)}
-                  type="button"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          )}
-
-          {jobMessage && !isJobFormOpen && (
-            <p className="form-message is-success" role="status">
-              {jobMessage}
-            </p>
-          )}
-
-          {isLoadingJobs && (
-            <p className="jobs-feedback" role="status">
-              Carregando vagas…
-            </p>
-          )}
-          {!isLoadingJobs && jobsError && (
-            <p className="jobs-feedback is-error" role="status">
-              {jobsError}
-            </p>
-          )}
-          {!isLoadingJobs && !jobsError && jobs.length === 0 && (
-            <div className="jobs-empty">
-              <span className="meta-label">NENHUMA VAGA SALVA</span>
-              <p>Adicione uma vaga manualmente para começar sua revisão.</p>
-              <button
-                className="text-button"
-                onClick={openJobForm}
-                type="button"
-              >
-                Adicionar primeira vaga <span aria-hidden="true">→</span>
-              </button>
-            </div>
-          )}
-          {!isLoadingJobs &&
-            !jobsError &&
-            jobs.length > 0 &&
-            visibleJobs.length === 0 && (
-              <p className="jobs-feedback" role="status">
-                Nenhuma vaga corresponde à busca.
-              </p>
-            )}
-          {!isLoadingJobs && !jobsError && visibleJobs.length > 0 && (
-            <>
-              <div className="job-bulk-actions">
-                <span className="mono-note">
-                  {selectedJobIds.length} selecionada(s)
-                </span>
-                <button
-                  className="header-action"
-                  disabled={isAnalyzingJob || selectedJobIds.length === 0}
-                  onClick={() => void analyzeSelectedJobs(selectedJobIds)}
-                  type="button"
-                >
-                  Analisar selecionadas
-                </button>
-              </div>
-              {analysisMessage && (
-                <p className="form-message is-success" role="status">
-                  {analysisMessage}
-                </p>
-              )}
-              {analysisError && (
-                <p className="form-message is-error" role="status">
-                  {analysisError}
-                </p>
-              )}
-              <ul className="job-list">
-                {visibleJobs.map((job) => {
-                  const analysis = jobAnalyses[job.id];
-                  const application = Object.values(applications).find(
-                    (candidate) => candidate.job_id === job.id,
-                  );
-                  return (
-                    <li className="job-row" key={job.id}>
-                      <div className="job-row-content">
-                        <label className="job-select-control">
-                          <input
-                            aria-label={`Selecionar ${job.title}`}
-                            checked={selectedJobIds.includes(job.id)}
-                            onChange={(event) =>
-                              setSelectedJobIds((current) =>
-                                event.target.checked
-                                  ? [...current, job.id]
-                                  : current.filter((id) => id !== job.id),
-                              )
-                            }
-                            type="checkbox"
-                          />
-                        </label>
-                        <div className="job-row-main">
-                          <span className="job-status">{job.status_label}</span>
-                          <h3>{job.title}</h3>
-                          <p>
-                            {job.company}
-                            {job.location ? ` · ${job.location}` : ''}
-                          </p>
-                        </div>
-                        <div className="job-row-meta">
-                          <span className="mono-note">
-                            {job.origin_count} origem
-                            {job.origin_count === 1 ? '' : 'ns'}
-                          </span>
-                          {job.canonical_url && (
-                            <a
-                              className="card-link"
-                              href={job.canonical_url}
-                              rel="noreferrer"
-                              target="_blank"
-                            >
-                              Abrir origem <span aria-hidden="true">↗</span>
-                            </a>
-                          )}
-                          <button
-                            className="card-link"
-                            onClick={() => void openJobDetail(job.id)}
-                            type="button"
-                          >
-                            Ver detalhes
-                          </button>
-                          {(!application ||
-                            application.current_status === 'found' ||
-                            application.current_status === 'pending') && (
-                            <button
-                              className="primary-button"
-                              disabled={applyingJobId === job.id}
-                              onClick={() => void markJobApplied(job)}
-                              type="button"
-                            >
-                              {applyingJobId === job.id
-                                ? 'Salvando…'
-                                : 'Marcar como aplicada'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      {analysis && (
-                        <section
-                          aria-label={`Análise concluída: ${job.title}`}
-                          className="job-row-analysis"
-                          role="region"
-                        >
-                          <div className="job-row-analysis-heading">
-                            <span className="meta-label">
-                              ANÁLISE CONCLUÍDA
-                            </span>
-                            <span className="mono-note">
-                              Versão {analysis.analysis_version}
-                            </span>
-                          </div>
-                          <div className="job-row-analysis-identity">
-                            <strong>{job.title}</strong>
-                            <span>{job.company}</span>
-                          </div>
-                          <div className="job-row-analysis-score">
-                            <strong>Aderência {analysis.fit.score}/100</strong>
-                            <span>
-                              Confiança{' '}
-                              {analysis.analysis.assessment.confidence}%
-                            </span>
-                          </div>
-                          <p>{analysis.analysis.assessment.summary}</p>
-                          <button
-                            className="card-link"
-                            onClick={() => void openJobDetail(job.id)}
-                            type="button"
-                          >
-                            Abrir análise completa de {job.title}
-                          </button>
-                        </section>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          )}
-        </div>
-      </section>
-
-      <section
-        className="preferences-section"
-        id="preferencias"
-        aria-labelledby="preferences-title"
-      >
-        <div className="preferences-intro">
-          <p className="eyebrow">PREFERÊNCIAS LOCAIS</p>
-          <h2 id="preferences-title">Preferências gerais</h2>
-          <p>
-            Elas orientam idioma, moeda, datas e retenção sem enviar dados para
-            a nuvem.
-          </p>
-        </div>
-
-        <form className="preferences-form" onSubmit={handlePreferencesSubmit}>
-          <div className="form-field">
-            <label htmlFor="preference-locale">Idioma da interface</label>
-            <select
-              id="preference-locale"
-              onChange={(event) => {
-                setPreferences((current) => ({
-                  ...current,
-                  locale: event.target.value as Preferences['locale'],
-                }));
-                setPreferencesMessage(null);
-              }}
-              value={preferences.locale}
-            >
-              <option value="pt-BR">Português (Brasil)</option>
-              <option value="en-US">English (United States)</option>
-            </select>
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="preference-currency">Moeda padrão</label>
-            <select
-              id="preference-currency"
-              onChange={(event) => {
-                setPreferences((current) => ({
-                  ...current,
-                  currency: event.target.value,
-                }));
-                setPreferencesMessage(null);
-              }}
-              value={preferences.currency}
-            >
-              <option value="BRL">BRL · Real</option>
-              <option value="USD">USD · Dólar</option>
-              <option value="EUR">EUR · Euro</option>
-            </select>
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="preference-timezone">Fuso horário</label>
-            <select
-              id="preference-timezone"
-              onChange={(event) => {
-                setPreferences((current) => ({
-                  ...current,
-                  timezone: event.target.value,
-                }));
-                setPreferencesMessage(null);
-              }}
-              value={preferences.timezone}
-            >
-              <option value="America/Sao_Paulo">America/Sao_Paulo</option>
-              <option value="America/New_York">America/New_York</option>
-              <option value="Europe/Lisbon">Europe/Lisbon</option>
-              <option value="UTC">UTC</option>
-            </select>
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="preference-retention">Retenção local (dias)</label>
-            <input
-              id="preference-retention"
-              max="3650"
-              min="30"
-              onChange={(event) => {
-                setPreferences((current) => ({
-                  ...current,
-                  retention_days: Number(event.target.value),
-                }));
-                setPreferencesMessage(null);
-              }}
-              type="number"
-              value={preferences.retention_days}
-            />
-          </div>
-
-          {(preferencesError || preferencesMessage) && (
-            <p
-              className={`form-message${preferencesError ? ' is-error' : ' is-success'}`}
-              role="status"
-            >
-              {preferencesError || preferencesMessage}
-            </p>
-          )}
-
-          <div className="form-actions form-field-wide">
-            <button
-              className="primary-button"
-              disabled={isSavingPreferences}
-              type="submit"
-            >
-              {isSavingPreferences ? 'Salvando…' : 'Salvar preferências'}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section
-        className="process-section"
-        id="como-funciona"
-        aria-labelledby="process-title"
-      >
-        <div className="section-heading">
-          <p className="eyebrow">COMO FUNCIONA</p>
-          <h2 id="process-title">
-            Uma busca mais clara, do primeiro anúncio à próxima conversa.
-          </h2>
-        </div>
-
-        <ol className="step-list" id="fluxo">
-          {productSteps.map((step) => (
-            <li className="step-row" key={step.number}>
-              <span className="step-number">{step.number}</span>
-              <div>
-                <h3>{step.title}</h3>
-                <p>{step.description}</p>
-              </div>
-              <span className="step-arrow" aria-hidden="true">
-                ↗
-              </span>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section className="closing-cta" aria-labelledby="closing-title">
-        <div>
-          <p className="eyebrow">PRÓXIMA ETAPA</p>
-          <h2 id="closing-title">
-            Sua próxima oportunidade começa com contexto.
-          </h2>
-        </div>
-        <button
-          className="inverse-button"
-          onClick={openProfileForm}
-          type="button"
-        >
-          Começar agora <span aria-hidden="true">↗</span>
-        </button>
-      </section>
-
-      <footer className="site-footer">
-        <span>JOB FINDER · LOCAL</span>
-        <span>v0.1 · DADOS LOCAIS</span>
-      </footer>
-    </main>
+          </section>
+        </>
+      )}
+    </AppNavigation>
   );
 }
 

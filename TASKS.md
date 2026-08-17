@@ -1040,7 +1040,47 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: artefato, checksum, notas e limitações conhecidas disponíveis.
   - Evidência: `JobFinder.exe` e `release-manifest.json` na raiz, com smoke final aprovado; limitações (somente Windows, loopback e restauração com app fechado) estão documentadas.
 
-## E8 — Beta e lançamento
+## E8 — UX e arquitetura de rotas
+
+- [x] **JF-800 — Mapear a jornada e dependências existentes**
+  - Aceite: perfil, cofre, providers, busca, vagas, candidaturas, agenda, IA, painel e preferências identificados sem reimplementar lógica de backend.
+  - Evidência: o frontend preserva os endpoints e o SQLite/local-first; a busca foi separada das configurações técnicas.
+
+- [x] **JF-801 — Criar roteamento navegável por domínio**
+  - Teste primeiro: navegação deve atualizar `window.location.pathname` e renderizar somente o domínio escolhido.
+  - Aceite: `/`, `/perfil`, `/busca`, `/vagas`, `/candidaturas`, `/agenda`, `/insights`, `/painel`, `/configuracoes/fontes`, `/configuracoes/preferencias`, `/configuracoes/historico` e `/configuracoes/lixeira` são páginas distintas.
+  - Evidência: `AppNavigation`, `normalizePath`, `history.pushState`/`popstate` e teste de navegação em `App.test.tsx`.
+
+- [x] **JF-802 — Separar layout compartilhado e navegação hierárquica**
+  - Aceite: header, identidade, container, rodapé, menu principal/secundário e configurações não são duplicados nas páginas.
+  - Evidência: `apps/web/src/AppNavigation.tsx` e estilos de shell responsivo em `App.css`.
+
+- [x] **JF-803 — Reorganizar busca, fontes, agenda e histórico**
+  - Aceite: `/busca` contém apenas a pesquisa; `/configuracoes/fontes` contém providers/API keys/cofre; `/agenda` contém automações; `/configuracoes/historico` contém execuções técnicas.
+  - Evidência: painéis condicionados por rota, preservando handlers e contratos atuais; as chaves OpenAI e dos providers foram consolidadas em `/configuracoes/fontes`, enquanto `/insights` ficou dedicado a recursos e análises.
+
+- [x] **JF-804 — Criar início orientado por próxima ação**
+  - Aceite: Home mostra progresso de Perfil → Fontes → Primeira busca → Primeira candidatura, resumo e CTA contextual sem bloquear a navegação.
+  - Evidência: `home-guidance`, `setup-progress` e cards de resumo na rota `/`.
+
+- [x] **JF-805 — Melhorar estados vazios, segurança e responsividade**
+  - Aceite: cofre bloqueado/desbloqueado, fontes sem credencial, histórico vazio, busca sem resultado e páginas de manutenção possuem orientação clara; mobile mantém navegação acessível.
+  - Evidência: `vault-status-card`, estados existentes preservados e media queries do shell.
+
+- [x] **JF-806 — Cobrir fluxos críticos de UX com TDD**
+  - Teste primeiro: novo usuário, perfil, busca, provider, rota de fontes e pipeline devem ter cenários reproduzíveis antes da alteração.
+  - Aceite: suíte frontend verde e teste explícito de separação entre `/busca`, `/configuracoes/fontes` e `/candidaturas`.
+  - Evidência: 23 testes Vitest verdes após a refatoração.
+
+- [x] **JF-807 — Refinar agrupamento visual da navegação**
+  - Aceite: “Principal” e “Acompanhar” usam o mesmo separador vertical; “Acompanhar” inicia uma nova linha no desktop sem quebrar a navegação mobile.
+  - Evidência: grupos `.nav-row`, respiro superior do header e estilos responsivos ajustados em `AppNavigation.tsx`/`App.css`; lint, 23 testes Vitest, formatação e build verdes.
+
+- [x] **JF-808 — Centralizar desbloqueio do cofre**
+  - Aceite: uma única senha desbloqueia todos os providers cadastrados e a chave OpenAI da sessão; formulários individuais não repetem a senha.
+  - Evidência: `POST /api/search/providers/unlock-all`, ação “Desbloquear credenciais cadastradas”, estado compartilhado e teste de API com múltiplos providers.
+
+## E9 — Beta e lançamento
 
 - [ ] **JF-700 — Definir protocolo do beta**
   - Depende de: JF-009 e JF-613.
@@ -1161,6 +1201,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 16/08/2026 | JF-604/JF-605/JF-606 | Concluídas | Backup ZIP com manifesto/SHA-256, restauração validada com cópia pre-restore e snapshot automático antes de upgrade; 7 testes focados verdes. |
 | 16/08/2026 | JF-607/JF-608/JF-609 | Concluídas | Spec PyInstaller single-file, builder PowerShell com PyInstaller 6.11.0, manifest SHA-256 e smoke do executável na raiz em perfil Windows isolado. |
 | 16/08/2026 | JF-610/JF-611/JF-612/JF-613 | Concluídas | Revisão de privacidade, benchmark (979 ms startup/86,59 MB), README de instalação/uso e executável candidato na raiz validados. |
+| 16/08/2026 | JF-800–JF-808 | Concluídas | UX reorganizada em rotas reais com layout compartilhado, providers/API keys/cofre em `/configuracoes/fontes`, desbloqueio único de credenciais, agenda/histórico separados, `/insights` dedicado a IA, navegação Principal/Acompanhar refinada e 23 testes Vitest verdes. |
 
 ## Bloqueios e decisões pendentes
 
