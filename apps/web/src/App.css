@@ -2656,3 +2656,482 @@
     grid-template-columns: repeat(3, minmax(13rem, 1fr));
   }
 }
+
+/* Route-based application shell and progressive setup guidance. */
+.route-page {
+  min-height: calc(100vh - 8rem);
+}
+
+.header-inner {
+  padding-bottom: 0.55rem;
+  padding-top: 0.55rem;
+}
+
+.primary-nav {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  justify-content: center;
+}
+
+.primary-nav .nav-row {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  white-space: nowrap;
+}
+
+.primary-nav .nav-group-label {
+  border-left: 1px solid var(--ink-faint);
+  color: var(--ink-soft);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  padding-left: 1rem;
+  text-transform: uppercase;
+}
+
+.header-inner .primary-nav a,
+.config-menu-list a {
+  border-bottom: 1px solid transparent;
+  color: var(--ink-soft);
+  padding-bottom: 0.18rem;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.header-inner .primary-nav a.is-active,
+.header-inner .primary-nav a:hover,
+.header-inner .primary-nav a:focus-visible,
+.config-menu-list a.is-active,
+.config-menu-list a:hover,
+.config-menu-list a:focus-visible {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+}
+
+.config-menu {
+  position: relative;
+  z-index: 2;
+}
+
+.config-menu summary {
+  color: var(--ink);
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.67rem;
+  letter-spacing: 0.04em;
+  list-style: none;
+  padding: 0.45rem 0;
+  text-transform: uppercase;
+}
+
+.config-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.config-menu summary::after {
+  content: '⌄';
+  margin-left: 0.35rem;
+}
+
+.config-menu-list {
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-faint);
+  box-shadow: 0 0.9rem 2rem rgb(4 36 64 / 12%);
+  display: grid;
+  gap: 0.75rem;
+  min-width: 13rem;
+  padding: 0.85rem 1rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+}
+
+.config-menu-list a {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.67rem;
+  text-decoration: none;
+}
+
+.page-intro,
+.settings-index,
+.home-guidance {
+  margin: 0 auto;
+  max-width: 64rem;
+  padding: clamp(3rem, 7vw, 5.5rem) 1.5rem 0;
+}
+
+.page-intro h1,
+.settings-index h1,
+.home-guidance h2 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2.1rem, 5vw, 3.7rem);
+  font-weight: 400;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+  margin: 0;
+  max-width: 37rem;
+}
+
+.page-intro > p:last-child,
+.settings-index .page-intro > p:last-child,
+.home-guidance-heading p {
+  color: var(--ink-soft);
+  line-height: 1.65;
+  margin: 1rem 0 0;
+  max-width: 40rem;
+}
+
+.home-guidance {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.home-guidance-heading,
+.setup-progress,
+.home-summary-cards,
+.settings-card-grid {
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-faint);
+}
+
+.home-guidance-heading {
+  align-items: end;
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  padding: clamp(1.3rem, 3vw, 2rem);
+}
+
+.home-guidance-heading .eyebrow {
+  color: var(--accent);
+}
+
+.home-guidance-heading h2 {
+  font-size: clamp(1.7rem, 3vw, 2.5rem);
+}
+
+.setup-progress {
+  padding: 1.25rem;
+}
+
+.setup-progress-topline {
+  align-items: baseline;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.setup-progress-topline strong {
+  font-size: 1.05rem;
+}
+
+.setup-progress-topline span,
+.setup-step-list small {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+}
+
+.setup-progress-bar {
+  background: var(--paper-sunken);
+  height: 0.45rem;
+  margin: 1rem 0 1.25rem;
+  overflow: hidden;
+}
+
+.setup-progress-bar span {
+  background: var(--accent);
+  display: block;
+  height: 100%;
+  transition: width 220ms ease;
+}
+
+.setup-step-list {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.setup-step-list button {
+  align-items: flex-start;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  gap: 0.55rem;
+  padding: 0.45rem 0;
+  text-align: left;
+  width: 100%;
+}
+
+.setup-step-list button:hover strong,
+.setup-step-list button:focus-visible strong {
+  color: var(--accent);
+}
+
+.setup-step-marker {
+  color: var(--ink-soft);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.setup-step-list li.is-complete .setup-step-marker {
+  color: var(--success);
+}
+
+.setup-step-list strong,
+.setup-step-list small {
+  display: block;
+}
+
+.setup-step-list strong {
+  font-size: 0.78rem;
+}
+
+.setup-step-list small {
+  line-height: 1.45;
+  margin-top: 0.22rem;
+}
+
+.home-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.home-summary-cards article {
+  display: grid;
+  gap: 0.45rem;
+  padding: 1.25rem;
+}
+
+.home-summary-cards article + article {
+  border-left: 1px solid var(--ink-faint);
+}
+
+.home-summary-cards strong {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 2.2rem;
+  font-weight: 400;
+}
+
+.home-summary-cards button,
+.settings-card small {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.73rem;
+  padding: 0;
+  text-align: left;
+}
+
+.settings-index .page-intro {
+  padding: 0;
+}
+
+.settings-card-grid {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 2rem;
+  overflow: hidden;
+}
+
+.settings-card {
+  background: var(--paper-raised);
+  border: 0;
+  border-bottom: 1px solid var(--ink-faint);
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  gap: 0.55rem;
+  min-height: 9rem;
+  padding: 1.4rem;
+  text-align: left;
+}
+
+.settings-card:hover,
+.settings-card:focus-visible {
+  background: var(--paper-sunken);
+}
+
+.settings-card strong {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.35rem;
+  font-weight: 400;
+}
+
+.settings-card span {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.insights-section {
+  display: grid;
+  gap: 2rem;
+  margin: 0 auto;
+  max-width: 72rem;
+  padding: 4.5rem 2rem 5rem;
+}
+
+.insights-card-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.insights-card {
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-faint);
+  display: grid;
+  gap: 0.6rem;
+  min-height: 10rem;
+  padding: 1.25rem;
+}
+
+.insights-card strong {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.insights-card p {
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.insights-actions {
+  margin-top: 0.25rem;
+}
+
+.vault-status-card {
+  align-items: center;
+  background: var(--paper-sunken);
+  border-left: 3px solid var(--accent);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.2rem;
+}
+
+.vault-status-card h3 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.35rem;
+  font-weight: 400;
+  margin: 0.35rem 0;
+}
+
+.vault-status-card p {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 35rem;
+}
+
+.vault-status-card > strong {
+  color: var(--accent);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-align: right;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.vault-unlock-panel {
+  align-items: end;
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-faint);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.2rem;
+}
+
+.vault-unlock-panel .form-field {
+  margin: 0;
+}
+
+.vault-unlock-panel .primary-button {
+  white-space: nowrap;
+}
+
+.route-result-action {
+  margin: 1rem 0 0;
+}
+
+@media (max-width: 48rem) {
+  .header-inner {
+    flex-wrap: wrap;
+  }
+
+  .header-inner .primary-nav {
+    display: flex;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    order: 3;
+    overflow-x: auto;
+    padding-bottom: 0.65rem;
+    scrollbar-width: thin;
+    white-space: nowrap;
+  }
+
+  .primary-nav .nav-group-label {
+    display: none;
+  }
+
+  .primary-nav .nav-row {
+    gap: 1rem;
+  }
+
+  .home-guidance,
+  .page-intro,
+  .settings-index {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .setup-step-list,
+  .home-summary-cards,
+  .settings-card-grid,
+  .insights-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .insights-section {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .home-guidance-heading,
+  .vault-status-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .vault-unlock-panel {
+    align-items: flex-start;
+    grid-template-columns: 1fr;
+  }
+
+  .home-summary-cards article + article {
+    border-left: 0;
+    border-top: 1px solid var(--ink-faint);
+  }
+
+  .vault-status-card > strong {
+    text-align: left;
+  }
+}

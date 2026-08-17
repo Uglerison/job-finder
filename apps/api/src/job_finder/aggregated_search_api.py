@@ -165,6 +165,31 @@ def list_provider_credentials(request: Request) -> list[ProviderCredentialStatus
         raise HTTPException(status_code=503, detail=str(error)) from error
 
 
+@router.post("/providers/unlock-all", response_model=list[ProviderCredentialStatus])
+def unlock_all_provider_credentials(
+    payload: ProviderUnlockRequest,
+    request: Request,
+) -> list[ProviderCredentialStatus]:
+    """Unlock every encrypted provider credential with one vault password."""
+
+    try:
+        vault = _vault(request)
+        providers: tuple[ProviderName, ...] = ("jsearch", "adzuna", "jooble")
+        for provider in providers:
+            current = _provider_status(request, provider)
+            if current.storage == "encrypted_database" and not current.unlocked:
+                vault.unlock_provider_secret(
+                    provider,
+                    payload.vault_password.get_secret_value(),
+                )
+        return [_provider_status(request, provider) for provider in providers]
+    except SecretStoreError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
+
+
 @router.put("/providers/{provider}", response_model=ProviderCredentialStatus)
 def save_provider_credential(
     provider: ProviderName,

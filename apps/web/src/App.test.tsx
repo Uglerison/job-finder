@@ -5,8 +5,13 @@ import App from './App';
 
 describe('App', () => {
   const fetchMock = vi.fn();
+  const renderAt = (path = '/') => {
+    window.history.replaceState({}, '', path);
+    return render(<App />);
+  };
 
   beforeEach(() => {
+    window.history.replaceState({}, '', '/');
     vi.stubGlobal('fetch', fetchMock);
     fetchMock.mockImplementation(
       (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -46,7 +51,7 @@ describe('App', () => {
   });
 
   it('apresenta a promessa principal do espaço local de vagas', () => {
-    render(<App />);
+    renderAt();
 
     expect(
       screen.getByRole('heading', {
@@ -57,7 +62,7 @@ describe('App', () => {
   });
 
   it('adota o shell editorial da referência visual', () => {
-    render(<App />);
+    renderAt();
 
     expect(screen.getByRole('banner')).toHaveTextContent('Job Finder');
     expect(screen.getByText('PLATAFORMA LOCAL DE VAGAS')).toBeInTheDocument();
@@ -65,6 +70,45 @@ describe('App', () => {
       screen.getByText('Dados ficam neste computador.'),
     ).toBeInTheDocument();
     expect(document.querySelector('.paper-app')).not.toBeNull();
+  });
+
+  it('navega entre páginas reais sem misturar configurações à busca', () => {
+    renderAt();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Buscar vagas' }));
+    expect(window.location.pathname).toBe('/busca');
+    expect(
+      screen.getByRole('heading', { name: 'Encontre uma vaga para treinar' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText('API key')).not.toBeInTheDocument();
+    expect(screen.queryByText('AGENDADOR LOCAL')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Fontes e integrações' }));
+    expect(window.location.pathname).toBe('/configuracoes/fontes');
+    expect(
+      screen.getByRole('heading', { name: 'Fontes e integrações' }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('API key')).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Cargo ou palavra-chave'),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Candidaturas' }));
+    expect(window.location.pathname).toBe('/candidaturas');
+    expect(
+      screen.getByRole('heading', { name: 'Pipeline de candidaturas' }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Insights' }));
+    expect(window.location.pathname).toBe('/insights');
+    expect(
+      screen.getByRole('heading', {
+        name: 'Decisões com contexto, não no escuro.',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Chave da API OpenAI'),
+    ).not.toBeInTheDocument();
   });
 
   it('oferece busca única e link externo para treino de entrevista', async () => {
@@ -110,7 +154,7 @@ describe('App', () => {
         return Promise.resolve({ json: async () => null, ok: true });
       },
     );
-    render(<App />);
+    renderAt('/busca');
 
     fireEvent.change(screen.getByLabelText('Cargo ou palavra-chave'), {
       target: { value: 'Analista de Dados' },
@@ -163,14 +207,17 @@ describe('App', () => {
         return Promise.resolve({ json: async () => null, ok: true });
       },
     );
-    render(<App />);
+    renderAt('/configuracoes/fontes');
 
     fireEvent.change(screen.getByLabelText('API key'), {
       target: { value: 'jsearch-local-key' },
     });
-    fireEvent.change(screen.getByLabelText('Senha do cofre'), {
-      target: { value: 'senha local com doze' },
-    });
+    fireEvent.change(
+      screen.getByLabelText('Crie uma senha para o cofre local'),
+      {
+        target: { value: 'senha local com doze' },
+      },
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Salvar credencial' }));
 
     await waitFor(() =>
@@ -216,43 +263,55 @@ describe('App', () => {
           });
         }
         if (
-          input === '/api/search/providers/jsearch/unlock' &&
+          input === '/api/search/providers/unlock-all' &&
           init?.method === 'POST'
         ) {
           return Promise.resolve({
-            json: async () => ({
-              configured: true,
-              provider: 'jsearch',
-              storage: 'encrypted_database',
-              unlocked: true,
-            }),
+            json: async () => [
+              {
+                configured: true,
+                provider: 'jsearch',
+                storage: 'encrypted_database',
+                unlocked: true,
+              },
+            ],
             ok: true,
           });
         }
         return Promise.resolve({ json: async () => null, ok: true });
       },
     );
-    render(<App />);
+    renderAt('/configuracoes/fontes');
 
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: 'Desbloquear' }),
+        screen.getByRole('button', {
+          name: 'Desbloquear credenciais cadastradas',
+        }),
       ).toBeInTheDocument(),
     );
-    fireEvent.change(screen.getByLabelText('Senha do cofre'), {
-      target: { value: 'senha local com doze' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Desbloquear' }));
+    fireEvent.change(
+      screen.getByLabelText('Crie uma senha para o cofre local'),
+      {
+        target: { value: 'senha local com doze' },
+      },
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Desbloquear credenciais cadastradas',
+      }),
+    );
 
     await waitFor(() =>
       expect(
-        screen.getByText('JSEARCH desbloqueada somente nesta execução.'),
+        screen.getByText(
+          'Cofre desbloqueado nesta execução para todas as credenciais cadastradas.',
+        ),
       ).toBeInTheDocument(),
     );
     const [, options] = fetchMock.mock.calls.find(
       ([input, init]) =>
-        input === '/api/search/providers/jsearch/unlock' &&
-        init?.method === 'POST',
+        input === '/api/search/providers/unlock-all' && init?.method === 'POST',
     ) as [string, RequestInit];
     expect(JSON.parse(options.body as string)).toEqual({
       vault_password: 'senha local com doze',
@@ -309,7 +368,7 @@ describe('App', () => {
         return Promise.resolve({ json: async () => null, ok: true });
       },
     );
-    render(<App />);
+    renderAt('/busca');
 
     fireEvent.change(screen.getByLabelText('Cargo ou palavra-chave'), {
       target: { value: 'Cargo inexistente' },
@@ -340,7 +399,7 @@ describe('App', () => {
         return Promise.resolve({ json: async () => null, ok: true });
       },
     );
-    render(<App />);
+    renderAt('/busca');
 
     fireEvent.change(screen.getByLabelText('Cargo ou palavra-chave'), {
       target: { value: 'Analista de Dados' },
@@ -355,7 +414,7 @@ describe('App', () => {
   });
 
   it('abre o onboarding e salva critérios válidos no perfil local', async () => {
-    render(<App />);
+    renderAt();
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/profile'));
     fireEvent.click(
@@ -437,7 +496,7 @@ describe('App', () => {
       },
     );
 
-    render(<App />);
+    renderAt('/configuracoes/historico');
 
     expect(
       await screen.findByRole('heading', {
@@ -475,7 +534,7 @@ describe('App', () => {
       },
     );
 
-    render(<App />);
+    renderAt();
     fireEvent.click(
       screen.getByRole('button', { name: 'Configurar meu perfil' }),
     );
@@ -521,7 +580,7 @@ describe('App', () => {
       },
     );
 
-    render(<App />);
+    renderAt('/configuracoes/preferencias');
     expect(
       await screen.findByRole('heading', { name: 'Preferências gerais' }),
     ).toBeInTheDocument();
@@ -605,7 +664,7 @@ describe('App', () => {
       },
     );
 
-    render(<App />);
+    renderAt('/vagas');
     expect(
       await screen.findByRole('heading', { name: 'Backend Engineer' }),
     ).toBeInTheDocument();
@@ -713,7 +772,7 @@ describe('App', () => {
       return Promise.resolve({ json: async () => null, ok: true });
     });
 
-    render(<App />);
+    renderAt('/painel');
     expect(
       await screen.findByRole('heading', { name: 'O movimento da sua busca' }),
     ).toBeInTheDocument();
@@ -763,10 +822,10 @@ describe('App', () => {
       },
     );
 
-    render(<App />);
+    renderAt('/configuracoes/fontes');
 
     expect(
-      await screen.findByRole('heading', { name: 'Conecte sua chave OpenAI' }),
+      await screen.findByRole('heading', { name: 'Integrações protegidas' }),
     ).toBeInTheDocument();
     const input = screen.getByLabelText('Chave da API OpenAI');
     expect(input).toHaveAttribute('type', 'password');
@@ -864,7 +923,7 @@ describe('App', () => {
       },
     );
 
-    render(<App />);
+    renderAt('/vagas');
 
     expect(
       await screen.findByRole('heading', { name: 'Caixa de entrada de vagas' }),
@@ -962,7 +1021,7 @@ describe('App', () => {
       },
     );
 
-    render(<App />);
+    renderAt('/busca');
 
     expect(
       await screen.findByRole('heading', {
@@ -970,8 +1029,8 @@ describe('App', () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Remote OK' }),
-    ).toBeInTheDocument();
+      screen.queryByRole('heading', { name: 'Remote OK' }),
+    ).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Cargo ou palavra-chave'), {
       target: { value: 'Backend Engineer' },
     });
@@ -1054,7 +1113,7 @@ describe('App', () => {
       return Promise.resolve({ json: async () => null, ok: true });
     });
 
-    render(<App />);
+    renderAt('/vagas');
     await screen.findByText('Backend Engineer');
     fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes' }));
 
@@ -1117,12 +1176,12 @@ describe('App', () => {
       },
     );
 
-    render(<App />);
+    renderAt('/candidaturas');
 
     expect(
       await screen.findByRole('heading', { name: 'Pipeline de candidaturas' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
+    expect(await screen.findByText('Backend Engineer')).toBeInTheDocument();
     fireEvent.change(
       await screen.findByLabelText('Próxima fase para Backend Engineer'),
       { target: { value: 'applied' } },
@@ -1191,7 +1250,7 @@ describe('App', () => {
       },
     );
 
-    render(<App />);
+    renderAt('/vagas');
 
     const button = await screen.findByRole('button', {
       name: 'Marcar como aplicada',
@@ -1256,7 +1315,7 @@ describe('App', () => {
       return Promise.resolve({ json: async () => null, ok: true });
     });
 
-    render(<App />);
+    renderAt('/candidaturas');
     await screen.findByRole('heading', { name: 'Pipeline de candidaturas' });
     fireEvent.change(
       await screen.findByLabelText('Próxima fase para Backend Engineer'),
@@ -1310,7 +1369,7 @@ describe('App', () => {
       return Promise.resolve({ json: async () => null, ok: true });
     });
 
-    render(<App />);
+    renderAt('/agenda');
 
     expect(
       await screen.findByRole('heading', {
@@ -1364,7 +1423,7 @@ describe('App', () => {
       },
     );
 
-    render(<App />);
+    renderAt('/configuracoes/lixeira');
 
     expect(
       await screen.findByRole('heading', { name: 'Lixeira recuperável' }),
