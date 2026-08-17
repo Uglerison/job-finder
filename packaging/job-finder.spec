@@ -1,4 +1,4 @@
-"""PyInstaller one-folder definition for the offline Windows release."""
+"""PyInstaller single-executable definition for the offline Windows release."""
 
 from pathlib import Path
 
@@ -31,6 +31,8 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
     name="JobFinder",
     debug=False,
@@ -38,14 +40,4 @@ exe = EXE(
     strip=False,
     upx=False,
     console=True,
-    exclude_binaries=True,
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=False,
-    name="JobFinder",
 )
