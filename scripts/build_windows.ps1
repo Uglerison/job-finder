@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Python = ".venv\Scripts\python.exe",
-    [string]$OutputDirectory = "dist\windows"
+    [string]$OutputDirectory = "."
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,6 +24,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $outputPath = Join-Path $repositoryRoot $OutputDirectory
+New-Item -ItemType Directory -Force -Path $outputPath | Out-Null
+$outputPath = (Resolve-Path $outputPath).Path
 $workPath = Join-Path $repositoryRoot "build\pyinstaller"
 & $Python -m PyInstaller --clean --noconfirm `
     --distpath $outputPath `
@@ -33,17 +35,20 @@ if ($LASTEXITCODE -ne 0) {
     throw "O build do executável falhou."
 }
 
-$releasePath = Join-Path $outputPath "JobFinder"
+$releasePath = $outputPath
 $executable = Join-Path $releasePath "JobFinder.exe"
-$deadline = (Get-Date).AddSeconds(30)
+$deadline = (Get-Date).AddSeconds(120)
 while (-not (Test-Path -LiteralPath $executable -PathType Leaf) -and (Get-Date) -lt $deadline) {
-    Start-Sleep -Milliseconds 200
+    Start-Sleep -Seconds 1
 }
+Start-Sleep -Seconds 1
 if (-not (Test-Path -LiteralPath $releasePath -PathType Container) -or
     -not (Test-Path -LiteralPath $executable -PathType Leaf)) {
     throw "A pasta de release não foi criada pelo PyInstaller: $releasePath"
 }
-Copy-Item -Path @("README.md", "LICENSE") -Destination $releasePath -Force
+if ($releasePath -ne $repositoryRoot) {
+    Copy-Item -Path @("README.md", "LICENSE") -Destination $releasePath -Force
+}
 $hash = $null
 for ($attempt = 0; $attempt -lt 30 -and -not $hash; $attempt++) {
     try {

@@ -4,6 +4,48 @@ Aplicação local para descobrir vagas compatíveis com um perfil profissional e
 
 O planejamento está em [PLANEJAMENTO.md](./PLANEJAMENTO.md) e o acompanhamento da implementação em [TASKS.md](./TASKS.md).
 
+## Instalação rápida (Windows)
+
+### Usar o executável
+
+O pacote de usuário não exige Python, Node.js ou pnpm instalados:
+
+1. Copie `JobFinder.exe` para uma pasta local (ou extraia o arquivo recebido).
+2. Execute `JobFinder.exe` com duplo clique ou, no PowerShell, use `.\JobFinder.exe`.
+3. O navegador abrirá uma URL `http://127.0.0.1:<porta>`.
+4. Para encerrar, volte ao console do aplicativo e pressione `Ctrl+C`.
+
+Quando o build é feito neste checkout, o executável fica diretamente na raiz:
+
+```text
+C:\Users\ugleb\dev\job-finder\JobFinder.exe
+```
+
+O arquivo `release-manifest.json` ao lado do executável registra a versão e o
+SHA-256. O executável é autocontido e pode ser movido; mantenha o manifesto ao
+lado quando quiser conferir a integridade da cópia. O modo single-file extrai
+os recursos internamente ao iniciar.
+
+### Gerar o executável a partir do código
+
+Na raiz do projeto, em um Windows com Python 3.10+:
+
+```powershell
+py -3.10 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pip install -r packaging\requirements-build.txt
+.\scripts\build_windows.ps1
+.\JobFinder.exe
+```
+
+O build do frontend é executado pelo script com pnpm. Para validar o arquivo
+gerado sem abrir o navegador:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\smoke_packaged.py .\JobFinder.exe
+```
+
 ## Desenvolvimento do backend
 
 No Windows, com Python 3.10 ou superior:
@@ -51,15 +93,15 @@ pnpm --filter job-finder-web build
 
 ## Release Windows (E7)
 
-O pacote de distribuição é uma pasta `JobFinder` criada pelo PyInstaller. O
-builder é fixado em `packaging/requirements-build.txt`; em uma máquina Windows
-limpa, instale as dependências e execute:
+O pacote de distribuição agora é um único `JobFinder.exe` na raiz do checkout.
+O builder é fixado em `packaging/requirements-build.txt`; em uma máquina
+Windows limpa, instale as dependências e execute:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 .\.venv\Scripts\python.exe -m pip install -r packaging\requirements-build.txt
 .\scripts\build_windows.ps1
-.\.venv\Scripts\python.exe scripts\smoke_packaged.py dist\windows\JobFinder\JobFinder.exe
+.\.venv\Scripts\python.exe scripts\smoke_packaged.py .\JobFinder.exe
 ```
 
 Para repetir os budgets locais de abertura, listagem e painel:
@@ -88,6 +130,40 @@ Antes de uma migração de banco existente, o backend cria automaticamente um
 backup quando a revisão instalada está atrás da revisão do código. A
 restauração preserva o arquivo atual como `job-finder.db.pre-restore-*`; feche
 o Job Finder antes de restaurar para liberar conexões SQLite no Windows.
+
+## Primeiro uso e configuração
+
+1. Abra **Perfil** e salve cargos, competências, localização, regime e filtros.
+2. Em **IA**, crie a senha do cofre e informe a chave OpenAI. A senha não é
+   persistida; a chave é armazenada somente cifrada no SQLite local.
+3. Em **Busca**, informe cargo e localização e execute a busca unificada.
+4. Se usar JSearch, configure a chave RapidAPI no cofre local ou em
+   `JOB_FINDER_JSEARCH_API_KEY`. O endpoint atual é `/search-v2`.
+5. Abra o detalhe da vaga para analisar, descartar, manter em espera ou usar
+   **Marcar como aplicada**.
+
+O aplicativo não envia candidaturas automaticamente. O botão de preparação de
+entrevista direciona para o produto externo [Se Prepara AI](https://sepreparai.com.br/).
+
+## Solução de problemas
+
+- **O navegador não abriu:** copie a URL exibida no console e cole no navegador.
+- **A porta já está em uso:** encerre outra instância do Job Finder e execute
+  novamente; o iniciador normalmente reutiliza a instância saudável.
+- **A busca não encontrou vagas:** abra **Ver detalhes da busca e do log**. A
+  tela diferencia provider sem chave, limite atingido, falha de rede e busca sem
+  correspondência.
+- **JSearch retorna erro 404:** confirme que a chave RapidAPI está ativa e que
+  a configuração usa a rota `/search-v2`; chaves antigas não são exibidas na
+  interface.
+- **O Windows bloqueou o executável:** confirme a origem do arquivo, abra as
+  propriedades e marque **Desbloquear** quando essa opção estiver disponível.
+- **Precisa restaurar dados:** feche o aplicativo, valide o ZIP e só então use
+  `scripts\backup.py restore`. O banco anterior permanece como cópia
+  `job-finder.db.pre-restore-*`.
+
+Logs locais ficam em `%LOCALAPPDATA%\JobFinder\logs\job-finder.log`. Chaves,
+senhas e dados pessoais detectáveis são redigidos antes de serem gravados.
 
 ## Busca e fontes (E4)
 

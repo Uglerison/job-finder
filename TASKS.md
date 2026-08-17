@@ -1007,13 +1007,13 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 - [x] **JF-607 — Configurar empacotamento PyInstaller**
   - Depende de: JF-019 a JF-022.
   - Teste primeiro: assets, migrações, caminhos e execução sem Python instalado.
-  - Aceite: pacote `onedir` contém `job-finder.exe` funcional.
-  - Evidência: `packaging/job-finder.spec` inclui Vite, Alembic e migrações; smoke do `JobFinder.exe` validou health, interface e SQLite.
+  - Aceite: pacote single-file contém `JobFinder.exe` funcional.
+  - Evidência: `packaging/job-finder.spec` inclui Vite, Alembic e migrações; smoke do executável na raiz validou health, interface e SQLite.
 
 - [x] **JF-608 — Criar build reproduzível para Windows**
   - Depende de: JF-014 e JF-607.
   - Aceite: script limpo gera pacote e checksums com versões fixadas.
-  - Evidência: `scripts/build_windows.ps1` + `packaging/requirements-build.txt` (PyInstaller 6.11.0) geraram `release-manifest.json` e SHA-256.
+  - Evidência: `scripts/build_windows.ps1` + `packaging/requirements-build.txt` (PyInstaller 6.11.0) geram `JobFinder.exe` e `release-manifest.json` na raiz com SHA-256.
 
 - [x] **JF-609 — Executar smoke test em Windows limpo**
   - Depende de: JF-608.
@@ -1038,7 +1038,7 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
 - [x] **JF-613 — Produzir release candidata**
   - Depende de: JF-609 a JF-612.
   - Aceite: artefato, checksum, notas e limitações conhecidas disponíveis.
-  - Evidência: pacote `dist/windows-scripted10/JobFinder`, manifesto SHA-256 `5178dd7c31d1295f67ebd042a25a0d74a166f9edb1fb3f099e7df1cbac8ceac7` e smoke final aprovados; limitações (somente Windows, loopback e restauração com app fechado) estão documentadas.
+  - Evidência: `JobFinder.exe` e `release-manifest.json` na raiz, com smoke final aprovado; limitações (somente Windows, loopback e restauração com app fechado) estão documentadas.
 
 ## E8 — Beta e lançamento
 
@@ -1159,8 +1159,8 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 15/08/2026 | JF-406 | Concluída | Migração `0014_job_analysis_versions` cria histórico append-only com versão da vaga e perfil, modelo, prompt, análise, score e explicação; a API lista reanálises em ordem. |
 | 16/08/2026 | JF-600/JF-602/JF-603 | Concluídas | Origem loopback + CSRF double-submit, resolução DNS contra redes privadas e sanitização de elementos executáveis; testes de segurança/importação verdes. |
 | 16/08/2026 | JF-604/JF-605/JF-606 | Concluídas | Backup ZIP com manifesto/SHA-256, restauração validada com cópia pre-restore e snapshot automático antes de upgrade; 7 testes focados verdes. |
-| 16/08/2026 | JF-607/JF-608/JF-609 | Concluídas | Spec PyInstaller onedir, builder PowerShell com PyInstaller 6.11.0, manifest SHA-256 e smoke do executável em perfil Windows isolado. |
-| 16/08/2026 | JF-610/JF-611/JF-612/JF-613 | Concluídas | Revisão de privacidade, benchmark (979 ms startup/86,59 MB), README de release e pacote candidato `dist/windows-scripted10/JobFinder` validados. |
+| 16/08/2026 | JF-607/JF-608/JF-609 | Concluídas | Spec PyInstaller single-file, builder PowerShell com PyInstaller 6.11.0, manifest SHA-256 e smoke do executável na raiz em perfil Windows isolado. |
+| 16/08/2026 | JF-610/JF-611/JF-612/JF-613 | Concluídas | Revisão de privacidade, benchmark (979 ms startup/86,59 MB), README de instalação/uso e executável candidato na raiz validados. |
 
 ## Bloqueios e decisões pendentes
 

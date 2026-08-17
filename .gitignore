@@ -25,6 +25,8 @@ backups/
 # Builds and IDEs
 build/
 dist/
+/JobFinder.exe
+/release-manifest.json
 .idea/
 .vscode/
 *.code-workspace
