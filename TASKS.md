@@ -1080,6 +1080,11 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: uma única senha desbloqueia todos os providers cadastrados e a chave OpenAI da sessão; formulários individuais não repetem a senha.
   - Evidência: `POST /api/search/providers/unlock-all`, ação “Desbloquear credenciais cadastradas”, estado compartilhado e teste de API com múltiplos providers.
 
+- [x] **JF-809 — Corrigir transições encerradas e paginação do pipeline**
+  - Teste primeiro: mover candidatura para fase terminal deve solicitar e enviar o motivo; candidaturas além da primeira página devem continuar visíveis no pipeline.
+  - Aceite: `rejected`, `withdrawn` e `expired` não retornam a fase silenciosamente por ausência de motivo, e a caixa carrega todas as páginas de vagas persistidas.
+  - Evidência: seletor de motivo no pipeline, `fetchAllJobs` com paginação e testes Vitest para encerramento e segunda página; o banco local foi conferido sem limite de 10 candidaturas (18 registros persistidos).
+
 ## E9 — Beta e lançamento
 
 - [ ] **JF-700 — Definir protocolo do beta**
@@ -1202,6 +1207,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 16/08/2026 | JF-607/JF-608/JF-609 | Concluídas | Spec PyInstaller single-file, builder PowerShell com PyInstaller 6.11.0, manifest SHA-256 e smoke do executável na raiz em perfil Windows isolado. |
 | 16/08/2026 | JF-610/JF-611/JF-612/JF-613 | Concluídas | Revisão de privacidade, benchmark (979 ms startup/86,59 MB), README de instalação/uso e executável candidato na raiz validados. |
 | 16/08/2026 | JF-800–JF-808 | Concluídas | UX reorganizada em rotas reais com layout compartilhado, providers/API keys/cofre em `/configuracoes/fontes`, desbloqueio único de credenciais, agenda/histórico separados, `/insights` dedicado a IA, navegação Principal/Acompanhar refinada e 23 testes Vitest verdes. |
+| 17/08/2026 | JF-809 | Concluída | Transições para fases encerradas agora solicitam motivo e a tela do pipeline percorre todas as páginas de vagas; conferência do SQLite local confirmou 18 candidaturas persistidas e nenhum limite de 10. |
 
 ## Bloqueios e decisões pendentes
 

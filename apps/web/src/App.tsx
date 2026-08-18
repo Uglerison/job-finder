@@ -103,6 +103,13 @@ type ApplicationStatus =
   | 'withdrawn'
   | 'expired';
 
+type ClosingReason =
+  | 'not_fit'
+  | 'no_response'
+  | 'role_closed'
+  | 'candidate_withdrew'
+  | 'other';
+
 type ApplicationEvent = {
   from_status: string | null;
   id: number;
@@ -114,6 +121,8 @@ type ApplicationEvent = {
 };
 
 type ApplicationResponse = {
+  closed_at?: string | null;
+  closing_reason?: ClosingReason | null;
   created_at: string;
   current_status: ApplicationStatus;
   events: ApplicationEvent[];
@@ -328,6 +337,13 @@ type JobAnalysisResponse = {
   usage: AnalysisUsage;
 };
 
+type JobListPayload = {
+  items?: JobListItem[];
+  page?: number;
+  page_size?: number;
+  pages?: number;
+};
+
 function formatAgendaDate(value: string, timezoneName: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -351,6 +367,24 @@ const pipelineStages: { label: string; value: ApplicationStatus }[] = [
   { label: 'DESISTIU', value: 'withdrawn' },
   { label: 'EXPIRADA', value: 'expired' },
 ];
+
+const closureReasons: { label: string; value: ClosingReason }[] = [
+  { label: 'Não aderente ao perfil', value: 'not_fit' },
+  { label: 'Sem retorno', value: 'no_response' },
+  { label: 'Vaga encerrada', value: 'role_closed' },
+  { label: 'Desisti da candidatura', value: 'candidate_withdrew' },
+  { label: 'Outro motivo', value: 'other' },
+];
+
+const closureStatuses = new Set<ApplicationStatus>([
+  'rejected',
+  'withdrawn',
+  'expired',
+]);
+
+function requiresClosureReason(status: ApplicationStatus): boolean {
+  return closureStatuses.has(status);
+}
 
 function pipelineStatusLabel(status: ApplicationStatus): string {
   return (
@@ -661,6 +695,34 @@ async function apiFetch(
 
 const fetchLocalApi = apiFetch;
 
+async function fetchAllJobs(): Promise<JobListItem[]> {
+  const jobs: JobListItem[] = [];
+  let page = 1;
+  let pages = 1;
+  let pageSize = 20;
+
+  do {
+    const endpoint =
+      page === 1
+        ? '/api/jobs'
+        : `/api/jobs?page=${page}&page_size=${pageSize}`;
+    const response = await fetchLocalApi(endpoint);
+    if (!response.ok) {
+      throw new Error('Não foi possível carregar as vagas.');
+    }
+    const payload = (await response.json()) as JobListPayload | null;
+    if (!Array.isArray(payload?.items)) {
+      throw new Error('Resposta inválida ao carregar as vagas.');
+    }
+    jobs.push(...payload.items);
+    pages = Math.max(1, payload.pages ?? 1);
+    pageSize = payload.page_size ?? pageSize;
+    page += 1;
+  } while (page <= pages && pageSize > 0);
+
+  return jobs;
+}
+
 function App() {
   const [pathname, setPathname] = useState<AppPath>(() =>
     normalizePath(globalThis.location?.pathname ?? '/'),
@@ -729,6 +791,9 @@ function App() {
   const [applyingJobId, setApplyingJobId] = useState<number | null>(null);
   const [pipelineTargets, setPipelineTargets] = useState<
     Record<number, ApplicationStatus>
+  >({});
+  const [pipelineClosureReasons, setPipelineClosureReasons] = useState<
+    Record<number, ClosingReason | ''>
   >({});
   const [agendaEvents, setAgendaEvents] = useState<AgendaEvent[]>([]);
   const [isLoadingAgenda, setIsLoadingAgenda] = useState(true);
@@ -1152,6 +1217,7 @@ function App() {
         if (isMounted) {
           setApplications({});
           setPipelineTargets({});
+          setPipelineClosureReasons({});
           setIsLoadingApplications(false);
         }
         return;
@@ -1184,6 +1250,7 @@ function App() {
         });
         setApplications(nextApplications);
         setPipelineTargets(nextTargets);
+        setPipelineClosureReasons({});
       } catch {
         if (isMounted) {
           setApplicationsError(
@@ -1240,17 +1307,10 @@ function App() {
 
     const loadJobs = async () => {
       try {
-        const response = await fetchLocalApi('/api/jobs');
-        if (!response.ok) {
-          throw new Error('Não foi possível carregar as vagas.');
-        }
-        const payload = (await response.json()) as {
-          items?: JobListItem[];
-        } | null;
+        const loadedJobs = await fetchAllJobs();
         if (isMounted) {
-          const hasItems = Array.isArray(payload?.items);
-          setJobs(hasItems ? (payload?.items ?? []) : []);
-          setIsJobsPayloadReady(hasItems);
+          setJobs(loadedJobs);
+          setIsJobsPayloadReady(true);
         }
       } catch {
         if (isMounted) {
@@ -1710,12 +1770,7 @@ function App() {
   };
 
   const refreshJobs = async () => {
-    const response = await fetchLocalApi('/api/jobs');
-    if (!response.ok) {
-      throw new Error('Não foi possível atualizar a caixa de entrada.');
-    }
-    const payload = (await response.json()) as { items?: JobListItem[] } | null;
-    setJobs(Array.isArray(payload?.items) ? payload.items : []);
+    setJobs(await fetchAllJobs());
   };
 
   const markJobApplied = async (
@@ -2210,6 +2265,16 @@ function App() {
       return;
     }
 
+    const closureReason = requiresClosureReason(targetStatus)
+      ? pipelineClosureReasons[application.id]
+      : undefined;
+    if (requiresClosureReason(targetStatus) && !closureReason) {
+      setApplicationsError(
+        `Selecione o motivo para mover ${job.title} para ${pipelineStatusLabel(targetStatus).toLocaleLowerCase()}.`,
+      );
+      return;
+    }
+
     const previousStatus = application.current_status;
     setApplications((current) => ({
       ...current,
@@ -2222,7 +2287,10 @@ function App() {
       const response = await fetchLocalApi(
         `/api/applications/${application.id}/transition`,
         {
-          body: JSON.stringify({ to_status: targetStatus }),
+          body: JSON.stringify({
+            closure_reason: closureReason,
+            to_status: targetStatus,
+          }),
           headers: { 'Content-Type': 'application/json' },
           method: 'POST',
         },
@@ -4287,6 +4355,41 @@ function App() {
                                 </option>
                               ))}
                             </select>
+                            {requiresClosureReason(
+                              pipelineTargets[application.id] ??
+                                application.current_status,
+                            ) && (
+                              <>
+                                <label
+                                  htmlFor={`pipeline-closure-reason-${application.id}`}
+                                >
+                                  Motivo do encerramento
+                                </label>
+                                <select
+                                  id={`pipeline-closure-reason-${application.id}`}
+                                  onChange={(event) =>
+                                    setPipelineClosureReasons((current) => ({
+                                      ...current,
+                                      [application.id]: event.target
+                                        .value as ClosingReason | '',
+                                    }))
+                                  }
+                                  value={
+                                    pipelineClosureReasons[application.id] ?? ''
+                                  }
+                                >
+                                  <option value="">Selecione um motivo</option>
+                                  {closureReasons.map((reason) => (
+                                    <option
+                                      key={reason.value}
+                                      value={reason.value}
+                                    >
+                                      {reason.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </>
+                            )}
                             <button
                               className="card-link pipeline-move-button"
                               disabled={pipelineActionId === application.id}

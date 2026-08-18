@@ -1271,6 +1271,140 @@ describe('App', () => {
     ).toBe(true);
   });
 
+  it('solicita motivo ao mover uma candidatura para uma fase encerrada', async () => {
+    const job = {
+      canonical_url: 'https://jobs.example.com/rejected-1',
+      company: 'Example Labs',
+      created_at: '2026-08-15T10:00:00Z',
+      id: 1,
+      location: 'São Paulo',
+      origin_count: 1,
+      status: 'found',
+      status_label: 'ENCONTRADA',
+      title: 'Analista de Inteligência de Dados Pl.',
+    };
+    const application = {
+      created_at: '2026-08-15T10:05:00Z',
+      current_status: 'applied',
+      events: [],
+      id: 7,
+      job_id: 1,
+      updated_at: '2026-08-15T10:05:00Z',
+    };
+
+    fetchMock.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/jobs') {
+          return Promise.resolve({
+            json: async () => ({ items: [job] }),
+            ok: true,
+          });
+        }
+        if (input === '/api/jobs/1/application') {
+          return Promise.resolve({ json: async () => application, ok: true });
+        }
+        if (input === '/api/applications/7/transition') {
+          return Promise.resolve({
+            json: async () => ({
+              ...application,
+              closing_reason: 'not_fit',
+              current_status: 'rejected',
+              updated_at: '2026-08-15T10:06:00Z',
+            }),
+            ok: true,
+          });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      },
+    );
+
+    renderAt('/candidaturas');
+    await screen.findByText('Analista de Inteligência de Dados Pl.');
+    fireEvent.change(
+      await screen.findByLabelText(
+        'Próxima fase para Analista de Inteligência de Dados Pl.',
+      ),
+      { target: { value: 'rejected' } },
+    );
+
+    expect(
+      screen.getByLabelText('Motivo do encerramento'),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Motivo do encerramento'), {
+      target: { value: 'not_fit' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Mover candidatura' }));
+
+    await waitFor(() =>
+      expect(screen.getAllByText('NÃO APROVADO').length).toBeGreaterThanOrEqual(
+        1,
+      ),
+    );
+    const transitionCall = fetchMock.mock.calls.find(
+      ([input]) => input === '/api/applications/7/transition',
+    );
+    expect(JSON.parse(transitionCall?.[1]?.body as string)).toMatchObject({
+      closure_reason: 'not_fit',
+      to_status: 'rejected',
+    });
+  });
+
+  it(
+    'carrega todas as páginas da caixa de vagas para não ocultar candidaturas antigas',
+    async () => {
+      const firstJob = {
+        canonical_url: null,
+        company: 'Empresa 1',
+        created_at: '2026-08-15T10:00:00Z',
+        id: 1,
+        location: null,
+        origin_count: 1,
+        status: 'found',
+        status_label: 'ENCONTRADA',
+        title: 'Vaga mais recente',
+      };
+      const secondJob = {
+        ...firstJob,
+        company: 'Empresa 2',
+        id: 2,
+        title: 'Vaga mais antiga',
+      };
+
+      fetchMock.mockImplementation((input: RequestInfo | URL) => {
+        if (input === '/api/jobs') {
+          return Promise.resolve({
+            json: async () => ({
+              items: [firstJob],
+              page: 1,
+              page_size: 1,
+              pages: 2,
+              total: 2,
+            }),
+            ok: true,
+          });
+        }
+        if (input === '/api/jobs?page=2&page_size=1') {
+          return Promise.resolve({
+            json: async () => ({
+              items: [secondJob],
+              page: 2,
+              page_size: 1,
+              pages: 2,
+              total: 2,
+            }),
+            ok: true,
+          });
+        }
+        return Promise.resolve({ json: async () => null, ok: true });
+      });
+
+      renderAt('/vagas');
+
+      expect(await screen.findByText('Vaga mais recente')).toBeInTheDocument();
+      expect(await screen.findByText('Vaga mais antiga')).toBeInTheDocument();
+    },
+  );
+
   it('reverte a movimentação otimista quando a transição é rejeitada', async () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       if (input === '/api/jobs') {
