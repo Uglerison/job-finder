@@ -1116,11 +1116,16 @@ Plano detalhado: [docs/ux-redesign-plan.md](./docs/ux-redesign-plan.md).
   - Validação visual: 375, 768 e 1280 px sem colisão, quebra acidental ou conteúdo colado nas bordas.
   - Evidência: AppNavigation simplificada, menu móvel com Escape/clique externo/fechamento após navegação e menu utilitário; testes adicionados e suíte aprovada (32 testes).
 
-- [ ] **JF-814 — Tornar o cofre acessível globalmente**
+- [x] **JF-814 — Tornar o cofre acessível globalmente**
   - Depende de: JF-811 a JF-813.
   - Teste primeiro: o botão do cofre existe em todas as rotas; criação, desbloqueio único, erro, bloqueio, Enter, Escape, foco inicial e retorno de foco são reproduzidos antes da implementação.
   - Aceite: cabeçalho mostra `Cofre bloqueado`/`Cofre desbloqueado`; um diálogo global desbloqueia OpenAI e todos os providers; formulários individuais não repetem a senha.
   - Aceite adicional: ações que exigem credenciais bloqueadas abrem o diálogo correto e permitem retomar o fluxo depois do sucesso.
+  - Implementação: sessão global via `/api/vault`, criação sem exigir uma primeira chave, desbloqueio atômico de credenciais existentes, gravação usando a sessão e limpeza no bloqueio/encerramento do serviço. Validação inválida não devolve senhas; operações concorrentes são serializadas.
+  - Evidência: TDD Red → Green; 55 testes Vitest e 168 Pytest aprovados; lint, tipos, Prettier, formatação Python dos arquivos alterados e build web aprovados.
+  - Navegador: Edge headless com dados fictícios em 375/768/1280 px e 375×667; cabeçalho sem overflow, diálogo com margem, Enter/Escape, Tab/Shift+Tab, foco inicial/retorno e navegação mobile verificados.
+  - Observação: teste de concorrência de candidaturas falhou na primeira execução geral (200/409), passou isoladamente e na repetição completa; pipeline não foi alterado nesta tarefa.
+  - Documentação: README atualizado. Build web atualizado; rebuild de `JobFinder.exe` permanece na JF-820. JF-815 não iniciada.
 
 - [ ] **JF-815 — Redesenhar o início como central de próxima ação**
   - Depende de: JF-813 e JF-814.
@@ -1282,6 +1287,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 16/08/2026 | JF-800–JF-808 | Concluídas | UX reorganizada em rotas reais com layout compartilhado, providers/API keys/cofre em `/configuracoes/fontes`, desbloqueio único de credenciais, agenda/histórico separados, `/insights` dedicado a IA, navegação Principal/Acompanhar refinada e 23 testes Vitest verdes. |
 | 17/08/2026 | JF-809 | Concluída | Transições para fases encerradas agora solicitam motivo e a tela do pipeline percorre todas as páginas de vagas; conferência do SQLite local confirmou 18 candidaturas persistidas e nenhum limite de 10. |
 | 01/09/2026 | JF-810 | Concluída | Auditoria registrou o excesso de navegação, cofre enterrado, mistura de responsabilidades e acúmulo de CSS/componentes; plano E8.1 prioriza shell simples, cofre global, páginas independentes e validação visual/TDD. |
+| 02/09/2026 | JF-814 | Concluída | Cofre global nas 13 rotas, desbloqueio único OpenAI/providers, retomada de ações e senha apenas no diálogo; sessão protegida contra concorrência, validação sem eco de segredos e reinício testado. 55 Vitest + 168 Pytest; README e build web atualizados. |
 
 ## Bloqueios e decisões pendentes
 

@@ -6,11 +6,21 @@ type AppLayoutProps = {
   children: ReactNode;
   onNavigate: (path: AppPath) => void;
   pathname: AppPath;
+  vaultAction?: ReactNode;
 };
 
-export function AppLayout({ children, onNavigate, pathname }: AppLayoutProps) {
+export function AppLayout({
+  children,
+  onNavigate,
+  pathname,
+  vaultAction,
+}: AppLayoutProps) {
   return (
-    <AppNavigation onNavigate={onNavigate} pathname={pathname}>
+    <AppNavigation
+      onNavigate={onNavigate}
+      pathname={pathname}
+      vaultAction={vaultAction}
+    >
       {children}
     </AppNavigation>
   );

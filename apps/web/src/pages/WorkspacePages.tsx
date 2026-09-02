@@ -1,6 +1,8 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { AppLayout } from '../AppLayout';
+import { VaultControls } from '../components/vault/VaultControls';
+import { useVaultSession } from '../components/vault/useVaultSession';
 import { useBrowserNavigation } from '../routing/useBrowserNavigation';
 import type { AppPath } from '../routes';
 import {
@@ -748,9 +750,7 @@ function WorkspacePages() {
   const [aiSettings, setAiSettings] = useState<AiSettings>(defaultAiSettings);
   const [isLoadingAiSettings, setIsLoadingAiSettings] = useState(true);
   const [apiKeyDraft, setApiKeyDraft] = useState('');
-  const [vaultPasswordDraft, setVaultPasswordDraft] = useState('');
-  const [vaultPasswordConfirmation, setVaultPasswordConfirmation] =
-    useState('');
+  const vault = useVaultSession(fetchLocalApi);
   const [isSavingApiKey, setIsSavingApiKey] = useState(false);
   const [isTestingAiConnection, setIsTestingAiConnection] = useState(false);
   const [aiSettingsError, setAiSettingsError] = useState<string | null>(null);
@@ -957,7 +957,7 @@ function WorkspacePages() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [vault.status?.unlocked, vault.status?.configured]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1108,7 +1108,7 @@ function WorkspacePages() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [vault.status?.unlocked, vault.status?.configured]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1466,39 +1466,21 @@ function WorkspacePages() {
   const handleApiKeySubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const apiKey = apiKeyDraft.trim();
-    const vaultPassword = vaultPasswordDraft;
-    const needsUnlock =
-      aiSettings.storage === 'encrypted_database' && !aiSettings.unlocked;
-
-    if (!needsUnlock && !apiKey) {
+    if (!apiKey) {
       setAiSettingsError('Informe a chave da API antes de salvar.');
       return;
     }
-    if (!vaultPassword) {
-      setAiSettingsError('Informe a senha do cofre local.');
-      return;
-    }
-    if (!needsUnlock && vaultPassword !== vaultPasswordConfirmation) {
-      setAiSettingsError('A confirmação da senha do cofre não confere.');
-      return;
-    }
+    if (!(await vault.requireUnlocked())) return;
 
     setIsSavingApiKey(true);
     setAiSettingsError(null);
     setAiSettingsMessage(null);
     try {
-      const response = await fetchLocalApi(
-        needsUnlock ? '/api/ai/unlock' : '/api/ai/api-key',
-        {
-          body: JSON.stringify(
-            needsUnlock
-              ? { vault_password: vaultPassword }
-              : { api_key: apiKey, vault_password: vaultPassword },
-          ),
-          headers: { 'Content-Type': 'application/json' },
-          method: needsUnlock ? 'POST' : 'PUT',
-        },
-      );
+      const response = await fetchLocalApi('/api/ai/api-key', {
+        body: JSON.stringify({ api_key: apiKey }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT',
+      });
       const payload = (await response.json().catch(() => null)) as
         AiSettings | { detail?: string } | null;
       if (!response.ok || !payload || !('configured' in payload)) {
@@ -1507,12 +1489,7 @@ function WorkspacePages() {
       }
       setAiSettings(payload);
       setApiKeyDraft('');
-      setVaultPasswordConfirmation('');
-      setAiSettingsMessage(
-        needsUnlock
-          ? 'Cofre desbloqueado somente nesta execução.'
-          : 'Chave criptografada e salva no banco local.',
-      );
+      setAiSettingsMessage('Chave criptografada e salva no banco local.');
     } catch (error) {
       setAiSettingsError(
         error instanceof Error
@@ -1524,32 +1501,12 @@ function WorkspacePages() {
     }
   };
 
-  const handleApiKeyLock = async () => {
-    setIsSavingApiKey(true);
-    setAiSettingsError(null);
-    setAiSettingsMessage(null);
-    try {
-      const response = await fetchLocalApi('/api/ai/lock', { method: 'POST' });
-      const payload = (await response.json().catch(() => null)) as
-        AiSettings | { detail?: string } | null;
-      if (!response.ok || !payload || !('configured' in payload)) {
-        const detail = payload && 'detail' in payload ? payload.detail : null;
-        throw new Error(detail ?? 'Não foi possível bloquear o cofre.');
-      }
-      setAiSettings(payload);
-      setAiSettingsMessage('Cofre bloqueado; a chave saiu da memória.');
-    } catch (error) {
-      setAiSettingsError(
-        error instanceof Error
-          ? error.message
-          : 'Não foi possível bloquear o cofre.',
-      );
-    } finally {
-      setIsSavingApiKey(false);
-    }
-  };
-
   const handleOpenAiConnectionTest = async () => {
+    if (
+      aiSettings.storage === 'encrypted_database' &&
+      !(await vault.requireUnlocked())
+    )
+      return;
     setIsTestingAiConnection(true);
     setAiSettingsError(null);
     setAiSettingsMessage(null);
@@ -1593,8 +1550,7 @@ function WorkspacePages() {
       }
       setAiSettings(payload);
       setApiKeyDraft('');
-      setVaultPasswordDraft('');
-      setVaultPasswordConfirmation('');
+      await vault.refresh();
       setAiSettingsMessage('Chave criptografada removida do banco local.');
     } catch (error) {
       setAiSettingsError(
@@ -1696,6 +1652,11 @@ function WorkspacePages() {
     ) {
       return;
     }
+    if (
+      aiSettings.storage === 'encrypted_database' &&
+      !(await vault.requireUnlocked())
+    )
+      return;
     setIsAnalyzingJob(true);
     setAnalysisError(null);
     setAnalysisMessage(null);
@@ -1994,6 +1955,14 @@ function WorkspacePages() {
       );
       return;
     }
+    if (
+      providerStatuses.some(
+        (provider) =>
+          provider.configured && provider.storage === 'encrypted_database',
+      ) &&
+      !(await vault.requireUnlocked())
+    )
+      return;
     setIsSearchingAggregated(true);
     setAggregatedError(null);
     try {
@@ -2039,12 +2008,7 @@ function WorkspacePages() {
 
   const saveProviderCredential = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (vaultPasswordDraft.length < 12) {
-      setProviderSettingsError(
-        'A senha do cofre deve ter pelo menos 12 caracteres.',
-      );
-      return;
-    }
+
     if (
       (providerKey === 'adzuna' &&
         (!providerAppId.trim() || !providerAppKey.trim())) ||
@@ -2057,6 +2021,7 @@ function WorkspacePages() {
       );
       return;
     }
+    if (!(await vault.requireUnlocked())) return;
     setIsSavingProvider(true);
     setProviderSettingsError(null);
     setProviderSettingsMessage(null);
@@ -2070,7 +2035,6 @@ function WorkspacePages() {
             app_id: providerKey === 'adzuna' ? providerAppId.trim() : undefined,
             app_key:
               providerKey === 'adzuna' ? providerAppKey.trim() : undefined,
-            vault_password: vaultPasswordDraft,
           }),
           headers: { 'Content-Type': 'application/json' },
           method: 'PUT',
@@ -2098,84 +2062,6 @@ function WorkspacePages() {
         error instanceof Error
           ? error.message
           : 'Não foi possível salvar a credencial.',
-      );
-    } finally {
-      setIsSavingProvider(false);
-    }
-  };
-
-  const unlockAllCredentials = async () => {
-    if (vaultPasswordDraft.length < 12) {
-      setProviderSettingsError(
-        'Informe a senha do cofre com pelo menos 12 caracteres para desbloquear.',
-      );
-      return;
-    }
-    setIsSavingProvider(true);
-    setProviderSettingsError(null);
-    setProviderSettingsMessage(null);
-    setAiSettingsError(null);
-    setAiSettingsMessage(null);
-    try {
-      let unlockedAi = false;
-      if (
-        aiSettings.configured &&
-        aiSettings.storage === 'encrypted_database' &&
-        !aiSettings.unlocked
-      ) {
-        const aiResponse = await fetchLocalApi('/api/ai/unlock', {
-          body: JSON.stringify({ vault_password: vaultPasswordDraft }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST',
-        });
-        const aiPayload = (await aiResponse.json().catch(() => null)) as
-          AiSettings | { detail?: string } | null;
-        if (!aiResponse.ok || !aiPayload || !('configured' in aiPayload)) {
-          const detail =
-            aiPayload && 'detail' in aiPayload ? aiPayload.detail : null;
-          throw new Error(
-            detail ?? 'Não foi possível desbloquear a chave OpenAI.',
-          );
-        }
-        setAiSettings(aiPayload);
-        unlockedAi = aiPayload.unlocked;
-      } else {
-        unlockedAi =
-          aiSettings.unlocked || aiSettings.storage === 'environment';
-      }
-
-      const response = await fetchLocalApi('/api/search/providers/unlock-all', {
-        body: JSON.stringify({ vault_password: vaultPasswordDraft }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      });
-      const payload = (await response.json().catch(() => null)) as
-        ProviderCredentialStatus[] | { detail?: string } | null;
-      if (!response.ok || !Array.isArray(payload)) {
-        const detail = payload && 'detail' in payload ? payload.detail : null;
-        throw new Error(
-          detail ??
-            'Não foi possível desbloquear as credenciais dos providers.',
-        );
-      }
-      setProviderStatuses(payload);
-      const unlockedProviders = payload.filter((item) => item.unlocked).length;
-      if (unlockedAi || unlockedProviders > 0) {
-        setProviderSettingsMessage(
-          'Cofre desbloqueado nesta execução para todas as credenciais cadastradas.',
-        );
-      } else {
-        setProviderSettingsMessage(
-          'Nenhuma credencial criptografada está cadastrada para desbloquear.',
-        );
-      }
-      setVaultPasswordDraft('');
-      setVaultPasswordConfirmation('');
-    } catch (error) {
-      setProviderSettingsError(
-        error instanceof Error
-          ? error.message
-          : 'Não foi possível desbloquear a credencial.',
       );
     } finally {
       setIsSavingProvider(false);
@@ -2381,7 +2267,11 @@ function WorkspacePages() {
   const nextSetupStep = setupSteps.find((step) => !step.complete);
 
   return (
-    <AppLayout onNavigate={navigate} pathname={pathname}>
+    <AppLayout
+      onNavigate={navigate}
+      pathname={pathname}
+      vaultAction={<VaultControls vault={vault} />}
+    >
       <SourceWorkspacePage pathname={pathname}>
         <section
           className="sources-section"
@@ -2656,76 +2546,12 @@ function WorkspacePages() {
                       OpenAI cadastrados nesta execução.
                     </p>
                   </div>
-                  <strong>
-                    {aiSettings.unlocked ||
-                    providerStatuses.some((status) => status.unlocked)
-                      ? 'Desbloqueado nesta sessão'
-                      : aiSettings.configured ||
-                          providerStatuses.some((status) => status.configured)
-                        ? 'Bloqueado'
-                        : 'Ainda não configurado'}
-                  </strong>
-                </div>
-                <div className="vault-unlock-panel">
-                  <div className="form-field">
-                    <label htmlFor="vault-password">
-                      {aiSettings.configured
-                        ? 'Senha do cofre'
-                        : 'Crie uma senha para o cofre local'}
-                    </label>
-                    <input
-                      autoComplete="new-password"
-                      id="vault-password"
-                      minLength={12}
-                      onChange={(event) => {
-                        setVaultPasswordDraft(event.target.value);
-                        setProviderSettingsError(null);
-                        setProviderSettingsMessage(null);
-                        setAiSettingsError(null);
-                        setAiSettingsMessage(null);
-                      }}
-                      spellCheck={false}
-                      type="password"
-                      value={vaultPasswordDraft}
-                    />
-                    {!aiSettings.configured && (
-                      <span>
-                        Use ao menos 12 caracteres. A mesma senha será usada
-                        para todas as integrações.
-                      </span>
-                    )}
-                  </div>
-                  {!aiSettings.configured && (
-                    <div className="form-field">
-                      <label htmlFor="vault-password-confirmation">
-                        Confirme a senha do cofre local
-                      </label>
-                      <input
-                        autoComplete="new-password"
-                        id="vault-password-confirmation"
-                        minLength={12}
-                        onChange={(event) => {
-                          setVaultPasswordConfirmation(event.target.value);
-                          setProviderSettingsError(null);
-                          setProviderSettingsMessage(null);
-                          setAiSettingsError(null);
-                          setAiSettingsMessage(null);
-                        }}
-                        spellCheck={false}
-                        type="password"
-                        value={vaultPasswordConfirmation}
-                      />
-                    </div>
-                  )}
                   <button
-                    className="primary-button"
-                    disabled={isSavingProvider || isSavingApiKey}
-                    onClick={() => void unlockAllCredentials()}
+                    className="text-button text-button-plain"
                     type="button"
+                    onClick={vault.open}
                   >
-                    {isSavingProvider
-                      ? 'Desbloqueando…'
-                      : 'Desbloquear credenciais cadastradas'}
+                    Gerenciar cofre
                   </button>
                 </div>
                 <div className="source-list-heading">
@@ -3170,28 +2996,16 @@ function WorkspacePages() {
               {aiSettings.configured &&
                 aiSettings.storage === 'encrypted_database' && (
                   <>
-                    {aiSettings.unlocked && (
-                      <>
-                        <button
-                          className="text-button text-button-plain"
-                          disabled={isSavingApiKey || isTestingAiConnection}
-                          onClick={() => void handleOpenAiConnectionTest()}
-                          type="button"
-                        >
-                          {isTestingAiConnection
-                            ? 'Testando conexão…'
-                            : 'Testar conexão'}
-                        </button>
-                        <button
-                          className="text-button text-button-plain"
-                          disabled={isSavingApiKey || isTestingAiConnection}
-                          onClick={() => void handleApiKeyLock()}
-                          type="button"
-                        >
-                          Bloquear cofre
-                        </button>
-                      </>
-                    )}
+                    <button
+                      className="text-button text-button-plain"
+                      disabled={isSavingApiKey || isTestingAiConnection}
+                      onClick={() => void handleOpenAiConnectionTest()}
+                      type="button"
+                    >
+                      {isTestingAiConnection
+                        ? 'Testando conexão…'
+                        : 'Testar conexão'}
+                    </button>
                     <button
                       className="text-button text-button-plain danger-button"
                       disabled={isSavingApiKey}

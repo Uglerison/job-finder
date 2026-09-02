@@ -81,11 +81,13 @@ class ProviderCredentialRequest(BaseModel):
     api_key: SecretStr | None = None
     app_id: SecretStr | None = None
     app_key: SecretStr | None = None
-    vault_password: SecretStr
+    vault_password: SecretStr | None = None
 
     @field_validator("vault_password")
     @classmethod
-    def validate_password(cls, value: SecretStr) -> SecretStr:
+    def validate_password(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None:
+            return value
         if len(value.get_secret_value()) < 12:
             raise ValueError("A senha do cofre deve ter pelo menos 12 caracteres.")
         return value
@@ -213,7 +215,11 @@ def save_provider_credential(
         value = payload.api_key.get_secret_value()
     try:
         vault = _vault(request)
-        vault.save_provider_secret(provider, value, payload.vault_password.get_secret_value())
+        vault.save_provider_secret(
+            provider,
+            value,
+            payload.vault_password.get_secret_value() if payload.vault_password else None,
+        )
         return _provider_status(request, provider)
     except SecretStoreError as error:
         raise HTTPException(

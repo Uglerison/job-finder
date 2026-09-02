@@ -34,7 +34,7 @@ class ApiKeyRequest(BaseModel):
     """Key and transient local-vault password accepted only by the loopback backend."""
 
     api_key: SecretStr
-    vault_password: SecretStr
+    vault_password: SecretStr | None = None
 
     @field_validator("api_key")
     @classmethod
@@ -46,7 +46,9 @@ class ApiKeyRequest(BaseModel):
 
     @field_validator("vault_password")
     @classmethod
-    def validate_vault_password(cls, value: SecretStr) -> SecretStr:
+    def validate_vault_password(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None:
+            return value
         password = value.get_secret_value()
         if len(password) < 12:
             raise ValueError("A senha do cofre deve ter pelo menos 12 caracteres.")
@@ -95,10 +97,12 @@ class OpenAiCredentialSettings:
             return AiSettingsResponse(configured=True, unlocked=True, storage="environment")
         return AiSettingsResponse(configured=False, unlocked=False, storage="not_configured")
 
-    def set_api_key(self, api_key: SecretStr, vault_password: SecretStr) -> AiSettingsResponse:
+    def set_api_key(
+        self, api_key: SecretStr, vault_password: SecretStr | None
+    ) -> AiSettingsResponse:
         self._vault.save_openai_api_key(
             api_key.get_secret_value(),
-            vault_password.get_secret_value(),
+            vault_password.get_secret_value() if vault_password else None,
         )
         return self.status()
 

@@ -51,12 +51,14 @@ type AppNavigationProps = {
   children: ReactNode;
   onNavigate: (path: AppPath) => void;
   pathname: AppPath;
+  vaultAction?: ReactNode;
 };
 
 export function AppNavigation({
   children,
   onNavigate,
   pathname,
+  vaultAction,
 }: AppNavigationProps) {
   const navigationRef = useRef<HTMLDivElement>(null);
   const [isConfigMenuOpen, setIsConfigMenuOpen] = useState(false);
@@ -141,6 +143,7 @@ export function AppNavigation({
           </nav>
 
           <div className="header-utilities">
+            {vaultAction}
             <div className="config-menu">
               <button
                 aria-expanded={isConfigMenuOpen}

@@ -3039,35 +3039,6 @@
   max-width: 35rem;
 }
 
-.vault-status-card > strong {
-  color: var(--accent);
-  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-  font-size: 0.68rem;
-  letter-spacing: 0.05em;
-  text-align: right;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.vault-unlock-panel {
-  align-items: end;
-  background: var(--paper-raised);
-  border: 1px solid var(--ink-faint);
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: minmax(0, 1fr) auto;
-  margin-bottom: 1.5rem;
-  padding: 1rem 1.2rem;
-}
-
-.vault-unlock-panel .form-field {
-  margin: 0;
-}
-
-.vault-unlock-panel .primary-button {
-  white-space: nowrap;
-}
-
 .route-result-action {
   margin: 1rem 0 0;
 }
@@ -3121,18 +3092,9 @@
     flex-direction: column;
   }
 
-  .vault-unlock-panel {
-    align-items: flex-start;
-    grid-template-columns: 1fr;
-  }
-
   .home-summary-cards article + article {
     border-left: 0;
     border-top: 1px solid var(--ink-faint);
-  }
-
-  .vault-status-card > strong {
-    text-align: left;
   }
 }
 
@@ -3152,8 +3114,11 @@
   padding: 0.7rem 1.5rem;
 }
 
-.primary-nav {
+.header-inner .primary-nav {
   align-items: center;
+  flex-direction: row;
+  margin-left: 0;
+  min-width: 0;
   display: flex;
   gap: clamp(0.7rem, 1.8vw, 1.35rem);
   justify-content: center;
@@ -3245,15 +3210,18 @@
   display: none;
 }
 
-@media (max-width: 56rem) {
+@media (max-width: 64rem) {
   .header-inner {
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     min-height: 4.25rem;
     padding-left: 1rem;
     padding-right: 1rem;
   }
 
   .mobile-menu-trigger {
+    justify-self: end;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
     align-items: center;
     display: inline-flex;
     font-size: 1.15rem;
@@ -3261,7 +3229,7 @@
     padding: 0.2rem 0.55rem;
   }
 
-  .primary-nav {
+  .header-inner .primary-nav {
     background: var(--paper-raised);
     border-bottom: 1px solid var(--ink-faint);
     border-top: 1px solid var(--ink-faint);
@@ -3275,7 +3243,7 @@
     top: 100%;
   }
 
-  .primary-nav.is-open {
+  .header-inner .primary-nav.is-open {
     display: flex;
   }
 
@@ -3294,7 +3262,15 @@
   }
 
   .header-utilities {
-    gap: 0;
+    grid-column: 1 / -1;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding-top: 0.25rem;
+  }
+
+  .header-utilities .vault-trigger,
+  .header-utilities .config-menu-trigger {
+    min-height: 2.75rem;
   }
 
   .header-utilities .meta-label {
@@ -3313,16 +3289,6 @@
 
   .brand-name {
     font-size: 1rem;
-  }
-
-  .config-menu-trigger {
-    font-size: 0;
-    width: 2.2rem;
-  }
-
-  .config-menu-trigger::before {
-    content: '⋯';
-    font-size: 1.1rem;
   }
 }
 

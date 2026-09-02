@@ -77,11 +77,34 @@ pnpm --filter job-finder-web build
 .\.venv\Scripts\python.exe scripts\run_local.py
 ```
 
-Para cadastrar credenciais, abra **Configurações → Fontes e integrações**. As
-chaves OpenAI e dos providers são gravadas apenas como ciphertext no SQLite
-local; crie e guarde uma senha de cofre com pelo menos 12 caracteres. Informe-a
-uma vez em **Desbloquear credenciais cadastradas** para liberar todas as
-integrações durante a sessão. A senha não é persistida.
+O botão do cofre fica no cabeçalho de todas as páginas, inclusive no celular.
+No primeiro uso, escolha **Configurar cofre** e confirme uma senha com pelo
+menos 12 caracteres. Para cadastrar chaves, abra **Configurações → Fontes e
+integrações**: OpenAI e providers usam a mesma sessão, sem repetir a senha.
+
+### Desbloquear e bloquear o cofre
+
+- **Cofre bloqueado** abre o diálogo para liberar todas as chaves cadastradas.
+- **Cofre desbloqueado** abre o diálogo com a opção **Bloquear cofre**.
+- Salvar uma chave, buscar com providers criptografados ou analisar com OpenAI
+  abre o diálogo quando necessário e retoma a ação após o desbloqueio.
+  Fechar ou pressionar Escape cancela a ação pendente, sem perder os filtros.
+- Enter confirma o formulário; o foco fica no diálogo e volta ao controle de
+  origem ao fechar.
+- Navegar, recarregar a página ou fechar apenas a aba não bloqueia a sessão.
+  Para bloquear, use o botão do cofre ou encerre o serviço local.
+- Perfil, vagas, candidaturas e fontes públicas continuam acessíveis sem
+  desbloquear. Chaves definidas por variável de ambiente não dependem do cofre.
+
+As chaves ficam cifradas no SQLite. A senha e as chaves decifradas permanecem
+somente na memória do processo enquanto o cofre está aberto; não são
+persistidas em disco, localStorage ou sessionStorage. Ao reiniciar o serviço,
+desbloqueie novamente. Guarde a senha: não há recuperação automática.
+
+Cofres existentes continuam funcionando, sem recadastrar chaves quando todas
+usam a mesma senha. Se credenciais antigas tiverem senhas diferentes, o
+desbloqueio global falha sem liberar parcialmente as integrações; revise essas
+credenciais antes de prosseguir. Não apague o banco para tentar resolver.
 
 ## Navegação por páginas
 
@@ -161,10 +184,10 @@ o Job Finder antes de restaurar para liberar conexões SQLite no Windows.
 ## Primeiro uso e configuração
 
 1. Abra **Perfil** e salve cargos, competências, localização, regime e filtros.
-2. Em **Configurações → Fontes e integrações**, crie a senha do cofre e
-   informe as chaves OpenAI/providers que desejar. Use a mesma senha no bloco
-   do cofre para desbloquear todas as credenciais cadastradas. A senha não é
-   persistida; as chaves são armazenadas somente cifradas no SQLite local.
+2. Use **Configurar cofre** no cabeçalho para criar sua senha. Em
+   **Configurações → Fontes e integrações**, informe as chaves desejadas.
+   Para um cofre existente, use **Cofre bloqueado**; um desbloqueio libera
+   OpenAI e todos os providers, sem senhas nos formulários individuais.
 3. Em **Busca**, informe cargo e localização e execute a busca unificada.
 4. Se usar JSearch, configure a chave RapidAPI no cofre local ou em
    `JOB_FINDER_JSEARCH_API_KEY`. O endpoint atual é `/search-v2`.
@@ -207,7 +230,8 @@ Os contratos HTTP locais principais são:
 - `POST /api/sources/{source_key}/test` para testar uma fonte sem persistir vagas;
 - `POST /api/search-runs` para execuções legadas auditáveis (`wait=true` é útil em testes);
 - `GET /api/search-runs` e `POST /api/search-runs/{id}/cancel` para acompanhar/cancelar;
-- `GET /api/search/providers`, `PUT /api/search/providers/{provider}` e `POST /api/search/providers/unlock-all` para credenciais e desbloqueio único do cofre;
+- `GET /api/search/providers` e `PUT /api/search/providers/{provider}` para credenciais (a gravação usa a sessão desbloqueada, sem reenviar senha);
+- `GET /api/vault` para consultar o estado; `POST /api/vault/create|unlock|lock` para criar, desbloquear todas as credenciais ou bloquear a sessão (`create` e `unlock` recebem `vault_password`);
 - `GET /api/duplicates` e `POST /api/duplicates/{id}/confirm|dismiss` para revisão;
 - `POST /api/scheduler/tick` para disparar fontes agendadas já vencidas.
 
@@ -242,7 +266,7 @@ idempotente e não envia candidatura automaticamente a nenhum site.
 O modelo preparado é `gpt-5.6-luna`. A configuração local não inicia análises
 automaticamente: a análise é sempre uma ação explícita sobre uma vaga. A senha
 do cofre e a chave nunca são devolvidas pela API, mostradas novamente na
-interface ou gravadas nos logs. O botão **Desbloquear credenciais cadastradas**
+interface ou gravadas nos logs. O botão **Cofre bloqueado**, no cabeçalho,
 libera a chave OpenAI e todos os providers criptografados de uma só vez.
 
 O botão **Testar conexão** faz uma chamada mínima e sem dados de perfil ou
@@ -319,10 +343,11 @@ o status, quantidade e duração de cada provider, sem expor credenciais.
 
 As credenciais podem ser definidas como variáveis `JOB_FINDER_*` ou salvas no
 SQLite criptografado por senha local através de `/api/search/providers`. A
-senha nunca é persistida. Depois de reiniciar o app, use uma única vez
-`POST /api/search/providers/unlock-all` ou o botão **Desbloquear credenciais
-cadastradas** na seção de credenciais. A busca continua sem expor a chave no
-navegador.
+senha nunca é persistida. Depois de reiniciar o serviço, use uma única vez
+`POST /api/vault/unlock` ou o botão **Cofre bloqueado** no cabeçalho.
+Os endpoints antigos de desbloqueio individual continuam disponíveis por
+compatibilidade, mas a interface usa exclusivamente a sessão global.
+A busca continua sem expor a chave no navegador.
 
 Se o navegador informar que não conseguiu conectar ao serviço local, feche a
 aba antiga e execute novamente o comando de inicialização. O iniciador valida
