@@ -79,7 +79,6 @@ export function TrashPage(props: RoutePageProps) {
 }
 
 const sourceWorkspaceRoutes: readonly AppPath[] = [
-  '/busca',
   '/configuracoes/fontes',
   '/agenda',
   '/configuracoes/historico',

@@ -1135,10 +1135,14 @@ Plano detalhado: [docs/ux-redesign-plan.md](./docs/ux-redesign-plan.md).
   - Evidência: TDD Red → Green; 72 testes Vitest, lint, tipos, Prettier e build aprovados. Edge headless em 375/768/1280 px e cenários novo/vazio/bloqueado/erro em 375×667; ação primária no primeiro viewport, sem overflow e cofre global acessível.
   - Documentação: README atualizado; somente frontend alterado, sem nova persistência ou chamadas externas. Executável permanece para JF-820.
 
-- [ ] **JF-816 — Redesenhar a busca como uma tarefa única**
+- [x] **JF-816 — Redesenhar a busca como uma tarefa única**
   - Depende de: JF-813 e JF-814.
   - Teste primeiro: busca pronta, cofre bloqueado, provider ausente, limite, vazio, parcial, erro e sucesso devem ter estados distintos.
   - Aceite: formulário e CTA ficam no primeiro viewport; diagnóstico técnico permanece recolhido; resultado indica claramente o que aconteceu e conduz para `/vagas`.
+  - Implementação: `SearchWorkspace` próprio em `/busca`, removido do workspace de configurações. Formulário compacto, fontes/cofre visíveis, seis resultados distintos e diagnóstico recolhido; avaliação e candidaturas ficam em `/vagas`.
+  - Integridade: filtros e consulta enviada preservados na navegação; nova busca remove resposta antiga; aviso independente para falha ao atualizar a caixa; IDs persistidos únicos separados de resultados sem vínculo. Link externo do Se Prepara AI mantido.
+  - Evidência: TDD Red → Green, 18 testes específicos de busca e 90 testes frontend aprovados; lint, tipos, Prettier e build verdes. Edge headless em 375/768/1280 px, CTA no primeiro viewport sem overflow. Estados bloqueado/sem fonte/vazio/parcial/limite/falha/sucesso conferidos em 375×667; conclusão leva foco ao resultado.
+  - Documentação: README atualizado. Sem alteração do backend, de dados reais ou de credenciais; validação com fontes simuladas. Executável permanece para JF-820.
 
 - [ ] **JF-817 — Redesenhar a caixa de vagas e tornar a análise evidente**
   - Depende de: JF-811 a JF-814.

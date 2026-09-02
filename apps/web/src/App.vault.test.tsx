@@ -87,7 +87,7 @@ describe('acesso global ao cofre', () => {
     );
     fireEvent.change(password, { target: { value: 'senha local longa' } });
     fireEvent.submit(
-      screen
+      within(screen.getByRole('dialog'))
         .getByRole('button', { name: 'Desbloquear cofre' })
         .closest('form')!,
     );

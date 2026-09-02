@@ -78,7 +78,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Buscar' }));
     expect(window.location.pathname).toBe('/busca');
     expect(
-      screen.getByRole('heading', { name: 'Encontre uma vaga para treinar' }),
+      screen.getByRole('heading', { name: 'Buscar vagas' }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText('API key')).not.toBeInTheDocument();
     expect(screen.queryByText('AGENDADOR LOCAL')).not.toBeInTheDocument();
@@ -155,6 +155,8 @@ describe('App', () => {
                 {
                   company: 'Dados Brasil',
                   description: 'Python e SQL',
+                  job_id: 1,
+                  review_required: false,
                   location: 'Curitiba, PR',
                   published_at: null,
                   salary: null,
@@ -187,7 +189,9 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Buscar vagas' }));
 
     await waitFor(() =>
-      expect(screen.getByText('Analista de Dados')).toBeInTheDocument(),
+      expect(
+        screen.getByText('Encontramos 1 vaga para estes filtros.'),
+      ).toBeInTheDocument(),
     );
     expect(screen.queryByLabelText('Fonte da busca')).not.toBeInTheDocument();
     expect(
@@ -1015,6 +1019,8 @@ describe('App', () => {
                 {
                   company: 'Example Labs',
                   description: 'Backend Engineer com Python',
+                  job_id: 1,
+                  review_required: false,
                   location: 'Remote',
                   published_at: '2026-08-15T10:00:00Z',
                   salary: null,
@@ -1044,7 +1050,7 @@ describe('App', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: 'Encontre uma vaga para treinar',
+        name: 'Buscar vagas',
       }),
     ).toBeInTheDocument();
     expect(
@@ -1055,7 +1061,9 @@ describe('App', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Buscar vagas' }));
 
-    expect(await screen.findByText('Backend Engineer')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Encontramos 1 vaga para estes filtros.'),
+    ).toBeInTheDocument();
     const [, options] = fetchMock.mock.calls.find(
       ([input, init]) => input === '/api/search' && init?.method === 'POST',
     ) as [string, RequestInit];

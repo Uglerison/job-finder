@@ -2,6 +2,11 @@ import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { AppLayout } from '../AppLayout';
 import { HomeOverview } from './home/HomeOverview';
+import { SearchWorkspace } from './search/SearchWorkspace';
+import type {
+  AggregatedSearchResponse,
+  SearchFilters,
+} from './search/search-model';
 import { VaultControls } from '../components/vault/VaultControls';
 import { useVaultSession } from '../components/vault/useVaultSession';
 import { useBrowserNavigation } from '../routing/useBrowserNavigation';
@@ -17,6 +22,7 @@ import {
   PreferencesPage,
   ProfilePage,
   SettingsPage,
+  SearchPage,
   SourceWorkspacePage,
   SourcesPage,
   TrashPage,
@@ -225,44 +231,6 @@ type ScheduledSearchJob = {
   url: string;
 };
 
-type AggregatedJob = {
-  company: string;
-  description: string;
-  job_id: number | null;
-  location: string | null;
-  published_at: string | null;
-  review_required: boolean;
-  salary: string | null;
-  source: string | null;
-  title: string;
-  url: string;
-  work_model: 'remote' | 'hybrid' | 'on_site' | 'unknown' | null;
-};
-
-type AggregatedSearchResponse = {
-  cache_hit: boolean;
-  jobs: AggregatedJob[];
-  message: string;
-  outcome:
-    | 'results'
-    | 'no_results'
-    | 'partial'
-    | 'not_configured'
-    | 'rate_limited'
-    | 'failed';
-  partial: boolean;
-  provider_runs: {
-    candidates: number;
-    display_name: string;
-    duration_ms: number;
-    error: string | null;
-    fallback: boolean;
-    provider: string;
-    status: 'success' | 'empty' | 'skipped' | 'failed';
-  }[];
-  warnings: string[];
-};
-
 type ProviderKey = 'jsearch' | 'adzuna' | 'jooble';
 
 type ProviderCredentialStatus = {
@@ -415,38 +383,6 @@ function sourceRunStatusLabel(status: SearchRun['status']): string {
     failed: 'FALHOU',
     cancelled: 'CANCELADA',
   }[status];
-}
-
-function providerRunStatusLabel(
-  status: AggregatedSearchResponse['provider_runs'][number]['status'],
-): string {
-  return {
-    empty: 'sem resultados',
-    failed: 'falhou',
-    skipped: 'não configurado',
-    success: 'respondeu',
-  }[status];
-}
-
-function providerRunSummary(
-  runs: AggregatedSearchResponse['provider_runs'],
-): string {
-  const consulted = runs.filter((run) => run.status !== 'skipped').length;
-  const failed = runs.filter((run) => run.status === 'failed').length;
-  const empty = runs.filter((run) => run.status === 'empty').length;
-  const skipped = runs.filter((run) => run.status === 'skipped').length;
-  const parts = [
-    `${consulted} ${consulted === 1 ? 'fonte consultada' : 'fontes consultadas'}`,
-  ];
-  if (failed > 0)
-    parts.push(`${failed} ${failed === 1 ? 'falhou' : 'falharam'}`);
-  if (empty > 0) parts.push(`${empty} sem resultados`);
-  if (skipped > 0) {
-    parts.push(
-      `${skipped} ${skipped === 1 ? 'não configurada' : 'não configuradas'}`,
-    );
-  }
-  return parts.join(' · ');
 }
 
 function formatRunDate(value: string): string {
@@ -808,6 +744,11 @@ function WorkspacePages() {
   const [aggregatedResults, setAggregatedResults] =
     useState<AggregatedSearchResponse | null>(null);
   const [aggregatedError, setAggregatedError] = useState<string | null>(null);
+  const [submittedSearchFilters, setSubmittedSearchFilters] =
+    useState<SearchFilters | null>(null);
+  const [searchRefreshWarning, setSearchRefreshWarning] = useState<
+    string | null
+  >(null);
   const [isSearchingAggregated, setIsSearchingAggregated] = useState(false);
   const [providerStatuses, setProviderStatuses] = useState<
     ProviderCredentialStatus[]
@@ -1952,6 +1893,13 @@ function WorkspacePages() {
       return;
     setIsSearchingAggregated(true);
     setAggregatedError(null);
+    setAggregatedResults(null);
+    setSearchRefreshWarning(null);
+    setSubmittedSearchFilters({
+      query,
+      location: aggregatedLocation.trim(),
+      workModel: aggregatedWorkModel,
+    });
     try {
       const response = await fetchLocalApi('/api/search', {
         body: JSON.stringify({
@@ -1979,7 +1927,11 @@ function WorkspacePages() {
         );
       }
       setAggregatedResults(payload);
-      await refreshJobs().catch(() => undefined);
+      await refreshJobs().catch(() => {
+        setSearchRefreshWarning(
+          'A busca terminou, mas não foi possível atualizar a caixa de entrada. Recarregue o aplicativo para consultar os dados salvos. Isso não significa que a busca deixou de salvar vagas.',
+        );
+      });
     } catch (error) {
       setAggregatedError(
         error instanceof TypeError
@@ -2211,6 +2163,42 @@ function WorkspacePages() {
       pathname={pathname}
       vaultAction={<VaultControls vault={vault} />}
     >
+      <SearchPage pathname={pathname}>
+        <SearchWorkspace
+          filters={{
+            query: aggregatedQuery,
+            location: aggregatedLocation,
+            workModel: aggregatedWorkModel,
+          }}
+          onFiltersChange={(filters) => {
+            setAggregatedQuery(filters.query);
+            setAggregatedLocation(filters.location);
+            setAggregatedWorkModel(filters.workModel);
+          }}
+          onSubmit={runAggregatedSearch}
+          onNavigate={navigate}
+          onOpenVault={vault.open}
+          readiness={{
+            loading: isLoadingSources || isLoadingProviders,
+            error: Boolean(sourcesError) || providerLoadError,
+            locked:
+              providerStatuses.some(
+                (provider) =>
+                  provider.configured &&
+                  provider.storage === 'encrypted_database',
+              ) && !vault.status?.unlocked,
+            enabled:
+              sources.filter((source) => source.enabled).length +
+              providerStatuses.filter((provider) => provider.configured).length,
+          }}
+          searching={isSearchingAggregated}
+          result={aggregatedResults}
+          submittedFilters={submittedSearchFilters}
+          error={aggregatedError}
+          refreshWarning={searchRefreshWarning}
+        />
+      </SearchPage>
+
       <SourceWorkspacePage pathname={pathname}>
         <section
           className="sources-section"
@@ -2219,257 +2207,29 @@ function WorkspacePages() {
         >
           <div className="sources-intro">
             <p className="eyebrow">
-              {pathname === '/busca'
-                ? 'BUSCA UNIFICADA'
-                : pathname === '/configuracoes/fontes'
-                  ? 'CONFIGURAÇÕES · FONTES'
-                  : pathname === '/agenda'
-                    ? 'AUTOMAÇÕES LOCAIS'
-                    : 'HISTÓRICO TÉCNICO'}
+              {pathname === '/configuracoes/fontes'
+                ? 'CONFIGURAÇÕES · FONTES'
+                : pathname === '/agenda'
+                  ? 'AUTOMAÇÕES LOCAIS'
+                  : 'HISTÓRICO TÉCNICO'}
             </p>
             <h2 id="sources-title">
-              {pathname === '/busca'
-                ? 'Encontre uma vaga para treinar'
-                : pathname === '/configuracoes/fontes'
-                  ? 'Fontes e integrações'
-                  : pathname === '/agenda'
-                    ? 'Buscas agendadas'
-                    : 'Histórico de execuções'}
+              {pathname === '/configuracoes/fontes'
+                ? 'Fontes e integrações'
+                : pathname === '/agenda'
+                  ? 'Buscas agendadas'
+                  : 'Histórico de execuções'}
             </h2>
             <p>
-              {pathname === '/busca'
-                ? 'Pesquise em fontes públicas de forma seletiva. A gente organiza os resultados para você comparar oportunidades sem precisar escolher uma API.'
-                : pathname === '/configuracoes/fontes'
-                  ? 'Gerencie fontes públicas, integrações opcionais e credenciais protegidas pelo cofre local.'
-                  : pathname === '/agenda'
-                    ? 'Automatize consultas sem bloquear a busca manual. As agendas só executam enquanto o Job Finder estiver aberto.'
-                    : 'Consulte as execuções auditáveis e os contadores de cada fonte sem misturar manutenção técnica à busca.'}
+              {pathname === '/configuracoes/fontes'
+                ? 'Gerencie fontes públicas, integrações opcionais e credenciais protegidas pelo cofre local.'
+                : pathname === '/agenda'
+                  ? 'Automatize consultas sem bloquear a busca manual. As agendas só executam enquanto o Job Finder estiver aberto.'
+                  : 'Consulte as execuções auditáveis e os contadores de cada fonte sem misturar manutenção técnica à busca.'}
             </p>
           </div>
 
           <div className="sources-workspace">
-            {pathname === '/busca' && (
-              <>
-                <form
-                  className="source-search-form"
-                  onSubmit={runAggregatedSearch}
-                >
-                  <div className="form-field">
-                    <label htmlFor="aggregated-query">
-                      Cargo ou palavra-chave
-                    </label>
-                    <input
-                      id="aggregated-query"
-                      onChange={(event) =>
-                        setAggregatedQuery(event.target.value)
-                      }
-                      placeholder="ex.: Analista de Dados"
-                      value={aggregatedQuery}
-                      required
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label htmlFor="aggregated-location">Localização</label>
-                    <input
-                      id="aggregated-location"
-                      onChange={(event) =>
-                        setAggregatedLocation(event.target.value)
-                      }
-                      placeholder="ex.: Curitiba, PR"
-                      value={aggregatedLocation}
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label htmlFor="aggregated-work-model">Modalidade</label>
-                    <select
-                      id="aggregated-work-model"
-                      onChange={(event) =>
-                        setAggregatedWorkModel(event.target.value)
-                      }
-                      value={aggregatedWorkModel}
-                    >
-                      <option value="all">Todos</option>
-                      <option value="remote">Remoto</option>
-                      <option value="hybrid">Híbrido</option>
-                      <option value="on_site">Presencial</option>
-                    </select>
-                  </div>
-                  <button
-                    className="primary-button source-run-button"
-                    disabled={isSearchingAggregated}
-                    type="submit"
-                  >
-                    {isSearchingAggregated ? 'Buscando…' : 'Buscar vagas'}
-                  </button>
-                </form>
-
-                {aggregatedError && (
-                  <p className="sources-feedback is-error" role="status">
-                    {aggregatedError}
-                  </p>
-                )}
-
-                {aggregatedResults && (
-                  <div
-                    aria-live="polite"
-                    aria-label="Resultados da busca unificada"
-                    className="aggregated-results"
-                    role="region"
-                  >
-                    <div
-                      className={`aggregated-search-summary is-${aggregatedResults.outcome}`}
-                    >
-                      <strong>{aggregatedResults.message}</strong>
-                      <span>
-                        {providerRunSummary(aggregatedResults.provider_runs)}
-                      </span>
-                    </div>
-                    <div className="source-list-heading">
-                      <span className="meta-label">
-                        {aggregatedResults.jobs.length} VAGAS ENCONTRADAS
-                      </span>
-                      <span className="mono-note">
-                        {aggregatedResults.cache_hit
-                          ? 'RESULTADO EM CACHE'
-                          : 'ATUALIZADO AGORA'}
-                      </span>
-                    </div>
-                    {aggregatedResults.jobs.length === 0 ? (
-                      <p className="sources-empty">
-                        Tente ampliar a localização, trocar a modalidade ou
-                        revisar as fontes configuradas em{' '}
-                        <a
-                          href="/configuracoes/fontes"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            navigate('/configuracoes/fontes');
-                          }}
-                        >
-                          Configurações → Fontes
-                        </a>
-                        .
-                      </p>
-                    ) : (
-                      <ul className="aggregated-job-list">
-                        {aggregatedResults.jobs.map((job) => (
-                          <li
-                            className="aggregated-job-card"
-                            key={`${job.url}-${job.title}`}
-                          >
-                            <div className="aggregated-job-card-main">
-                              <p className="eyebrow">
-                                {job.source || 'VAGA ENCONTRADA'}
-                              </p>
-                              <h3>{job.title}</h3>
-                              <p className="aggregated-job-company">
-                                {job.company}
-                              </p>
-                              <p className="aggregated-job-meta">
-                                {job.location || 'Localização não informada'}
-                                {job.work_model && job.work_model !== 'unknown'
-                                  ? ` · ${
-                                      job.work_model === 'on_site'
-                                        ? 'Presencial'
-                                        : job.work_model === 'hybrid'
-                                          ? 'Híbrido'
-                                          : 'Remoto'
-                                    }`
-                                  : ''}
-                                {job.published_at
-                                  ? ` · ${formatRunDate(job.published_at)}`
-                                  : ''}
-                              </p>
-                              <p className="aggregated-job-description">
-                                {job.description}
-                              </p>
-                              {job.salary && (
-                                <p className="aggregated-job-salary">
-                                  {job.salary}
-                                </p>
-                              )}
-                              {job.review_required && (
-                                <p className="mono-note">
-                                  Possível duplicata: revise antes de criar uma
-                                  candidatura.
-                                </p>
-                              )}
-                            </div>
-                            <div className="aggregated-job-actions">
-                              {typeof job.job_id === 'number' && (
-                                <button
-                                  className="primary-button"
-                                  disabled={applyingJobId === job.job_id}
-                                  onClick={() =>
-                                    void markJobApplied({
-                                      id: job.job_id as number,
-                                      title: job.title,
-                                    })
-                                  }
-                                  type="button"
-                                >
-                                  {applyingJobId === job.job_id
-                                    ? 'Salvando…'
-                                    : 'Marcar como aplicada'}
-                                </button>
-                              )}
-                              <a
-                                className="card-link"
-                                href={job.url}
-                                rel="noreferrer"
-                                target="_blank"
-                              >
-                                Ver vaga ↗
-                              </a>
-                              <a
-                                className="text-button text-button-plain"
-                                href="https://sepreparai.com.br/"
-                                rel="noreferrer"
-                                target="_blank"
-                              >
-                                Treinar entrevista no Se Prepara AI ↗
-                              </a>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <details className="aggregated-diagnostics">
-                      <summary>Ver detalhes da busca e do log</summary>
-                      <ul>
-                        {aggregatedResults.provider_runs.map((run) => (
-                          <li key={run.provider}>
-                            <span>
-                              <strong>{run.display_name}</strong> ·{' '}
-                              {providerRunStatusLabel(run.status)}
-                            </span>
-                            <span>
-                              {run.candidates} vaga(s) · {run.duration_ms} ms
-                              {run.error ? ` · ${run.error}` : ''}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                      {aggregatedResults.warnings.length > 0 && (
-                        <p role="status">
-                          {aggregatedResults.warnings.join(' · ')}
-                        </p>
-                      )}
-                    </details>
-                  </div>
-                )}
-
-                {aggregatedResults && aggregatedResults.jobs.length > 0 && (
-                  <button
-                    className="header-action route-result-action"
-                    onClick={() => navigate('/vagas')}
-                    type="button"
-                  >
-                    Revisar oportunidades →
-                  </button>
-                )}
-              </>
-            )}
-
             {pathname === '/configuracoes/fontes' && (
               <section
                 aria-labelledby="provider-credentials-title"

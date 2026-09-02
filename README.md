@@ -133,7 +133,7 @@ preferências e histórico continuam persistidos no backend/SQLite local.
 | --- | --- |
 | `/` | Próxima ação, estado do ambiente, contagens atuais e atividade recente |
 | `/perfil` | Perfil profissional e prévia segura para a IA |
-| `/busca` | Pesquisa manual de vagas |
+| `/busca` | Formulário de pesquisa, estado das fontes e resumo do resultado |
 | `/vagas` | Caixa de entrada, detalhes, análises e ação “Marcar como aplicada” |
 | `/candidaturas` | Pipeline de candidaturas e transições de fase |
 | `/agenda` | Buscas automáticas e vagas coletadas por cada agenda |
@@ -256,6 +256,39 @@ Cada execução registra duração, contadores, cursor, falhas e cancelamento. A
 deduplicação exata usa URL canônica, identidade externa e hash de conteúdo; uma
 semelhança de cargo/empresa/local fica pendente até confirmação explícita.
 
+### Como usar a página de busca
+
+1. Acesse **Buscar** (`/busca`) e informe cargo, localização opcional e modalidade.
+2. Confira o estado das fontes logo abaixo do formulário. Fontes públicas não
+   exigem API key; integrações criptografadas usam o **Desbloquear cofre**
+   global, sem pedir uma senha para cada provider.
+3. Clique em **Buscar vagas**. Durante a consulta, o envio fica bloqueado para
+   evitar repetições. Ao concluir, a tela leva o foco até o resumo da resposta.
+4. Use **Revisar oportunidades →** para abrir `/vagas`, avaliar as vagas e
+   registrar candidaturas. Análise por IA e marcação como aplicada não
+   acontecem na página de busca.
+
+O resumo diferencia sucesso, nenhuma vaga para os filtros, resultado parcial,
+fonte não configurada, limite atingido e falha. Limite ou falha não significam
+que não existem vagas. **Ver detalhes da busca e do log** começa recolhido e
+mostra o diagnóstico por fonte; chaves e agendamento continuam em suas páginas.
+
+A contagem da caixa de entrada considera somente IDs de vagas persistidas,
+sem contar o mesmo ID duas vezes. Resultados sem vínculo salvo aparecem em
+**Ver resultados ainda fora da caixa de entrada**, com acesso ao anúncio
+original e aviso de possível duplicata quando indicado pelo serviço. Um
+resultado reutilizado do cache é identificado explicitamente.
+
+Filtros e o resumo da última consulta permanecem ao navegar pelo aplicativo.
+O resumo identifica os filtros efetivamente enviados, mesmo se você editar o
+formulário depois. Ao iniciar outra consulta, a resposta anterior é retirada;
+se falhar a atualização da caixa após a busca, um aviso diferencia essa falha
+do resultado da pesquisa. Recarregar o aplicativo limpa esse estado temporário,
+mas não apaga vagas, candidaturas e demais dados salvos no SQLite.
+
+O treino de entrevista permanece no produto separado: o link
+**Treinar entrevista no Se Prepara AI** abre o site externo.
+
 ### Agendas da busca unificada
 
 Em **Agenda** (`/agenda`), salve uma consulta, localização, modalidade e
@@ -274,7 +307,7 @@ coletados. Redescobertas atualizam origens e versões do conteúdo, sem rebaixar
 uma candidatura de `applied`, entrevista ou resultado terminal.
 
 Para registrar uma confirmação humana de envio, use o botão **Marcar como
-aplicada** na caixa, no detalhe ou no cartão de busca. O backend cria a
+aplicada** na caixa de vagas ou no detalhe em `/vagas`. O backend cria a
 candidatura e o evento inicial/transição em uma única transação; repetição é
 idempotente e não envia candidatura automaticamente a nenhum site.
 
