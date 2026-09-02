@@ -50,12 +50,12 @@ describe('App', () => {
     fetchMock.mockReset();
   });
 
-  it('apresenta a promessa principal do espaço local de vagas', () => {
+  it('apresenta a central de acompanhamento local', () => {
     renderAt();
 
     expect(
       screen.getByRole('heading', {
-        name: 'Encontre oportunidades. Prepare-se para avançar.',
+        name: 'Seu espaço de busca',
       }),
     ).toBeInTheDocument();
     expect(screen.getByText('Job Finder')).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe('App', () => {
     renderAt();
 
     expect(screen.getByRole('banner')).toHaveTextContent('Job Finder');
-    expect(screen.getByText('PLATAFORMA LOCAL DE VAGAS')).toBeInTheDocument();
+    expect(screen.getByText('VISÃO GERAL')).toBeInTheDocument();
     expect(
       screen.getByText('Dados ficam neste computador.'),
     ).toBeInTheDocument();
@@ -427,7 +427,7 @@ describe('App', () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/profile'));
     fireEvent.click(
-      screen.getByRole('button', { name: 'Configurar meu perfil' }),
+      await screen.findByRole('link', { name: 'Configurar meu perfil' }),
     );
 
     expect(
@@ -545,7 +545,7 @@ describe('App', () => {
 
     renderAt();
     fireEvent.click(
-      screen.getByRole('button', { name: 'Configurar meu perfil' }),
+      await screen.findByRole('link', { name: 'Configurar meu perfil' }),
     );
     fireEvent.change(screen.getByLabelText('Texto para análise da IA'), {
       target: { value: 'Contato: ana@example.com.' },

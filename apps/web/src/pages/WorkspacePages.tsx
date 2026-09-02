@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { AppLayout } from '../AppLayout';
+import { HomeOverview } from './home/HomeOverview';
 import { VaultControls } from '../components/vault/VaultControls';
 import { useVaultSession } from '../components/vault/useVaultSession';
 import { useBrowserNavigation } from '../routing/useBrowserNavigation';
@@ -521,27 +522,6 @@ const defaultManualJobForm: ManualJobFormState = {
   title: '',
 };
 
-const productSteps = [
-  {
-    description:
-      'Defina cargos, competências, localização e o que você prefere evitar.',
-    number: '01',
-    title: 'Dê contexto ao seu perfil',
-  },
-  {
-    description:
-      'Reúna vagas encontradas na web e compare cada uma com os seus critérios.',
-    number: '02',
-    title: 'Revise o que importa',
-  },
-  {
-    description:
-      'Registre candidaturas, entrevistas, ofertas e os próximos passos.',
-    number: '03',
-    title: 'Acompanhe o processo',
-  },
-];
-
 function splitValues(value: string): string[] {
   return value
     .split(',')
@@ -781,6 +761,7 @@ function WorkspacePages() {
     Record<number, ApplicationResponse>
   >({});
   const [isLoadingApplications, setIsLoadingApplications] = useState(true);
+  const [applicationLoadError, setApplicationLoadError] = useState(false);
   const [applicationsError, setApplicationsError] = useState<string | null>(
     null,
   );
@@ -831,6 +812,8 @@ function WorkspacePages() {
   const [providerStatuses, setProviderStatuses] = useState<
     ProviderCredentialStatus[]
   >([]);
+  const [isLoadingProviders, setIsLoadingProviders] = useState(true);
+  const [providerLoadError, setProviderLoadError] = useState(false);
   const [providerCredential, setProviderCredential] = useState('');
   const [providerAppId, setProviderAppId] = useState('');
   const [providerAppKey, setProviderAppKey] = useState('');
@@ -935,6 +918,8 @@ function WorkspacePages() {
 
   useEffect(() => {
     let isMounted = true;
+    setIsLoadingProviders(true);
+    setProviderLoadError(false);
     void fetchLocalApi('/api/search/providers')
       .then(async (response) => {
         if (!response.ok) {
@@ -949,10 +934,14 @@ function WorkspacePages() {
       })
       .catch(() => {
         if (isMounted) {
+          setProviderLoadError(true);
           setProviderSettingsError(
             'Não foi possível consultar as credenciais de busca.',
           );
         }
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingProviders(false);
       });
     return () => {
       isMounted = false;
@@ -1191,6 +1180,7 @@ function WorkspacePages() {
 
     const loadApplications = async () => {
       setIsLoadingApplications(true);
+      setApplicationLoadError(false);
       setApplicationsError(null);
 
       if (jobs.length === 0) {
@@ -1210,6 +1200,8 @@ function WorkspacePages() {
               `/api/jobs/${job.id}/application`,
             );
             if (!response.ok) {
+              if (response.status !== 404)
+                throw new Error('Falha ao consultar candidatura.');
               return null;
             }
             const payload =
@@ -1233,6 +1225,7 @@ function WorkspacePages() {
         setPipelineClosureReasons({});
       } catch {
         if (isMounted) {
+          setApplicationLoadError(true);
           setApplicationsError(
             'Não foi possível carregar o pipeline local de candidaturas.',
           );
@@ -1343,12 +1336,6 @@ function WorkspacePages() {
       isMounted = false;
     };
   }, []);
-
-  const openProfileForm = () => {
-    setFormError(null);
-    setSaveMessage(null);
-    navigate('/perfil');
-  };
 
   const handleFormChange = (
     field: keyof ProfileFormState,
@@ -2218,54 +2205,6 @@ function WorkspacePages() {
       new Date(event.ends_at ?? event.starts_at).getTime() < now.getTime(),
   );
 
-  const profileStatus = isLoadingProfile
-    ? 'CARREGANDO'
-    : profile
-      ? 'CONFIGURADO'
-      : 'PRONTO';
-
-  const publicSources = sources.filter((source) =>
-    ['remoteok', 'arbeitnow', 'jobicy'].includes(source.source_key),
-  );
-  const readyProviderCount =
-    publicSources.filter((source) => source.enabled).length +
-    providerStatuses.filter((status) => status.configured && status.unlocked)
-      .length;
-  const hasCompletedSearch =
-    jobs.length > 0 ||
-    sourceRuns.some((run) => ['completed', 'partial'].includes(run.status));
-  const setupSteps = [
-    {
-      complete: Boolean(profile),
-      description: 'Cargos, competências e preferências de trabalho.',
-      label: 'Perfil profissional',
-      path: '/perfil' as AppPath,
-    },
-    {
-      complete: readyProviderCount > 0,
-      description: `${readyProviderCount} fonte${readyProviderCount === 1 ? '' : 's'} pronta${readyProviderCount === 1 ? '' : 's'} para consulta.`,
-      label: 'Fontes disponíveis',
-      path: '/configuracoes/fontes' as AppPath,
-    },
-    {
-      complete: hasCompletedSearch,
-      description: 'Encontre oportunidades compatíveis com seu perfil.',
-      label: 'Primeira busca',
-      path: '/busca' as AppPath,
-    },
-    {
-      complete: pipelineEntries.length > 0,
-      description: 'Marque uma vaga como aplicada para acompanhar o processo.',
-      label: 'Primeira candidatura',
-      path: '/vagas' as AppPath,
-    },
-  ];
-  const completedSetupSteps = setupSteps.filter((step) => step.complete).length;
-  const setupPercent = Math.round(
-    (completedSetupSteps / setupSteps.length) * 100,
-  );
-  const nextSetupStep = setupSteps.find((step) => !step.complete);
-
   return (
     <AppLayout
       onNavigate={navigate}
@@ -3069,194 +3008,38 @@ function WorkspacePages() {
       </InsightsPage>
 
       <HomePage pathname={pathname}>
-        <section
-          className="editorial-hero"
-          id="inicio"
-          aria-labelledby="page-title"
-        >
-          <div className="hero-copy">
-            <p className="eyebrow">PLATAFORMA LOCAL DE VAGAS</p>
-            <h1
-              id="page-title"
-              aria-label="Encontre oportunidades. Prepare-se para avançar."
-            >
-              Encontre oportunidades.
-              <br />
-              <em>Prepare-se para avançar.</em>
-            </h1>
-            <p className="lede">
-              Um espaço simples para transformar sua busca de emprego em um
-              processo que você consegue acompanhar.
-            </p>
-            <div className="hero-actions">
-              <button
-                className="primary-button"
-                onClick={openProfileForm}
-                type="button"
-              >
-                Configurar meu perfil
-              </button>
-              <button
-                className="text-button text-button-plain"
-                onClick={() => navigate('/perfil')}
-                type="button"
-              >
-                Ver primeiro passo <span aria-hidden="true">↗</span>
-              </button>
-            </div>
-            <p className="privacy-note">
-              <span className="status-dot" aria-hidden="true" />
-              Dados ficam neste computador.
-            </p>
-          </div>
-
-          <aside
-            className="workspace-card"
-            id="perfil"
-            aria-labelledby="workspace-title"
-          >
-            <div className="card-topline">
-              <span className="meta-label">01 · SEU ESPAÇO DE BUSCA</span>
-              <span className="card-status">{profileStatus}</span>
-            </div>
-            <div className="card-body">
-              <p className="card-kicker">PRIMEIRO PASSO</p>
-              <h2 id="workspace-title">
-                {profile
-                  ? 'Seu perfil está pronto para buscar oportunidades.'
-                  : 'Seu perfil ainda não foi configurado.'}
-              </h2>
-              <p>
-                {profile
-                  ? `Versão ${profile.version_number} está salva neste computador.`
-                  : 'Comece dizendo que tipo de oportunidade faz sentido para você. O restante do espaço se adapta a essas escolhas.'}
-              </p>
-              <div
-                className="progress-line"
-                aria-label={profile ? 'Perfil configurado' : 'Etapa 1 de 3'}
-              >
-                <span
-                  className={`progress-fill${profile ? ' profile-ready' : ''}`}
-                />
-              </div>
-              <div className="progress-caption">
-                <span>Perfil</span>
-                <span>{profile ? 'configurado' : '1 de 3 etapas'}</span>
-              </div>
-            </div>
-            <div className="card-footer">
-              <span className="mono-note">SEM CONTA · SEM NUVEM</span>
-              <button
-                className="card-link"
-                onClick={openProfileForm}
-                type="button"
-              >
-                {profile ? 'Editar' : 'Começar'}{' '}
-                <span aria-hidden="true">→</span>
-              </button>
-            </div>
-          </aside>
-        </section>
-      </HomePage>
-
-      <HomePage pathname={pathname}>
-        <section className="home-guidance" aria-labelledby="setup-title">
-          <div className="home-guidance-heading">
-            <div>
-              <p className="eyebrow">PREPARE SUA BUSCA</p>
-              <h2 id="setup-title">
-                {profile
-                  ? 'Seu espaço está evoluindo.'
-                  : 'Vamos preparar sua próxima busca.'}
-              </h2>
-              <p>
-                {nextSetupStep
-                  ? nextSetupStep.description
-                  : 'Tudo pronto para revisar oportunidades e acompanhar suas candidaturas.'}
-              </p>
-            </div>
-            {nextSetupStep ? (
-              <button
-                className="primary-button"
-                onClick={() => navigate(nextSetupStep.path)}
-                type="button"
-              >
-                {nextSetupStep.complete
-                  ? 'Ver progresso'
-                  : 'Continuar configuração'}
-              </button>
-            ) : (
-              <button
-                className="primary-button"
-                onClick={() => navigate('/busca')}
-                type="button"
-              >
-                Buscar vagas
-              </button>
-            )}
-          </div>
-
-          <div
-            className="setup-progress"
-            aria-label={`${setupPercent}% da configuração concluída`}
-          >
-            <div className="setup-progress-topline">
-              <strong>Sua busca está {setupPercent}% pronta</strong>
-              <span>
-                {completedSetupSteps} de {setupSteps.length} etapas
-              </span>
-            </div>
-            <div className="setup-progress-bar" aria-hidden="true">
-              <span style={{ width: `${setupPercent}%` }} />
-            </div>
-            <ol className="setup-step-list">
-              {setupSteps.map((step) => (
-                <li
-                  className={step.complete ? 'is-complete' : undefined}
-                  key={step.label}
-                >
-                  <button onClick={() => navigate(step.path)} type="button">
-                    <span className="setup-step-marker" aria-hidden="true">
-                      {step.complete ? '✓' : '○'}
-                    </span>
-                    <span>
-                      <strong>{step.label}</strong>
-                      <small>
-                        {step.complete ? 'Concluída' : step.description}
-                      </small>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          <div className="home-summary-cards" aria-label="Resumo da busca">
-            <article>
-              <span className="meta-label">VAGAS NOVAS</span>
-              <strong>{dashboard?.cards.jobs_found ?? jobs.length}</strong>
-              <button onClick={() => navigate('/vagas')} type="button">
-                Ver oportunidades
-              </button>
-            </article>
-            <article>
-              <span className="meta-label">CANDIDATURAS ATIVAS</span>
-              <strong>
-                {dashboard?.cards.active_pipeline ?? pipelineEntries.length}
-              </strong>
-              <button onClick={() => navigate('/candidaturas')} type="button">
-                Acompanhar processo
-              </button>
-            </article>
-            <article>
-              <span className="meta-label">PRÓXIMOS EVENTOS</span>
-              <strong>{agendaUpcoming.length}</strong>
-              <button onClick={() => navigate('/agenda')} type="button">
-                Abrir agenda
-              </button>
-            </article>
-          </div>
-        </section>
+        <HomeOverview
+          state={{
+            profile,
+            jobs,
+            applications: Object.values(applications),
+            events: agendaEvents,
+            sources,
+            providers: providerStatuses,
+            vault: vault.status,
+            vaultLoading: vault.loading,
+            loading: {
+              profile: isLoadingProfile,
+              jobs: isLoadingJobs,
+              applications: isLoadingApplications,
+              events: isLoadingAgenda,
+              sources: isLoadingSources,
+              providers: isLoadingProviders,
+            },
+            errors: {
+              profile: Boolean(loadError),
+              jobs: Boolean(jobsError),
+              applications: applicationLoadError,
+              events: Boolean(agendaError),
+              sources: Boolean(sourcesError),
+              providers: providerLoadError,
+            },
+          }}
+          onNavigate={navigate}
+          onOpenVault={vault.open}
+          timezone={preferences.timezone}
+          locale={preferences.locale}
+        />
       </HomePage>
 
       <SettingsPage pathname={pathname}>
@@ -4804,54 +4587,6 @@ function WorkspacePages() {
           </form>
         </section>
       </PreferencesPage>
-
-      <HomePage pathname={pathname}>
-        <>
-          <section
-            className="process-section"
-            id="como-funciona"
-            aria-labelledby="process-title"
-          >
-            <div className="section-heading">
-              <p className="eyebrow">COMO FUNCIONA</p>
-              <h2 id="process-title">
-                Uma busca mais clara, do primeiro anúncio à próxima conversa.
-              </h2>
-            </div>
-
-            <ol className="step-list" id="fluxo">
-              {productSteps.map((step) => (
-                <li className="step-row" key={step.number}>
-                  <span className="step-number">{step.number}</span>
-                  <div>
-                    <h3>{step.title}</h3>
-                    <p>{step.description}</p>
-                  </div>
-                  <span className="step-arrow" aria-hidden="true">
-                    ↗
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section className="closing-cta" aria-labelledby="closing-title">
-            <div>
-              <p className="eyebrow">PRÓXIMA ETAPA</p>
-              <h2 id="closing-title">
-                Sua próxima oportunidade começa com contexto.
-              </h2>
-            </div>
-            <button
-              className="inverse-button"
-              onClick={openProfileForm}
-              type="button"
-            >
-              Começar agora <span aria-hidden="true">↗</span>
-            </button>
-          </section>
-        </>
-      </HomePage>
     </AppLayout>
   );
 }

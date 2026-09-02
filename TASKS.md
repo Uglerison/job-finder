@@ -1127,10 +1127,13 @@ Plano detalhado: [docs/ux-redesign-plan.md](./docs/ux-redesign-plan.md).
   - Observação: teste de concorrência de candidaturas falhou na primeira execução geral (200/409), passou isoladamente e na repetição completa; pipeline não foi alterado nesta tarefa.
   - Documentação: README atualizado. Build web atualizado; rebuild de `JobFinder.exe` permanece na JF-820. JF-815 não iniciada.
 
-- [ ] **JF-815 — Redesenhar o início como central de próxima ação**
+- [x] **JF-815 — Redesenhar o início como central de próxima ação**
   - Depende de: JF-813 e JF-814.
   - Teste primeiro: estados novo usuário, cofre bloqueado, sem fonte, com vagas e com candidaturas produzem CTA e resumo corretos.
   - Aceite: página inicial compacta mostra próxima ação, estado operacional, métricas essenciais e atividade recente sem hero excessivo ou explicações técnicas longas.
+  - Implementação: página própria `HomeOverview` com lógica de prioridade testável, reaproveitando o estado compartilhado; removidos hero, percentuais artificiais e CTAs repetidos. Contagens completas, fases terminais excluídas das candidaturas ativas e até cinco atividades persistidas.
+  - Evidência: TDD Red → Green; 72 testes Vitest, lint, tipos, Prettier e build aprovados. Edge headless em 375/768/1280 px e cenários novo/vazio/bloqueado/erro em 375×667; ação primária no primeiro viewport, sem overflow e cofre global acessível.
+  - Documentação: README atualizado; somente frontend alterado, sem nova persistência ou chamadas externas. Executável permanece para JF-820.
 
 - [ ] **JF-816 — Redesenhar a busca como uma tarefa única**
   - Depende de: JF-813 e JF-814.
@@ -1288,6 +1291,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 17/08/2026 | JF-809 | Concluída | Transições para fases encerradas agora solicitam motivo e a tela do pipeline percorre todas as páginas de vagas; conferência do SQLite local confirmou 18 candidaturas persistidas e nenhum limite de 10. |
 | 01/09/2026 | JF-810 | Concluída | Auditoria registrou o excesso de navegação, cofre enterrado, mistura de responsabilidades e acúmulo de CSS/componentes; plano E8.1 prioriza shell simples, cofre global, páginas independentes e validação visual/TDD. |
 | 02/09/2026 | JF-814 | Concluída | Cofre global nas 13 rotas, desbloqueio único OpenAI/providers, retomada de ações e senha apenas no diálogo; sessão protegida contra concorrência, validação sem eco de segredos e reinício testado. 55 Vitest + 168 Pytest; README e build web atualizados. |
+| 02/09/2026 | JF-815 | Concluída | Início compacto com próxima ação, estado operacional, métricas sem limite de dez e atividade recente; 72 Vitest, qualidade/build e validação responsiva aprovados. README atualizado. |
 
 ## Bloqueios e decisões pendentes
 

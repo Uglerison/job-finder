@@ -157,7 +157,7 @@ export function PageHeader({
   title,
 }: PageHeaderProps) {
   return (
-    <header className={classes('ui-page-header', className)}>
+    <header className={classes('ui-page-header', className)} role="group">
       <div className="ui-page-header__copy">
         {eyebrow && <span className="ui-meta-label">{eyebrow}</span>}
         <h1>{title}</h1>

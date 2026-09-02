@@ -106,6 +106,23 @@ usam a mesma senha. Se credenciais antigas tiverem senhas diferentes, o
 desbloqueio global falha sem liberar parcialmente as integrações; revise essas
 credenciais antes de prosseguir. Não apague o banco para tentar resolver.
 
+## Início: sua próxima ação
+
+A página inicial prioriza configurar o perfil, revisar vagas encontradas/em
+espera e acompanhar candidaturas ativas. Quando não há pendências, ela indica
+buscar vagas ou configurar/desbloquear as fontes. O cofre bloqueado não impede
+consultar oportunidades e candidaturas já salvas.
+
+O resumo usa a coleção completa de vagas, sem limite de dez nem o filtro de
+período do Painel. Candidaturas ativas são as fases aplicada, entrevista e
+proposta; contratações e processos encerrados não entram nessa contagem.
+A agenda conta compromissos futuros ou em andamento, sem os cancelados.
+
+A atividade recente mostra até cinco registros de vagas salvas, atualizações
+de candidaturas e perfil, com datas no fuso das preferências. Contagens ainda
+carregando ou indisponíveis aparecem como `—`, e falhas geram um aviso de
+resumo parcial — não são interpretadas como zero.
+
 ## Navegação por páginas
 
 Cada etapa do fluxo tem uma URL própria e compartilha o mesmo layout. Trocar de
@@ -114,7 +131,7 @@ preferências e histórico continuam persistidos no backend/SQLite local.
 
 | Rota | Responsabilidade |
 | --- | --- |
-| `/` | Início, progresso de configuração e próximos passos |
+| `/` | Próxima ação, estado do ambiente, contagens atuais e atividade recente |
 | `/perfil` | Perfil profissional e prévia segura para a IA |
 | `/busca` | Pesquisa manual de vagas |
 | `/vagas` | Caixa de entrada, detalhes, análises e ação “Marcar como aplicada” |
