@@ -1,6 +1,6 @@
 # Job Finder — controle de tarefas
 
-> Versão: 1.2 — 16/08/2026
+> Versão: 1.3 — 01/09/2026
 > Fonte de escopo: [PLANEJAMENTO.md](./PLANEJAMENTO.md)
 
 Este arquivo é a fonte de verdade para acompanhar a implementação do MVP. O escopo detalhado continua no planejamento; aqui ficam a ordem, as dependências, os critérios de aceite e o progresso.
@@ -75,9 +75,11 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E5 — GPT-5.6 Luna | JF-400–JF-412 | Concluída | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Em andamento | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Concluído | Release candidata Windows |
-| E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
+| E8 — UX e arquitetura de rotas | JF-800–JF-809 | Em revisão | Fluxos separados em rotas navegáveis |
+| E8.1 — Redesenho de UX | JF-810–JF-820 | Planejado | Jornada clara e cofre global acessível |
+| E9 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima etapa:** `E8 — Beta e lançamento`, após as decisões pendentes de E0.
+**Próxima etapa:** `E8.1 — Redesenho de UX`, antes do beta e lançamento.
 
 ## Marcos
 
@@ -1085,6 +1087,70 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: `rejected`, `withdrawn` e `expired` não retornam a fase silenciosamente por ausência de motivo, e a caixa carrega todas as páginas de vagas persistidas.
   - Evidência: seletor de motivo no pipeline, `fetchAllJobs` com paginação e testes Vitest para encerramento e segunda página; o banco local foi conferido sem limite de 10 candidaturas (18 registros persistidos).
 
+## E8.1 — Redesenho de UX e acesso global ao cofre
+
+Plano detalhado: [docs/ux-redesign-plan.md](./docs/ux-redesign-plan.md).
+
+- [x] **JF-810 — Auditar a hierarquia visual e a jornada atual**
+  - Aceite: problemas de navegação, cofre, páginas, feedback, responsividade e arquitetura frontend registrados com uma proposta objetiva.
+  - Evidência: diagnóstico, arquitetura de informação, fluxo global do cofre, critérios de saída e matriz visual documentados em `docs/ux-redesign-plan.md`.
+
+- [ ] **JF-811 — Consolidar tokens e componentes-base da interface**
+  - Depende de: JF-810.
+  - Teste primeiro: variantes, estados desabilitado/erro/carregando e nomes acessíveis dos componentes devem ter testes isolados.
+  - Aceite: `Button`, `Card`, `Badge`, `Field`, `PageHeader`, `Notice`, `EmptyState` e estados de carregamento substituem variações concorrentes sem alterar regras de negócio.
+  - Validação visual: papel, tinta, ocre, tipografia editorial, divisórias, raios e espaçamento comparados à referência local do Se Prepara AI.
+
+- [ ] **JF-812 — Decompor o frontend em layout, rotas e estado compartilhado**
+  - Depende de: JF-810.
+  - Teste primeiro: cada rota renderiza apenas sua página e a navegação preserva dados carregados/persistidos.
+  - Aceite: `App.tsx` deixa de renderizar todas as páginas por grandes blocos condicionais; páginas possuem componentes próprios, layout comum e acesso seguro ao estado persistido.
+  - Restrição: nenhuma mudança de rota pode apagar perfil, filtros, vagas, candidaturas, agenda ou estado do cofre em memória.
+
+- [ ] **JF-813 — Redesenhar o shell e simplificar a navegação global**
+  - Depende de: JF-811 e JF-812.
+  - Teste primeiro: item ativo, navegação por teclado, menu mobile, `aria-expanded`, fechamento externo e ausência de links duplicados.
+  - Aceite: marca leva ao início; desktop prioriza Buscar, Vagas, Candidaturas, Agenda e Painel; configurações ficam em menu utilitário; mobile usa menu compacto sem rolagem horizontal.
+  - Validação visual: 375, 768 e 1280 px sem colisão, quebra acidental ou conteúdo colado nas bordas.
+
+- [ ] **JF-814 — Tornar o cofre acessível globalmente**
+  - Depende de: JF-811 a JF-813.
+  - Teste primeiro: o botão do cofre existe em todas as rotas; criação, desbloqueio único, erro, bloqueio, Enter, Escape, foco inicial e retorno de foco são reproduzidos antes da implementação.
+  - Aceite: cabeçalho mostra `Cofre bloqueado`/`Cofre desbloqueado`; um diálogo global desbloqueia OpenAI e todos os providers; formulários individuais não repetem a senha.
+  - Aceite adicional: ações que exigem credenciais bloqueadas abrem o diálogo correto e permitem retomar o fluxo depois do sucesso.
+
+- [ ] **JF-815 — Redesenhar o início como central de próxima ação**
+  - Depende de: JF-813 e JF-814.
+  - Teste primeiro: estados novo usuário, cofre bloqueado, sem fonte, com vagas e com candidaturas produzem CTA e resumo corretos.
+  - Aceite: página inicial compacta mostra próxima ação, estado operacional, métricas essenciais e atividade recente sem hero excessivo ou explicações técnicas longas.
+
+- [ ] **JF-816 — Redesenhar a busca como uma tarefa única**
+  - Depende de: JF-813 e JF-814.
+  - Teste primeiro: busca pronta, cofre bloqueado, provider ausente, limite, vazio, parcial, erro e sucesso devem ter estados distintos.
+  - Aceite: formulário e CTA ficam no primeiro viewport; diagnóstico técnico permanece recolhido; resultado indica claramente o que aconteceu e conduz para `/vagas`.
+
+- [ ] **JF-817 — Redesenhar a caixa de vagas e tornar a análise evidente**
+  - Depende de: JF-811 a JF-814.
+  - Teste primeiro: filtros, seleção, detalhe, análise pendente/concluída, marcar aplicada e paginação completa têm testes de regressão.
+  - Aceite: lista e detalhe possuem hierarquia estável; a análise pertence visualmente à vaga analisada; ações principais não competem entre si.
+
+- [ ] **JF-818 — Redesenhar candidaturas e áreas de acompanhamento**
+  - Depende de: JF-811 a JF-813 e JF-817.
+  - Teste primeiro: mudança de fase, motivo terminal, agenda vazia/preenchida, métricas e navegação entre acompanhamento devem permanecer funcionais.
+  - Aceite: pipeline é legível em desktop e vira lista por fase no mobile; Agenda, Insights e Painel usam os mesmos cards, filtros e feedbacks compartilhados.
+
+- [ ] **JF-819 — Simplificar fontes, credenciais e configurações**
+  - Depende de: JF-813 e JF-814.
+  - Teste primeiro: provider não configurado/configurado/bloqueado/disponível, cadastro, teste, remoção e erro seguro devem ser cobertos.
+  - Aceite: `/configuracoes/fontes` usa cards de provider e separa credenciais de fontes públicas; o formulário do cofre sai da página e fica apenas no diálogo global.
+  - Aceite adicional: preferências, histórico e lixeira mantêm ações técnicas em segundo plano e seguem a mesma hierarquia visual.
+
+- [ ] **JF-820 — Validar, documentar e empacotar o redesenho**
+  - Depende de: JF-811 a JF-819.
+  - Teste primeiro: fluxos ponta a ponta Desbloquear → Buscar → Avaliar → Aplicar → Acompanhar e reinício do app.
+  - Aceite: Vitest, lint, tipos, Prettier e build via `pnpm` verdes; matriz visual 375/768/1280 aprovada; contraste, foco, overflow e mensagens revisados.
+  - Entrega: atualizar README, rebuildar `JobFinder.exe` e validar smoke do executável somente depois da aprovação visual.
+
 ## E9 — Beta e lançamento
 
 - [ ] **JF-700 — Definir protocolo do beta**
@@ -1135,6 +1201,10 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
     todo o acompanhamento.
 11. JF-345 → JF-350 para agendar a busca unificada, persistir cada vaga no SQLite e consultar o
     histórico depois, inclusive após reiniciar o aplicativo.
+12. JF-810 → JF-814 para consolidar componentes, separar páginas, simplificar a navegação e tornar
+    o cofre acessível globalmente.
+13. JF-815 → JF-820 para migrar cada jornada, validar os viewports e rebuildar o executável antes
+    do beta.
 
 Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e permite validar arquitetura, experiência e custo cedo.
 
@@ -1208,6 +1278,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 16/08/2026 | JF-610/JF-611/JF-612/JF-613 | Concluídas | Revisão de privacidade, benchmark (979 ms startup/86,59 MB), README de instalação/uso e executável candidato na raiz validados. |
 | 16/08/2026 | JF-800–JF-808 | Concluídas | UX reorganizada em rotas reais com layout compartilhado, providers/API keys/cofre em `/configuracoes/fontes`, desbloqueio único de credenciais, agenda/histórico separados, `/insights` dedicado a IA, navegação Principal/Acompanhar refinada e 23 testes Vitest verdes. |
 | 17/08/2026 | JF-809 | Concluída | Transições para fases encerradas agora solicitam motivo e a tela do pipeline percorre todas as páginas de vagas; conferência do SQLite local confirmou 18 candidaturas persistidas e nenhum limite de 10. |
+| 01/09/2026 | JF-810 | Concluída | Auditoria registrou o excesso de navegação, cofre enterrado, mistura de responsabilidades e acúmulo de CSS/componentes; plano E8.1 prioriza shell simples, cofre global, páginas independentes e validação visual/TDD. |
 
 ## Bloqueios e decisões pendentes
 
