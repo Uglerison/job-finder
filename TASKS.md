@@ -1102,21 +1102,22 @@ Plano detalhado: [docs/ux-redesign-plan.md](./docs/ux-redesign-plan.md).
   - Validação visual: papel, tinta, ocre, tipografia editorial, divisórias, raios e espaçamento comparados à referência local do Se Prepara AI.
   - Evidência: primitives tipados e acessíveis em `apps/web/src/components/ui/`, com 5 testes isolados; format, lint, build e testes aprovados.
 
-- [ ] **JF-812 — Decompor o frontend em layout, rotas e estado compartilhado**
+- [x] **JF-812 — Decompor o frontend em layout, rotas e estado compartilhado**
   - Depende de: JF-810.
   - Teste primeiro: cada rota renderiza apenas sua página e a navegação preserva dados carregados/persistidos.
   - Aceite: `App.tsx` deixa de renderizar todas as páginas por grandes blocos condicionais; páginas possuem componentes próprios, layout comum e acesso seguro ao estado persistido.
   - Restrição: nenhuma mudança de rota pode apagar perfil, filtros, vagas, candidaturas, agenda ou estado do cofre em memória.
+  - Evidência: `App.tsx` reduzido à entrada; `AppLayout`, páginas nomeadas e `useBrowserNavigation` isolados; teste comprova persistência da busca entre `/busca` e `/vagas`; suíte aprovada com 36 testes.
 
 - [x] **JF-813 — Redesenhar o shell e simplificar a navegação global**
-  - Depende de: JF-811.
+  - Depende de: JF-811 e JF-812.
   - Teste primeiro: item ativo, navegação por teclado, menu mobile, `aria-expanded`, fechamento externo e ausência de links duplicados.
   - Aceite: marca leva ao início; desktop prioriza Buscar, Vagas, Candidaturas, Agenda e Painel; configurações ficam em menu utilitário; mobile usa menu compacto sem rolagem horizontal.
   - Validação visual: 375, 768 e 1280 px sem colisão, quebra acidental ou conteúdo colado nas bordas.
   - Evidência: AppNavigation simplificada, menu móvel com Escape/clique externo/fechamento após navegação e menu utilitário; testes adicionados e suíte aprovada (32 testes).
 
 - [ ] **JF-814 — Tornar o cofre acessível globalmente**
-  - Depende de: JF-811 e JF-813.
+  - Depende de: JF-811 a JF-813.
   - Teste primeiro: o botão do cofre existe em todas as rotas; criação, desbloqueio único, erro, bloqueio, Enter, Escape, foco inicial e retorno de foco são reproduzidos antes da implementação.
   - Aceite: cabeçalho mostra `Cofre bloqueado`/`Cofre desbloqueado`; um diálogo global desbloqueia OpenAI e todos os providers; formulários individuais não repetem a senha.
   - Aceite adicional: ações que exigem credenciais bloqueadas abrem o diálogo correto e permitem retomar o fluxo depois do sucesso.

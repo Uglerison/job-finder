@@ -113,6 +113,26 @@ describe('App', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('preserva o estado da busca ao navegar entre páginas', () => {
+    renderAt('/busca');
+
+    fireEvent.change(screen.getByLabelText('Cargo ou palavra-chave'), {
+      target: { value: 'Engenheiro de dados' },
+    });
+    fireEvent.change(screen.getByLabelText('Localização'), {
+      target: { value: 'Curitiba, PR' },
+    });
+
+    fireEvent.click(screen.getByRole('link', { name: 'Vagas' }));
+    expect(window.location.pathname).toBe('/vagas');
+    fireEvent.click(screen.getByRole('link', { name: 'Buscar' }));
+
+    expect(screen.getByLabelText('Cargo ou palavra-chave')).toHaveValue(
+      'Engenheiro de dados',
+    );
+    expect(screen.getByLabelText('Localização')).toHaveValue('Curitiba, PR');
+  });
+
   it('oferece busca única e link externo para treino de entrevista', async () => {
     fetchMock.mockImplementation(
       (_input: RequestInfo | URL, init?: RequestInit) => {
