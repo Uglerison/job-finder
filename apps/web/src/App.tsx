@@ -104,11 +104,7 @@ type ApplicationStatus =
   | 'expired';
 
 type ClosingReason =
-  | 'not_fit'
-  | 'no_response'
-  | 'role_closed'
-  | 'candidate_withdrew'
-  | 'other';
+  'not_fit' | 'no_response' | 'role_closed' | 'candidate_withdrew' | 'other';
 
 type ApplicationEvent = {
   from_status: string | null;
@@ -703,9 +699,7 @@ async function fetchAllJobs(): Promise<JobListItem[]> {
 
   do {
     const endpoint =
-      page === 1
-        ? '/api/jobs'
-        : `/api/jobs?page=${page}&page_size=${pageSize}`;
+      page === 1 ? '/api/jobs' : `/api/jobs?page=${page}&page_size=${pageSize}`;
     const response = await fetchLocalApi(endpoint);
     if (!response.ok) {
       throw new Error('Não foi possível carregar as vagas.');
@@ -2401,11 +2395,7 @@ function App() {
   const nextSetupStep = setupSteps.find((step) => !step.complete);
 
   return (
-    <AppNavigation
-      onNavigate={navigate}
-      onOpenProfile={openProfileForm}
-      pathname={pathname}
-    >
+    <AppNavigation onNavigate={navigate} pathname={pathname}>
       {(pathname === '/busca' ||
         pathname === '/configuracoes/fontes' ||
         pathname === '/agenda' ||
@@ -4370,8 +4360,8 @@ function App() {
                                   onChange={(event) =>
                                     setPipelineClosureReasons((current) => ({
                                       ...current,
-                                      [application.id]: event.target
-                                        .value as ClosingReason | '',
+                                      [application.id]: event.target.value as
+                                        ClosingReason | '',
                                     }))
                                   }
                                   value={

@@ -75,7 +75,7 @@ describe('App', () => {
   it('navega entre páginas reais sem misturar configurações à busca', () => {
     renderAt();
 
-    fireEvent.click(screen.getByRole('link', { name: 'Buscar vagas' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Buscar' }));
     expect(window.location.pathname).toBe('/busca');
     expect(
       screen.getByRole('heading', { name: 'Encontre uma vaga para treinar' }),
@@ -83,6 +83,7 @@ describe('App', () => {
     expect(screen.queryByLabelText('API key')).not.toBeInTheDocument();
     expect(screen.queryByText('AGENDADOR LOCAL')).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Configurações' }));
     fireEvent.click(screen.getByRole('link', { name: 'Fontes e integrações' }));
     expect(window.location.pathname).toBe('/configuracoes/fontes');
     expect(
@@ -99,6 +100,7 @@ describe('App', () => {
       screen.getByRole('heading', { name: 'Pipeline de candidaturas' }),
     ).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Configurações' }));
     fireEvent.click(screen.getByRole('link', { name: 'Insights' }));
     expect(window.location.pathname).toBe('/insights');
     expect(
@@ -1292,31 +1294,29 @@ describe('App', () => {
       updated_at: '2026-08-15T10:05:00Z',
     };
 
-    fetchMock.mockImplementation(
-      (input: RequestInfo | URL, init?: RequestInit) => {
-        if (input === '/api/jobs') {
-          return Promise.resolve({
-            json: async () => ({ items: [job] }),
-            ok: true,
-          });
-        }
-        if (input === '/api/jobs/1/application') {
-          return Promise.resolve({ json: async () => application, ok: true });
-        }
-        if (input === '/api/applications/7/transition') {
-          return Promise.resolve({
-            json: async () => ({
-              ...application,
-              closing_reason: 'not_fit',
-              current_status: 'rejected',
-              updated_at: '2026-08-15T10:06:00Z',
-            }),
-            ok: true,
-          });
-        }
-        return Promise.resolve({ json: async () => null, ok: true });
-      },
-    );
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (input === '/api/jobs') {
+        return Promise.resolve({
+          json: async () => ({ items: [job] }),
+          ok: true,
+        });
+      }
+      if (input === '/api/jobs/1/application') {
+        return Promise.resolve({ json: async () => application, ok: true });
+      }
+      if (input === '/api/applications/7/transition') {
+        return Promise.resolve({
+          json: async () => ({
+            ...application,
+            closing_reason: 'not_fit',
+            current_status: 'rejected',
+            updated_at: '2026-08-15T10:06:00Z',
+          }),
+          ok: true,
+        });
+      }
+      return Promise.resolve({ json: async () => null, ok: true });
+    });
 
     renderAt('/candidaturas');
     await screen.findByText('Analista de Inteligência de Dados Pl.');
@@ -1327,9 +1327,7 @@ describe('App', () => {
       { target: { value: 'rejected' } },
     );
 
-    expect(
-      screen.getByLabelText('Motivo do encerramento'),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Motivo do encerramento')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Motivo do encerramento'), {
       target: { value: 'not_fit' },
     });
@@ -1349,61 +1347,58 @@ describe('App', () => {
     });
   });
 
-  it(
-    'carrega todas as páginas da caixa de vagas para não ocultar candidaturas antigas',
-    async () => {
-      const firstJob = {
-        canonical_url: null,
-        company: 'Empresa 1',
-        created_at: '2026-08-15T10:00:00Z',
-        id: 1,
-        location: null,
-        origin_count: 1,
-        status: 'found',
-        status_label: 'ENCONTRADA',
-        title: 'Vaga mais recente',
-      };
-      const secondJob = {
-        ...firstJob,
-        company: 'Empresa 2',
-        id: 2,
-        title: 'Vaga mais antiga',
-      };
+  it('carrega todas as páginas da caixa de vagas para não ocultar candidaturas antigas', async () => {
+    const firstJob = {
+      canonical_url: null,
+      company: 'Empresa 1',
+      created_at: '2026-08-15T10:00:00Z',
+      id: 1,
+      location: null,
+      origin_count: 1,
+      status: 'found',
+      status_label: 'ENCONTRADA',
+      title: 'Vaga mais recente',
+    };
+    const secondJob = {
+      ...firstJob,
+      company: 'Empresa 2',
+      id: 2,
+      title: 'Vaga mais antiga',
+    };
 
-      fetchMock.mockImplementation((input: RequestInfo | URL) => {
-        if (input === '/api/jobs') {
-          return Promise.resolve({
-            json: async () => ({
-              items: [firstJob],
-              page: 1,
-              page_size: 1,
-              pages: 2,
-              total: 2,
-            }),
-            ok: true,
-          });
-        }
-        if (input === '/api/jobs?page=2&page_size=1') {
-          return Promise.resolve({
-            json: async () => ({
-              items: [secondJob],
-              page: 2,
-              page_size: 1,
-              pages: 2,
-              total: 2,
-            }),
-            ok: true,
-          });
-        }
-        return Promise.resolve({ json: async () => null, ok: true });
-      });
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (input === '/api/jobs') {
+        return Promise.resolve({
+          json: async () => ({
+            items: [firstJob],
+            page: 1,
+            page_size: 1,
+            pages: 2,
+            total: 2,
+          }),
+          ok: true,
+        });
+      }
+      if (input === '/api/jobs?page=2&page_size=1') {
+        return Promise.resolve({
+          json: async () => ({
+            items: [secondJob],
+            page: 2,
+            page_size: 1,
+            pages: 2,
+            total: 2,
+          }),
+          ok: true,
+        });
+      }
+      return Promise.resolve({ json: async () => null, ok: true });
+    });
 
-      renderAt('/vagas');
+    renderAt('/vagas');
 
-      expect(await screen.findByText('Vaga mais recente')).toBeInTheDocument();
-      expect(await screen.findByText('Vaga mais antiga')).toBeInTheDocument();
-    },
-  );
+    expect(await screen.findByText('Vaga mais recente')).toBeInTheDocument();
+    expect(await screen.findByText('Vaga mais antiga')).toBeInTheDocument();
+  });
 
   it('reverte a movimentação otimista quando a transição é rejeitada', async () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) => {

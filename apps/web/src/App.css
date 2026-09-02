@@ -3135,3 +3135,197 @@
     text-align: left;
   }
 }
+
+/* JF-813 — concise navigation shell. */
+.site-header {
+  border-bottom: 1px solid var(--ink-faint);
+}
+
+.header-inner {
+  align-items: center;
+  display: grid;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin: 0 auto;
+  max-width: 76rem;
+  min-height: 4.5rem;
+  padding: 0.7rem 1.5rem;
+}
+
+.primary-nav {
+  align-items: center;
+  display: flex;
+  gap: clamp(0.7rem, 1.8vw, 1.35rem);
+  justify-content: center;
+}
+
+.header-inner .primary-nav a {
+  border-bottom: 1px solid transparent;
+  color: var(--ink-soft);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.035em;
+  padding: 0.45rem 0 0.35rem;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.header-inner .primary-nav a:hover,
+.header-inner .primary-nav a:focus-visible,
+.header-inner .primary-nav a.is-active {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+}
+
+.header-utilities {
+  align-items: center;
+  display: flex;
+  gap: 0.8rem;
+  justify-content: flex-end;
+}
+
+.config-menu {
+  position: relative;
+  z-index: 5;
+}
+
+.config-menu-trigger,
+.mobile-menu-trigger {
+  background: transparent;
+  border: 1px solid var(--ink-faint);
+  color: var(--ink);
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.035em;
+  min-height: 2rem;
+  padding: 0.45rem 0.65rem;
+  text-transform: uppercase;
+}
+
+.config-menu-trigger:hover,
+.config-menu-trigger:focus-visible,
+.mobile-menu-trigger:hover,
+.mobile-menu-trigger:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-deep);
+}
+
+.config-menu-list {
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-faint);
+  box-shadow: 0 0.75rem 1.6rem rgb(4 36 64 / 12%);
+  display: grid;
+  gap: 0.15rem;
+  min-width: 14rem;
+  padding: 0.45rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.45rem);
+}
+
+.config-menu-list a {
+  border-left: 2px solid transparent;
+  color: var(--ink-soft);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.66rem;
+  padding: 0.55rem 0.65rem;
+  text-decoration: none;
+}
+
+.config-menu-list a:hover,
+.config-menu-list a:focus-visible,
+.config-menu-list a.is-active {
+  background: var(--paper);
+  border-left-color: var(--accent);
+  color: var(--ink);
+}
+
+.mobile-menu-trigger {
+  display: none;
+}
+
+@media (max-width: 56rem) {
+  .header-inner {
+    grid-template-columns: auto 1fr auto;
+    min-height: 4.25rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .mobile-menu-trigger {
+    align-items: center;
+    display: inline-flex;
+    font-size: 1.15rem;
+    justify-content: center;
+    padding: 0.2rem 0.55rem;
+  }
+
+  .primary-nav {
+    background: var(--paper-raised);
+    border-bottom: 1px solid var(--ink-faint);
+    border-top: 1px solid var(--ink-faint);
+    display: none;
+    flex-direction: column;
+    gap: 0;
+    left: 0;
+    padding: 0.45rem 1rem 0.75rem;
+    position: absolute;
+    right: 0;
+    top: 100%;
+  }
+
+  .primary-nav.is-open {
+    display: flex;
+  }
+
+  .header-inner .primary-nav a {
+    border-bottom: 0;
+    border-left: 2px solid transparent;
+    padding: 0.65rem 0.75rem;
+    width: 100%;
+  }
+
+  .header-inner .primary-nav a:hover,
+  .header-inner .primary-nav a:focus-visible,
+  .header-inner .primary-nav a.is-active {
+    border-bottom-color: transparent;
+    border-left-color: var(--accent);
+  }
+
+  .header-utilities {
+    gap: 0;
+  }
+
+  .header-utilities .meta-label {
+    display: none;
+  }
+
+  .config-menu-trigger {
+    font-size: 0.6rem;
+  }
+}
+
+@media (max-width: 27rem) {
+  .header-inner {
+    gap: 0.5rem;
+  }
+
+  .brand-name {
+    font-size: 1rem;
+  }
+
+  .config-menu-trigger {
+    font-size: 0;
+    width: 2.2rem;
+  }
+
+  .config-menu-trigger::before {
+    content: '⋯';
+    font-size: 1.1rem;
+  }
+}
+
+.header-inner {
+  position: relative;
+}

@@ -76,7 +76,7 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E6 — Dashboard e agenda | JF-500–JF-508 | Em andamento | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Concluído | Release candidata Windows |
 | E8 — UX e arquitetura de rotas | JF-800–JF-809 | Em revisão | Fluxos separados em rotas navegáveis |
-| E8.1 — Redesenho de UX | JF-810–JF-820 | Planejado | Jornada clara e cofre global acessível |
+| E8.1 — Redesenho de UX | JF-810–JF-820 | Em andamento | Jornada clara e cofre global acessível |
 | E9 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
 **Próxima etapa:** `E8.1 — Redesenho de UX`, antes do beta e lançamento.
@@ -1095,11 +1095,12 @@ Plano detalhado: [docs/ux-redesign-plan.md](./docs/ux-redesign-plan.md).
   - Aceite: problemas de navegação, cofre, páginas, feedback, responsividade e arquitetura frontend registrados com uma proposta objetiva.
   - Evidência: diagnóstico, arquitetura de informação, fluxo global do cofre, critérios de saída e matriz visual documentados em `docs/ux-redesign-plan.md`.
 
-- [ ] **JF-811 — Consolidar tokens e componentes-base da interface**
+- [x] **JF-811 — Consolidar tokens e componentes-base da interface**
   - Depende de: JF-810.
   - Teste primeiro: variantes, estados desabilitado/erro/carregando e nomes acessíveis dos componentes devem ter testes isolados.
   - Aceite: `Button`, `Card`, `Badge`, `Field`, `PageHeader`, `Notice`, `EmptyState` e estados de carregamento substituem variações concorrentes sem alterar regras de negócio.
   - Validação visual: papel, tinta, ocre, tipografia editorial, divisórias, raios e espaçamento comparados à referência local do Se Prepara AI.
+  - Evidência: primitives tipados e acessíveis em `apps/web/src/components/ui/`, com 5 testes isolados; format, lint, build e testes aprovados.
 
 - [ ] **JF-812 — Decompor o frontend em layout, rotas e estado compartilhado**
   - Depende de: JF-810.
@@ -1107,14 +1108,15 @@ Plano detalhado: [docs/ux-redesign-plan.md](./docs/ux-redesign-plan.md).
   - Aceite: `App.tsx` deixa de renderizar todas as páginas por grandes blocos condicionais; páginas possuem componentes próprios, layout comum e acesso seguro ao estado persistido.
   - Restrição: nenhuma mudança de rota pode apagar perfil, filtros, vagas, candidaturas, agenda ou estado do cofre em memória.
 
-- [ ] **JF-813 — Redesenhar o shell e simplificar a navegação global**
-  - Depende de: JF-811 e JF-812.
+- [x] **JF-813 — Redesenhar o shell e simplificar a navegação global**
+  - Depende de: JF-811.
   - Teste primeiro: item ativo, navegação por teclado, menu mobile, `aria-expanded`, fechamento externo e ausência de links duplicados.
   - Aceite: marca leva ao início; desktop prioriza Buscar, Vagas, Candidaturas, Agenda e Painel; configurações ficam em menu utilitário; mobile usa menu compacto sem rolagem horizontal.
   - Validação visual: 375, 768 e 1280 px sem colisão, quebra acidental ou conteúdo colado nas bordas.
+  - Evidência: AppNavigation simplificada, menu móvel com Escape/clique externo/fechamento após navegação e menu utilitário; testes adicionados e suíte aprovada (32 testes).
 
 - [ ] **JF-814 — Tornar o cofre acessível globalmente**
-  - Depende de: JF-811 a JF-813.
+  - Depende de: JF-811 e JF-813.
   - Teste primeiro: o botão do cofre existe em todas as rotas; criação, desbloqueio único, erro, bloqueio, Enter, Escape, foco inicial e retorno de foco são reproduzidos antes da implementação.
   - Aceite: cabeçalho mostra `Cofre bloqueado`/`Cofre desbloqueado`; um diálogo global desbloqueia OpenAI e todos os providers; formulários individuais não repetem a senha.
   - Aceite adicional: ações que exigem credenciais bloqueadas abrem o diálogo correto e permitem retomar o fluxo depois do sucesso.
