@@ -311,6 +311,17 @@ aplicada** na caixa de vagas ou no detalhe em `/vagas`. O backend cria a
 candidatura e o evento inicial/transição em uma única transação; repetição é
 idempotente e não envia candidatura automaticamente a nenhum site.
 
+### Revisar uma oportunidade
+
+Em `/vagas`, a lista e o detalhe têm áreas separadas. No celular, abrir uma
+vaga leva o foco ao detalhe. O filtro informa quantas vagas da coleção completa
+estão visíveis; **Filtros salvos** fica recolhido até você precisar dele.
+
+Cada vaga indica se ainda não foi analisada, está em análise ou tem análise
+concluída. **Abrir análise completa** mostra a vaga pelo nome, aderência,
+confiança, pontos fortes, lacunas e evidências. A análise não marca a vaga
+como aplicada: essa confirmação continua sendo uma ação sua.
+
 ## Chave OpenAI local
 
 O modelo preparado é `gpt-5.6-luna`. A configuração local não inicia análises

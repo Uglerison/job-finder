@@ -1144,10 +1144,14 @@ Plano detalhado: [docs/ux-redesign-plan.md](./docs/ux-redesign-plan.md).
   - Evidência: TDD Red → Green, 18 testes específicos de busca e 90 testes frontend aprovados; lint, tipos, Prettier e build verdes. Edge headless em 375/768/1280 px, CTA no primeiro viewport sem overflow. Estados bloqueado/sem fonte/vazio/parcial/limite/falha/sucesso conferidos em 375×667; conclusão leva foco ao resultado.
   - Documentação: README atualizado. Sem alteração do backend, de dados reais ou de credenciais; validação com fontes simuladas. Executável permanece para JF-820.
 
-- [ ] **JF-817 — Redesenhar a caixa de vagas e tornar a análise evidente**
+- [x] **JF-817 — Redesenhar a caixa de vagas e tornar a análise evidente**
   - Depende de: JF-811 a JF-814.
   - Teste primeiro: filtros, seleção, detalhe, análise pendente/concluída, marcar aplicada e paginação completa têm testes de regressão.
   - Aceite: lista e detalhe possuem hierarquia estável; a análise pertence visualmente à vaga analisada; ações principais não competem entre si.
+  - Implementação: lista/detalhe em áreas próprias, seleção destacada, filtros salvos recolhidos, contagem completa e análise pendente por vaga. Detalhe apresenta resumo, aderência, forças, lacunas e evidências.
+  - Integridade: resposta atrasada de uma vaga não substitui a seleção mais recente; aplicação continua explícita e falhas aparecem na caixa. Persistência e paginação preservadas.
+  - Evidência: TDD Red → Green, 94 testes frontend aprovados, build e lint verdes; Edge em 375/768/1280 px com análise simulada, sem overflow.
+  - Documentação: README atualizado; executável reservado à JF-820.
 
 - [ ] **JF-818 — Redesenhar candidaturas e áreas de acompanhamento**
   - Depende de: JF-811 a JF-813 e JF-817.

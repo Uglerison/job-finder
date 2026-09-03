@@ -1,7 +1,19 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react';
 
 import { AppLayout } from '../AppLayout';
 import { HomeOverview } from './home/HomeOverview';
+import { JobsSplit } from './jobs/JobsSplit';
+import {
+  JobAnalysisPanel,
+  type JobAnalysisResponse,
+} from './jobs/JobAnalysisPanel';
+import { PageHeader, Notice } from '../components/ui/primitives';
 import { SearchWorkspace } from './search/SearchWorkspace';
 import type {
   AggregatedSearchResponse,
@@ -289,34 +301,6 @@ type SavedFilter = {
     source_key?: string | null;
     status?: string | null;
   };
-};
-
-type AnalysisUsage = {
-  estimated_cost_usd: number | null;
-  fallback: boolean;
-  fallback_reason: string | null;
-  input_tokens: number | null;
-  latency_ms: number;
-  metered: boolean;
-  output_tokens: number | null;
-};
-
-type JobAnalysisResponse = {
-  analysis: {
-    assessment: {
-      confidence: number;
-      gaps: string[];
-      strengths: string[];
-      summary: string;
-      warnings: string[];
-    };
-  };
-  analysis_version: number;
-  explanation: { supported_evidence: { claim: string; quote: string }[] };
-  fit: { accepted: boolean; score: number };
-  model: string;
-  prompt_version: string;
-  usage: AnalysisUsage;
 };
 
 type JobListPayload = {
@@ -689,6 +673,8 @@ function WorkspacePages() {
     Record<number, JobAnalysisResponse>
   >({});
   const [isAnalyzingJob, setIsAnalyzingJob] = useState(false);
+  const [analyzingJobIds, setAnalyzingJobIds] = useState<number[]>([]);
+  const detailRequest = useRef(0);
   const [analysisMessage, setAnalysisMessage] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isLoadingJobDetail, setIsLoadingJobDetail] = useState(false);
@@ -1496,6 +1482,7 @@ function WorkspacePages() {
     setJobFormError(null);
     setJobMessage(null);
     setIsJobFormOpen(true);
+    closeJobDetail();
   };
 
   const handleManualJobSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1552,19 +1539,27 @@ function WorkspacePages() {
     }
   };
 
+  const closeJobDetail = () => {
+    detailRequest.current += 1;
+    setSelectedJob(null);
+    setIsLoadingJobDetail(false);
+    setJobDetailError(null);
+  };
   const openJobDetail = async (jobId: number) => {
+    const requestId = ++detailRequest.current;
+    setSelectedJob(null);
     setIsLoadingJobDetail(true);
     setJobDetailError(null);
     try {
       const response = await fetchLocalApi(`/api/jobs/${jobId}`);
-      if (!response.ok) {
-        throw new Error('Não foi possível carregar o detalhe.');
-      }
-      setSelectedJob((await response.json()) as JobDetail);
+      if (!response.ok) throw new Error('Não foi possível carregar o detalhe.');
+      const detail = (await response.json()) as JobDetail;
+      if (requestId === detailRequest.current) setSelectedJob(detail);
     } catch {
-      setJobDetailError('Não foi possível carregar o detalhe da vaga.');
+      if (requestId === detailRequest.current)
+        setJobDetailError('Não foi possível carregar o detalhe da vaga.');
     } finally {
-      setIsLoadingJobDetail(false);
+      if (requestId === detailRequest.current) setIsLoadingJobDetail(false);
     }
   };
 
@@ -1586,6 +1581,7 @@ function WorkspacePages() {
     )
       return;
     setIsAnalyzingJob(true);
+    setAnalyzingJobIds(jobIds);
     setAnalysisError(null);
     setAnalysisMessage(null);
     const results = await Promise.allSettled(
@@ -1636,6 +1632,7 @@ function WorkspacePages() {
       );
     }
     setIsAnalyzingJob(false);
+    setAnalyzingJobIds([]);
   };
 
   const refreshJobs = async () => {
@@ -3747,18 +3744,15 @@ function WorkspacePages() {
 
       <JobsPage pathname={pathname}>
         <section
-          className="jobs-section"
+          className="jobs-page workspace-page"
           id="vagas"
-          aria-labelledby="jobs-title"
+          aria-label="Caixa de entrada de vagas"
         >
-          <div className="jobs-intro">
-            <p className="eyebrow">CAIXA DE ENTRADA</p>
-            <h2 id="jobs-title">Caixa de entrada de vagas</h2>
-            <p>
-              Revise oportunidades encontradas, mantenha a origem registrada e
-              escolha o próximo passo sem sair do computador.
-            </p>
-          </div>
+          <PageHeader
+            eyebrow="CAIXA DE ENTRADA"
+            title="Caixa de entrada de vagas"
+            description="Compare oportunidades, confira a análise e acompanhe suas decisões."
+          />
 
           <div className="jobs-workspace">
             <div className="jobs-toolbar">
@@ -3772,188 +3766,54 @@ function WorkspacePages() {
                 />
               </div>
               <button
-                className="header-action"
+                className="ui-button ui-button--secondary ui-button--default"
                 onClick={openJobForm}
                 type="button"
               >
                 Adicionar vaga
               </button>
             </div>
-            <div className="saved-filter-toolbar">
-              <label htmlFor="saved-filter-select">Filtro salvo</label>
-              <select
-                id="saved-filter-select"
-                onChange={(event) => applySavedFilter(event.target.value)}
-                value={selectedSavedFilter}
-              >
-                <option value="">Nenhum filtro salvo</option>
-                {savedFilters.map((filter) => (
-                  <option key={filter.id} value={filter.id}>
-                    {filter.name}
-                  </option>
-                ))}
-              </select>
-              <label className="saved-filter-name" htmlFor="saved-filter-name">
-                Nome
-                <input
-                  id="saved-filter-name"
-                  onChange={(event) => setSavedFilterName(event.target.value)}
-                  placeholder="ex.: Backend remoto"
-                  value={savedFilterName}
-                />
-              </label>
-              <button
-                className="card-link"
-                onClick={() => void saveCurrentFilter()}
-                type="button"
-              >
-                Salvar filtro atual
-              </button>
-            </div>
+            <details className="jobs-saved-filters">
+              <summary>Filtros salvos</summary>
+              <div className="saved-filter-toolbar">
+                <label htmlFor="saved-filter-select">Filtro salvo</label>
+                <select
+                  id="saved-filter-select"
+                  onChange={(event) => applySavedFilter(event.target.value)}
+                  value={selectedSavedFilter}
+                >
+                  <option value="">Nenhum filtro salvo</option>
+                  {savedFilters.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {filter.name}
+                    </option>
+                  ))}
+                </select>
+                <label
+                  className="saved-filter-name"
+                  htmlFor="saved-filter-name"
+                >
+                  Nome
+                  <input
+                    id="saved-filter-name"
+                    onChange={(event) => setSavedFilterName(event.target.value)}
+                    placeholder="ex.: Backend remoto"
+                    value={savedFilterName}
+                  />
+                </label>
+                <button
+                  className="ui-button ui-button--ghost ui-button--small"
+                  onClick={() => void saveCurrentFilter()}
+                  type="button"
+                >
+                  Salvar filtro atual
+                </button>
+              </div>
+            </details>
             {savedFilterMessage && (
               <p className="form-message" role="status">
                 {savedFilterMessage}
               </p>
-            )}
-
-            {isLoadingJobDetail && (
-              <p className="jobs-feedback" role="status">
-                Carregando detalhe…
-              </p>
-            )}
-            {jobDetailError && (
-              <p className="jobs-feedback is-error" role="status">
-                {jobDetailError}
-              </p>
-            )}
-            {selectedJob && !isLoadingJobDetail && (
-              <article
-                className="job-detail"
-                aria-labelledby="job-detail-title"
-              >
-                <div className="job-detail-topline">
-                  <span className="meta-label">DETALHE DA VAGA</span>
-                  <button
-                    className="text-button text-button-plain"
-                    onClick={() => setSelectedJob(null)}
-                    type="button"
-                  >
-                    Fechar detalhe
-                  </button>
-                </div>
-                <span className="job-status">{selectedJob.status_label}</span>
-                <h3 id="job-detail-title">Detalhe da vaga</h3>
-                <h4>{selectedJob.title}</h4>
-                <p className="job-detail-company">
-                  {selectedJob.company}
-                  {selectedJob.location ? ` · ${selectedJob.location}` : ''}
-                </p>
-                <div className="job-analysis-actions">
-                  {(() => {
-                    const application = Object.values(applications).find(
-                      (candidate) => candidate.job_id === selectedJob.id,
-                    );
-                    if (
-                      application &&
-                      application.current_status !== 'found' &&
-                      application.current_status !== 'pending'
-                    ) {
-                      return (
-                        <span className="job-status">
-                          {pipelineStatusLabel(application.current_status)}
-                        </span>
-                      );
-                    }
-                    return (
-                      <button
-                        className="primary-button"
-                        disabled={applyingJobId === selectedJob.id}
-                        onClick={() => void markJobApplied(selectedJob)}
-                        type="button"
-                      >
-                        {applyingJobId === selectedJob.id
-                          ? 'Salvando…'
-                          : 'Marcar como aplicada'}
-                      </button>
-                    );
-                  })()}
-                  <button
-                    className="primary-button"
-                    disabled={isAnalyzingJob}
-                    onClick={() => void analyzeSelectedJobs([selectedJob.id])}
-                    type="button"
-                  >
-                    {isAnalyzingJob
-                      ? 'Analisando…'
-                      : 'Analisar esta vaga com IA'}
-                  </button>
-                  {jobAnalyses[selectedJob.id] && (
-                    <span className="mono-note">
-                      Versão {jobAnalyses[selectedJob.id].analysis_version} ·{' '}
-                      {jobAnalyses[selectedJob.id].usage.fallback
-                        ? 'triagem local limitada'
-                        : `${jobAnalyses[selectedJob.id].usage.estimated_cost_usd == null ? 'custo indisponível' : `US$ ${jobAnalyses[selectedJob.id].usage.estimated_cost_usd!.toFixed(4)}`}`}
-                    </span>
-                  )}
-                </div>
-                {jobAnalyses[selectedJob.id] && (
-                  <div className="job-analysis-summary" role="status">
-                    <strong>
-                      Aderência: {jobAnalyses[selectedJob.id].fit.score}/100
-                    </strong>
-                    <p>
-                      {jobAnalyses[selectedJob.id].analysis.assessment.summary}
-                    </p>
-                    {jobAnalyses[selectedJob.id].analysis.assessment.warnings
-                      .length > 0 && (
-                      <p className="mono-note">
-                        {jobAnalyses[
-                          selectedJob.id
-                        ].analysis.assessment.warnings.join(' · ')}
-                      </p>
-                    )}
-                  </div>
-                )}
-                <div className="job-detail-grid">
-                  <div>
-                    <span className="meta-label">ORIGENS</span>
-                    <ul className="job-origin-list">
-                      {selectedJob.origins.map((origin) => (
-                        <li key={origin.id}>
-                          <span>{origin.source}</span>
-                          {origin.url && (
-                            <a
-                              href={origin.url}
-                              rel="noreferrer"
-                              target="_blank"
-                            >
-                              Abrir URL
-                            </a>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <span className="meta-label">CONTEÚDO VERSIONADO</span>
-                    <ol className="job-content-history">
-                      {[...selectedJob.content_versions]
-                        .sort(
-                          (left, right) =>
-                            right.version_number - left.version_number,
-                        )
-                        .map((version) => (
-                          <li key={version.id}>
-                            <span>Versão {version.version_number}</span>
-                            <pre className="job-detail-content">
-                              {version.raw_content}
-                            </pre>
-                          </li>
-                        ))}
-                    </ol>
-                  </div>
-                </div>
-              </article>
             )}
 
             {isJobFormOpen && (
@@ -4043,7 +3903,7 @@ function WorkspacePages() {
                     {isSavingJob ? 'Salvando…' : 'Salvar vaga'}
                   </button>
                   <button
-                    className="text-button text-button-plain"
+                    className="ui-button ui-button--ghost ui-button--small"
                     onClick={() => setIsJobFormOpen(false)}
                     type="button"
                   >
@@ -4053,182 +3913,355 @@ function WorkspacePages() {
               </form>
             )}
 
+            {applicationsError && (
+              <Notice tone="error">{applicationsError}</Notice>
+            )}
             {jobMessage && !isJobFormOpen && (
               <p className="form-message is-success" role="status">
                 {jobMessage}
               </p>
             )}
 
-            {isLoadingJobs && (
-              <p className="jobs-feedback" role="status">
-                Carregando vagas…
-              </p>
-            )}
-            {!isLoadingJobs && jobsError && (
-              <p className="jobs-feedback is-error" role="status">
-                {jobsError}
-              </p>
-            )}
-            {!isLoadingJobs && !jobsError && jobs.length === 0 && (
-              <div className="jobs-empty">
-                <span className="meta-label">NENHUMA VAGA SALVA</span>
-                <p>Adicione uma vaga manualmente para começar sua revisão.</p>
-                <button
-                  className="text-button"
-                  onClick={openJobForm}
-                  type="button"
-                >
-                  Adicionar primeira vaga <span aria-hidden="true">→</span>
-                </button>
-              </div>
-            )}
-            {!isLoadingJobs &&
-              !jobsError &&
-              jobs.length > 0 &&
-              visibleJobs.length === 0 && (
+            <JobsSplit
+              selectedId={selectedJob?.id ?? null}
+              detail={
+                <>
+                  {isLoadingJobDetail && (
+                    <p className="jobs-feedback" role="status">
+                      Carregando detalhe…
+                    </p>
+                  )}
+                  {jobDetailError && (
+                    <p className="jobs-feedback is-error" role="status">
+                      {jobDetailError}
+                    </p>
+                  )}
+                  {selectedJob && !isLoadingJobDetail && (
+                    <article
+                      className="job-detail"
+                      aria-labelledby="job-detail-title"
+                    >
+                      <div className="job-detail-topline">
+                        <span className="meta-label">DETALHE DA VAGA</span>
+                        <button
+                          className="ui-button ui-button--ghost ui-button--small"
+                          onClick={closeJobDetail}
+                          type="button"
+                        >
+                          Fechar detalhe
+                        </button>
+                      </div>
+                      <span className="job-status">
+                        {selectedJob.status_label}
+                      </span>
+                      <h3 id="job-detail-title">Detalhe da vaga</h3>
+                      <h4>{selectedJob.title}</h4>
+                      <p className="job-detail-company">
+                        {selectedJob.company}
+                        {selectedJob.location
+                          ? ` · ${selectedJob.location}`
+                          : ''}
+                      </p>
+                      <div className="job-analysis-actions">
+                        {(() => {
+                          const application = Object.values(applications).find(
+                            (candidate) => candidate.job_id === selectedJob.id,
+                          );
+                          if (
+                            application &&
+                            application.current_status !== 'found' &&
+                            application.current_status !== 'pending'
+                          ) {
+                            return (
+                              <span className="job-status">
+                                {pipelineStatusLabel(
+                                  application.current_status,
+                                )}
+                              </span>
+                            );
+                          }
+                          return (
+                            <button
+                              className="primary-button"
+                              disabled={applyingJobId === selectedJob.id}
+                              onClick={() => void markJobApplied(selectedJob)}
+                              type="button"
+                            >
+                              {applyingJobId === selectedJob.id
+                                ? 'Salvando…'
+                                : 'Marcar como aplicada'}
+                            </button>
+                          );
+                        })()}
+                        <button
+                          className="ui-button ui-button--secondary ui-button--default"
+                          disabled={isAnalyzingJob}
+                          onClick={() =>
+                            void analyzeSelectedJobs([selectedJob.id])
+                          }
+                          type="button"
+                        >
+                          {isAnalyzingJob
+                            ? 'Analisando…'
+                            : 'Analisar esta vaga com IA'}
+                        </button>
+                        {jobAnalyses[selectedJob.id] && (
+                          <span className="mono-note">
+                            Versão{' '}
+                            {jobAnalyses[selectedJob.id].analysis_version} ·{' '}
+                            {jobAnalyses[selectedJob.id].usage.fallback
+                              ? 'triagem local limitada'
+                              : `${jobAnalyses[selectedJob.id].usage.estimated_cost_usd == null ? 'custo indisponível' : `US$ ${jobAnalyses[selectedJob.id].usage.estimated_cost_usd!.toFixed(4)}`}`}
+                          </span>
+                        )}
+                      </div>
+                      {jobAnalyses[selectedJob.id] ? (
+                        <JobAnalysisPanel
+                          title={selectedJob.title}
+                          analysis={jobAnalyses[selectedJob.id]}
+                        />
+                      ) : (
+                        <p className="job-analysis-empty">
+                          Esta vaga ainda não tem análise. A análise usa o
+                          perfil ativo e só começa com sua confirmação.
+                        </p>
+                      )}
+                      <div className="job-detail-grid">
+                        <div>
+                          <span className="meta-label">ORIGENS</span>
+                          <ul className="job-origin-list">
+                            {selectedJob.origins.map((origin) => (
+                              <li key={origin.id}>
+                                <span>{origin.source}</span>
+                                {origin.url && (
+                                  <a
+                                    href={origin.url}
+                                    rel="noreferrer"
+                                    target="_blank"
+                                  >
+                                    Abrir URL
+                                  </a>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <span className="meta-label">
+                            CONTEÚDO VERSIONADO
+                          </span>
+                          <ol className="job-content-history">
+                            {[...selectedJob.content_versions]
+                              .sort(
+                                (left, right) =>
+                                  right.version_number - left.version_number,
+                              )
+                              .map((version) => (
+                                <li key={version.id}>
+                                  <span>Versão {version.version_number}</span>
+                                  <pre className="job-detail-content">
+                                    {version.raw_content}
+                                  </pre>
+                                </li>
+                              ))}
+                          </ol>
+                        </div>
+                      </div>
+                    </article>
+                  )}
+                </>
+              }
+            >
+              {isLoadingJobs && (
                 <p className="jobs-feedback" role="status">
-                  Nenhuma vaga corresponde à busca.
+                  Carregando vagas…
                 </p>
               )}
-            {!isLoadingJobs && !jobsError && visibleJobs.length > 0 && (
-              <>
-                <div className="job-bulk-actions">
-                  <span className="mono-note">
-                    {selectedJobIds.length} selecionada(s)
-                  </span>
+              {!isLoadingJobs && jobsError && (
+                <p className="jobs-feedback is-error" role="status">
+                  {jobsError}
+                </p>
+              )}
+              {!isLoadingJobs && !jobsError && jobs.length === 0 && (
+                <div className="jobs-empty">
+                  <span className="meta-label">NENHUMA VAGA SALVA</span>
+                  <p>Adicione uma vaga manualmente para começar sua revisão.</p>
                   <button
-                    className="header-action"
-                    disabled={isAnalyzingJob || selectedJobIds.length === 0}
-                    onClick={() => void analyzeSelectedJobs(selectedJobIds)}
+                    className="text-button"
+                    onClick={openJobForm}
                     type="button"
                   >
-                    Analisar selecionadas
+                    Adicionar primeira vaga <span aria-hidden="true">→</span>
                   </button>
                 </div>
-                {analysisMessage && (
-                  <p className="form-message is-success" role="status">
-                    {analysisMessage}
+              )}
+              {!isLoadingJobs &&
+                !jobsError &&
+                jobs.length > 0 &&
+                visibleJobs.length === 0 && (
+                  <p className="jobs-feedback" role="status">
+                    Nenhuma vaga corresponde à busca.
                   </p>
                 )}
-                {analysisError && (
-                  <p className="form-message is-error" role="status">
-                    {analysisError}
+              {!isLoadingJobs && !jobsError && visibleJobs.length > 0 && (
+                <>
+                  <div className="job-bulk-actions">
+                    <span className="mono-note">
+                      {selectedJobIds.length} selecionada(s)
+                    </span>
+                    <button
+                      className="ui-button ui-button--secondary ui-button--default"
+                      disabled={isAnalyzingJob || selectedJobIds.length === 0}
+                      onClick={() => void analyzeSelectedJobs(selectedJobIds)}
+                      type="button"
+                    >
+                      Analisar selecionadas
+                    </button>
+                  </div>
+                  {analysisMessage && (
+                    <p className="form-message is-success" role="status">
+                      {analysisMessage}
+                    </p>
+                  )}
+                  {analysisError && (
+                    <p className="form-message is-error" role="status">
+                      {analysisError}
+                    </p>
+                  )}
+                  <p className="jobs-visible-count">
+                    {visibleJobs.length} de {jobs.length} vagas
                   </p>
-                )}
-                <ul className="job-list">
-                  {visibleJobs.map((job) => {
-                    const analysis = jobAnalyses[job.id];
-                    const application = Object.values(applications).find(
-                      (candidate) => candidate.job_id === job.id,
-                    );
-                    return (
-                      <li className="job-row" key={job.id}>
-                        <div className="job-row-content">
-                          <label className="job-select-control">
-                            <input
-                              aria-label={`Selecionar ${job.title}`}
-                              checked={selectedJobIds.includes(job.id)}
-                              onChange={(event) =>
-                                setSelectedJobIds((current) =>
-                                  event.target.checked
-                                    ? [...current, job.id]
-                                    : current.filter((id) => id !== job.id),
-                                )
-                              }
-                              type="checkbox"
-                            />
-                          </label>
-                          <div className="job-row-main">
-                            <span className="job-status">
-                              {job.status_label}
-                            </span>
-                            <h3>{job.title}</h3>
-                            <p>
-                              {job.company}
-                              {job.location ? ` · ${job.location}` : ''}
-                            </p>
-                          </div>
-                          <div className="job-row-meta">
-                            <span className="mono-note">
-                              {job.origin_count} origem
-                              {job.origin_count === 1 ? '' : 'ns'}
-                            </span>
-                            {job.canonical_url && (
-                              <a
-                                className="card-link"
-                                href={job.canonical_url}
-                                rel="noreferrer"
-                                target="_blank"
-                              >
-                                Abrir origem <span aria-hidden="true">↗</span>
-                              </a>
-                            )}
-                            <button
-                              className="card-link"
-                              onClick={() => void openJobDetail(job.id)}
-                              type="button"
-                            >
-                              Ver detalhes
-                            </button>
-                            {(!application ||
-                              application.current_status === 'found' ||
-                              application.current_status === 'pending') && (
+                  <ul className="job-list">
+                    {visibleJobs.map((job) => {
+                      const analysis = jobAnalyses[job.id];
+                      const application = Object.values(applications).find(
+                        (candidate) => candidate.job_id === job.id,
+                      );
+                      return (
+                        <li
+                          className={`job-row${selectedJob?.id === job.id ? ' is-selected' : ''}`}
+                          key={job.id}
+                        >
+                          <div className="job-row-content">
+                            <label className="job-select-control">
+                              <input
+                                aria-label={`Selecionar ${job.title}`}
+                                checked={selectedJobIds.includes(job.id)}
+                                onChange={(event) =>
+                                  setSelectedJobIds((current) =>
+                                    event.target.checked
+                                      ? [...current, job.id]
+                                      : current.filter((id) => id !== job.id),
+                                  )
+                                }
+                                type="checkbox"
+                              />
+                            </label>
+                            <div className="job-row-main">
+                              <span className="job-status">
+                                {job.status_label}
+                              </span>
+                              <h3>{job.title}</h3>
+                              <p>
+                                {job.company}
+                                {job.location ? ` · ${job.location}` : ''}
+                              </p>
+                            </div>
+                            <div className="job-row-meta">
+                              <span className="mono-note">
+                                {job.origin_count} origem
+                                {job.origin_count === 1 ? '' : 'ns'}
+                              </span>
+                              {job.canonical_url && (
+                                <a
+                                  className="ui-button ui-button--ghost ui-button--small"
+                                  href={job.canonical_url}
+                                  rel="noreferrer"
+                                  target="_blank"
+                                >
+                                  Abrir origem <span aria-hidden="true">↗</span>
+                                </a>
+                              )}
                               <button
-                                className="primary-button"
-                                disabled={applyingJobId === job.id}
-                                onClick={() => void markJobApplied(job)}
+                                className="ui-button ui-button--ghost ui-button--small"
+                                onClick={() => void openJobDetail(job.id)}
                                 type="button"
                               >
-                                {applyingJobId === job.id
-                                  ? 'Salvando…'
-                                  : 'Marcar como aplicada'}
+                                Ver detalhes
                               </button>
-                            )}
+                              {(!application ||
+                                application.current_status === 'found' ||
+                                application.current_status === 'pending') && (
+                                <button
+                                  className="ui-button ui-button--secondary ui-button--small"
+                                  disabled={applyingJobId === job.id}
+                                  onClick={() => void markJobApplied(job)}
+                                  type="button"
+                                >
+                                  {applyingJobId === job.id
+                                    ? 'Salvando…'
+                                    : 'Marcar como aplicada'}
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        {analysis && (
-                          <section
-                            aria-label={`Análise concluída: ${job.title}`}
-                            className="job-row-analysis"
-                            role="region"
-                          >
-                            <div className="job-row-analysis-heading">
-                              <span className="meta-label">
-                                ANÁLISE CONCLUÍDA
-                              </span>
-                              <span className="mono-note">
-                                Versão {analysis.analysis_version}
-                              </span>
-                            </div>
-                            <div className="job-row-analysis-identity">
-                              <strong>{job.title}</strong>
-                              <span>{job.company}</span>
-                            </div>
-                            <div className="job-row-analysis-score">
-                              <strong>
-                                Aderência {analysis.fit.score}/100
-                              </strong>
-                              <span>
-                                Confiança{' '}
-                                {analysis.analysis.assessment.confidence}%
-                              </span>
-                            </div>
-                            <p>{analysis.analysis.assessment.summary}</p>
-                            <button
-                              className="card-link"
-                              onClick={() => void openJobDetail(job.id)}
-                              type="button"
+                          {analyzingJobIds.includes(job.id) && (
+                            <p
+                              role="status"
+                              aria-label={`Análise em andamento: ${job.title}`}
                             >
-                              Abrir análise completa de {job.title}
-                            </button>
-                          </section>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </>
-            )}
+                              Analisando esta vaga…
+                            </p>
+                          )}
+                          {!analysis && !analyzingJobIds.includes(job.id) && (
+                            <p className="job-analysis-state">
+                              Ainda não analisada
+                            </p>
+                          )}
+                          {analysis && (
+                            <section
+                              aria-label={`Análise concluída: ${job.title}`}
+                              className="job-row-analysis"
+                              role="region"
+                            >
+                              <div className="job-row-analysis-heading">
+                                <span className="meta-label">
+                                  ANÁLISE CONCLUÍDA
+                                </span>
+                                <span className="mono-note">
+                                  Versão {analysis.analysis_version}
+                                </span>
+                              </div>
+                              <div className="job-row-analysis-identity">
+                                <strong>{job.title}</strong>
+                                <span>{job.company}</span>
+                              </div>
+                              <div className="job-row-analysis-score">
+                                <strong>
+                                  Aderência {analysis.fit.score}/100
+                                </strong>
+                                <span>
+                                  Confiança{' '}
+                                  {analysis.analysis.assessment.confidence}%
+                                </span>
+                              </div>
+                              <p>{analysis.analysis.assessment.summary}</p>
+                              <button
+                                className="ui-button ui-button--ghost ui-button--small"
+                                onClick={() => void openJobDetail(job.id)}
+                                type="button"
+                              >
+                                Abrir análise completa de {job.title}
+                              </button>
+                            </section>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+            </JobsSplit>
           </div>
         </section>
       </JobsPage>
