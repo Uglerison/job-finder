@@ -1,0 +1,275 @@
+.tracking-page {
+  min-width: 0;
+}
+.tracking-page .pipeline-workspace,
+.tracking-page .dashboard-workspace,
+.tracking-page .agenda-workspace {
+  min-width: 0;
+  padding: 0;
+  display: grid;
+  gap: 1.25rem;
+}
+.tracking-page .pipeline-workspace > .ui-field {
+  max-width: 22rem;
+}
+.tracking-page .pipeline-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(17rem, 1fr);
+  grid-template-columns: none;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 0.25rem 0 1rem;
+  align-items: start;
+}
+.tracking-page .pipeline-column {
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  background: var(--paper-sunken);
+  border: 1px solid var(--ink-faint);
+  border-radius: var(--radius);
+}
+.tracking-page .pipeline-column-heading {
+  padding: 1rem;
+  margin: 0;
+}
+.tracking-page .pipeline-column-heading h3 {
+  font-size: 0.8rem;
+}
+.tracking-page .pipeline-card-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0 0.75rem 0.75rem;
+}
+.tracking-page .pipeline-card {
+  padding: 1rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-faint);
+  border-radius: var(--radius);
+}
+.tracking-page .pipeline-card h4 {
+  font-size: 1rem;
+  line-height: 1.45;
+  margin: 0.65rem 0;
+  overflow-wrap: anywhere;
+}
+.tracking-page .pipeline-card label {
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.tracking-page .pipeline-card select {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  font-size: 0.85rem;
+}
+.pipeline-stage-empty {
+  padding: 0 1rem 1rem;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.tracking-section-heading {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.tracking-section-heading h2,
+.tracking-page .agenda-workspace > h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+.tracking-page .scheduled-search-panel {
+  margin: 0;
+  padding: 1.25rem;
+}
+.tracking-page .scheduled-search-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 1rem;
+  margin: 0;
+}
+.tracking-page .scheduled-search-form .form-field {
+  min-width: 0;
+}
+.tracking-page .scheduled-search-form input,
+.tracking-page .scheduled-search-form select {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+}
+.tracking-page .scheduled-search-form label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.tracking-page .source-list {
+  margin: 0;
+}
+.tracking-page .source-row {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--ink-faint);
+  padding: 1rem 0;
+  border-radius: 0;
+}
+.tracking-page .source-row h3 {
+  font-size: 1rem;
+  margin: 0.5rem 0;
+  overflow-wrap: anywhere;
+}
+.tracking-page .agenda-groups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+.tracking-page .agenda-group {
+  min-width: 0;
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-faint);
+  padding: 1.25rem;
+}
+.tracking-page .agenda-item {
+  padding: 1rem 0;
+  display: grid;
+  gap: 0.5rem;
+  border: 0;
+  border-top: 1px solid var(--ink-faint);
+  background: transparent;
+}
+.tracking-page .agenda-item h4 {
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.tracking-page .agenda-item time {
+  max-width: none;
+  text-align: left;
+  white-space: normal;
+  font-size: 0.8rem;
+}
+.tracking-page .dashboard-toolbar {
+  justify-content: flex-start;
+  max-width: 25rem;
+}
+.tracking-page .dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border-block: 1px solid var(--ink-faint);
+}
+.tracking-page .dashboard-card {
+  border: 0;
+  border-radius: 0;
+  padding: 1.25rem;
+  background: transparent;
+}
+.tracking-page .dashboard-card strong {
+  font-size: 2rem;
+}
+.tracking-page .dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+.tracking-page .dashboard-panel {
+  padding: 1.25rem;
+  border: 1px solid var(--ink-faint);
+  background: var(--paper-raised);
+  min-width: 0;
+}
+.tracking-page .dashboard-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.tracking-page .dashboard-table-wrap table {
+  min-width: 23rem;
+}
+.insights-analysis-list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.insights-analysis-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.5fr);
+  gap: 1.5rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--ink-faint);
+}
+.insights-analysis-list li > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.65rem;
+  align-content: start;
+}
+.insights-analysis-list h2 {
+  font-size: 1.05rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.insights-analysis-list p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  max-width: 70ch;
+}
+.tracking-secondary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+.tracking-secondary-actions a {
+  color: var(--ink);
+  text-underline-offset: 0.2em;
+}
+@media (max-width: 60rem) {
+  .tracking-page .scheduled-search-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tracking-page .dashboard-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 44rem) {
+  .tracking-page .pipeline-board {
+    display: grid;
+    grid-auto-flow: row;
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-columns: auto;
+    overflow: visible;
+  }
+  .tracking-page .scheduled-search-form,
+  .tracking-page .agenda-groups,
+  .insights-analysis-list li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tracking-page .dashboard-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tracking-page .dashboard-card {
+    padding: 1rem 0.5rem;
+  }
+  .tracking-page .source-row {
+    display: grid;
+    gap: 1rem;
+  }
+  .tracking-page .source-row-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .tracking-page .dashboard-panel-heading {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .tracking-page .scheduled-search-panel {
+    padding: 1rem;
+  }
+}

@@ -105,7 +105,7 @@ describe('App', () => {
     expect(window.location.pathname).toBe('/insights');
     expect(
       screen.getByRole('heading', {
-        name: 'Decisões com contexto, não no escuro.',
+        name: 'Insights das suas vagas',
       }),
     ).toBeInTheDocument();
     expect(

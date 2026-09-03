@@ -311,6 +311,24 @@ aplicada** na caixa de vagas ou no detalhe em `/vagas`. O backend cria a
 candidatura e o evento inicial/transição em uma única transação; repetição é
 idempotente e não envia candidatura automaticamente a nenhum site.
 
+### Acompanhar candidaturas e análises
+
+**Candidaturas** permite filtrar uma fase sem perder os demais registros. O
+quadro usa colunas no desktop e uma lista por fase no celular. Escolha a
+próxima fase e confirme em **Mover candidatura**; encerramentos continuam
+pedindo motivo, e uma transição rejeitada restaura a fase anterior.
+
+**Agenda** tem filtros próprios de cargo, localização e modalidade: você pode
+criar uma busca automática diretamente nela, sem preencher `/busca` antes.
+A agenda é salva pausada e exige ativação explícita. Os compromissos aparecem
+separados das buscas automáticas.
+
+**Insights** lista as análises salvas por vaga e abre o detalhe correspondente.
+Esses resultados também são recuperados em **Vagas** ao abrir o aplicativo,
+sem uma nova chamada à IA. Leituras locais são limitadas a seis por lote;
+uma falha de leitura gera aviso, não a afirmação de que não existe análise.
+**Painel** mantém métricas por período, funil e tabelas de evolução e fontes.
+
 ### Revisar uma oportunidade
 
 Em `/vagas`, a lista e o detalhe têm áreas separadas. No celular, abrir uma

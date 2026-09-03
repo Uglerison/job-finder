@@ -1153,10 +1153,14 @@ Plano detalhado: [docs/ux-redesign-plan.md](./docs/ux-redesign-plan.md).
   - Evidência: TDD Red → Green, 94 testes frontend aprovados, build e lint verdes; Edge em 375/768/1280 px com análise simulada, sem overflow.
   - Documentação: README atualizado; executável reservado à JF-820.
 
-- [ ] **JF-818 — Redesenhar candidaturas e áreas de acompanhamento**
+- [x] **JF-818 — Redesenhar candidaturas e áreas de acompanhamento**
   - Depende de: JF-811 a JF-813 e JF-817.
   - Teste primeiro: mudança de fase, motivo terminal, agenda vazia/preenchida, métricas e navegação entre acompanhamento devem permanecer funcionais.
   - Aceite: pipeline é legível em desktop e vira lista por fase no mobile; Agenda, Insights e Painel usam os mesmos cards, filtros e feedbacks compartilhados.
+  - Implementação: filtro de fase, quadro desktop/lista mobile, próximos passos em estados vazios; Agenda com formulário próprio de busca automática e seção de compromissos; Painel e Insights com cabeçalhos e feedbacks padronizados.
+  - Integridade: Insights e Vagas recuperam análises persistidas via leitura local, em lotes limitados e sem acionar IA. Falha de leitura não aparece como ausência de análise. Agenda nasce pausada, bloqueia envio durante gravação e não depende de filtros de outra rota.
+  - Evidência: TDD Red → Green; 99 testes frontend aprovados, tipos/build/lint verdes. Quatro páginas conferidas no Edge em 375/768/1280 px, sem overflow da página.
+  - Documentação: README atualizado; dados locais e endpoints existentes preservados.
 
 - [ ] **JF-819 — Simplificar fontes, credenciais e configurações**
   - Depende de: JF-813 e JF-814.

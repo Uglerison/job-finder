@@ -13,7 +13,16 @@ import {
   JobAnalysisPanel,
   type JobAnalysisResponse,
 } from './jobs/JobAnalysisPanel';
-import { PageHeader, Notice } from '../components/ui/primitives';
+import {
+  PageHeader,
+  Notice,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+} from '../components/ui/primitives';
+import { useStoredAnalyses } from './jobs/useStoredAnalyses';
+import { InsightsOverview } from './tracking/InsightsOverview';
 import { SearchWorkspace } from './search/SearchWorkspace';
 import type {
   AggregatedSearchResponse,
@@ -669,9 +678,12 @@ function WorkspacePages() {
   const [jobMessage, setJobMessage] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<JobDetail | null>(null);
   const [selectedJobIds, setSelectedJobIds] = useState<number[]>([]);
-  const [jobAnalyses, setJobAnalyses] = useState<
-    Record<number, JobAnalysisResponse>
-  >({});
+  const {
+    analyses: jobAnalyses,
+    setAnalyses: setJobAnalyses,
+    loading: isLoadingAnalyses,
+    error: storedAnalysesError,
+  } = useStoredAnalyses(jobs, !isLoadingJobs && !jobsError, fetchLocalApi);
   const [isAnalyzingJob, setIsAnalyzingJob] = useState(false);
   const [analyzingJobIds, setAnalyzingJobIds] = useState<number[]>([]);
   const detailRequest = useRef(0);
@@ -722,6 +734,11 @@ function WorkspacePages() {
     string | null
   >(null);
   const [scheduledSearchName, setScheduledSearchName] = useState('');
+  const [scheduledQuery, setScheduledQuery] = useState('');
+  const [scheduledLocation, setScheduledLocation] = useState('');
+  const [scheduledWorkModel, setScheduledWorkModel] = useState('all');
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+  const [pipelineStageFilter, setPipelineStageFilter] = useState('all');
   const [scheduledSearchFrequency, setScheduledSearchFrequency] =
     useState('1440');
   const [aggregatedQuery, setAggregatedQuery] = useState('');
@@ -1684,22 +1701,24 @@ function WorkspacePages() {
     event.preventDefault();
     if (
       scheduledSearchName.trim().length < 1 ||
-      aggregatedQuery.trim().length < 2
+      scheduledQuery.trim().length < 2
     ) {
       setScheduledSearchError(
         'Informe um nome e uma busca com pelo menos duas letras.',
       );
       return;
     }
+    if (isSavingSchedule) return;
+    setIsSavingSchedule(true);
     setScheduledSearchError(null);
     setScheduledSearchMessage(null);
     try {
       const response = await fetchLocalApi('/api/scheduled-searches', {
         body: JSON.stringify({
           name: scheduledSearchName.trim(),
-          query: aggregatedQuery.trim(),
-          location: aggregatedLocation.trim() || null,
-          work_model: aggregatedWorkModel,
+          query: scheduledQuery.trim(),
+          location: scheduledLocation.trim() || null,
+          work_model: scheduledWorkModel,
           frequency_minutes: Number(scheduledSearchFrequency),
           limit: 20,
           enabled: false,
@@ -1719,7 +1738,7 @@ function WorkspacePages() {
       setScheduledSearches((current) => [payload, ...current]);
       setScheduledSearchName('');
       setScheduledSearchMessage(
-        'Agendamento salvo. Ele executa somente enquanto o Job Finder estiver aberto.',
+        'Agendamento salvo e pausado. Ative quando estiver pronto; ele só executa com o Job Finder aberto.',
       );
     } catch (error) {
       setScheduledSearchError(
@@ -1727,6 +1746,8 @@ function WorkspacePages() {
           ? error.message
           : 'Não foi possível criar o agendamento.',
       );
+    } finally {
+      setIsSavingSchedule(false);
     }
   };
 
@@ -2351,138 +2372,6 @@ function WorkspacePages() {
               </section>
             )}
 
-            {pathname === '/agenda' && (
-              <section
-                aria-labelledby="scheduled-searches-title"
-                className="scheduled-search-panel"
-              >
-                <div className="source-list-heading">
-                  <span className="meta-label" id="scheduled-searches-title">
-                    AGENDADOR LOCAL
-                  </span>
-                  <span className="mono-note">EXECUTA COM O APP ABERTO</span>
-                </div>
-                <p className="sources-feedback">
-                  Salve filtros para consultar novas vagas depois. A agenda fica
-                  no SQLite local e nunca armazena credenciais de providers.
-                </p>
-                <form
-                  className="scheduled-search-form"
-                  onSubmit={createScheduledSearch}
-                >
-                  <div className="form-field">
-                    <label htmlFor="scheduled-search-name">
-                      Nome da agenda
-                    </label>
-                    <input
-                      id="scheduled-search-name"
-                      onChange={(event) =>
-                        setScheduledSearchName(event.target.value)
-                      }
-                      placeholder="Dados em Curitiba"
-                      value={scheduledSearchName}
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label htmlFor="scheduled-search-frequency">
-                      Frequência
-                    </label>
-                    <select
-                      id="scheduled-search-frequency"
-                      onChange={(event) =>
-                        setScheduledSearchFrequency(event.target.value)
-                      }
-                      value={scheduledSearchFrequency}
-                    >
-                      <option value="60">A cada hora</option>
-                      <option value="360">A cada 6 horas</option>
-                      <option value="1440">Uma vez por dia</option>
-                      <option value="10080">Uma vez por semana</option>
-                    </select>
-                  </div>
-                  <button className="primary-button" type="submit">
-                    Salvar agenda
-                  </button>
-                </form>
-                {scheduledSearchError && (
-                  <p className="sources-feedback is-error" role="status">
-                    {scheduledSearchError}
-                  </p>
-                )}
-                {scheduledSearchMessage && (
-                  <p className="sources-feedback" role="status">
-                    {scheduledSearchMessage}
-                  </p>
-                )}
-                {isLoadingScheduledSearches && (
-                  <p className="sources-feedback" role="status">
-                    Carregando agendas…
-                  </p>
-                )}
-                {!isLoadingScheduledSearches &&
-                  scheduledSearches.length === 0 && (
-                    <p className="sources-empty">
-                      Nenhuma agenda criada. Preencha a busca acima e salve uma
-                      para consultar vagas no próximo ciclo.
-                    </p>
-                  )}
-                {scheduledSearches.length > 0 && (
-                  <ul className="source-list">
-                    {scheduledSearches.map((schedule) => (
-                      <li className="source-row" key={schedule.id}>
-                        <div>
-                          <span className="job-status">
-                            {schedule.enabled ? 'ATIVA' : 'PAUSADA'}
-                          </span>
-                          <h3>{schedule.name}</h3>
-                          <p>
-                            {schedule.query}
-                            {schedule.location ? ` · ${schedule.location}` : ''}
-                          </p>
-                          <p className="mono-note">
-                            {schedule.last_run_at
-                              ? `Última execução: ${formatRunDate(schedule.last_run_at)}`
-                              : 'Ainda não executada'}
-                          </p>
-                        </div>
-                        <div className="source-row-actions">
-                          <button
-                            className="text-button text-button-plain"
-                            onClick={() => void toggleScheduledSearch(schedule)}
-                            type="button"
-                          >
-                            {schedule.enabled ? 'Pausar' : 'Ativar'}
-                          </button>
-                          <button
-                            className="card-link"
-                            onClick={() => void loadScheduledJobs(schedule.id)}
-                            type="button"
-                          >
-                            Ver vagas encontradas
-                          </button>
-                        </div>
-                        {scheduledJobs[schedule.id] && (
-                          <ul className="scheduled-job-history">
-                            {scheduledJobs[schedule.id].map((item) => (
-                              <li key={item.id}>
-                                <span>
-                                  <strong>{item.title}</strong> · {item.company}
-                                </span>
-                                <span className="mono-note">
-                                  {item.outcome} · {item.provider} ·{' '}
-                                  {formatRunDate(item.found_at)}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )}
-
             {pathname === '/configuracoes/fontes' && (
               <>
                 <div className="source-list-heading">
@@ -2718,50 +2607,18 @@ function WorkspacePages() {
       </SourcesPage>
 
       <InsightsPage pathname={pathname}>
-        <section aria-labelledby="insights-title" className="insights-section">
-          <div className="page-intro">
-            <p className="eyebrow">IA E ANÁLISES</p>
-            <h1 id="insights-title">Decisões com contexto, não no escuro.</h1>
-            <p>
-              Analise uma vaga sob demanda, confira as evidências e mantenha a
-              decisão final sob seu controle. A configuração das integrações
-              fica separada em Fontes e integrações.
-            </p>
-          </div>
-          <div className="insights-card-grid">
-            <article className="insights-card">
-              <span className="meta-label">ANÁLISES NESTA SESSÃO</span>
-              <strong>{Object.keys(jobAnalyses).length}</strong>
-              <p>Resultados recentes ficam associados às vagas analisadas.</p>
-            </article>
-            <article className="insights-card">
-              <span className="meta-label">MODELO PREPARADO</span>
-              <strong>{aiSettings.model}</strong>
-              <p>A IA só é acionada quando você pede uma análise explícita.</p>
-            </article>
-            <article className="insights-card">
-              <span className="meta-label">PRIVACIDADE</span>
-              <strong>Local</strong>
-              <p>O backend redige dados pessoais antes de enviar o anúncio.</p>
-            </article>
-          </div>
-          <div className="form-actions insights-actions">
-            <button
-              className="primary-button"
-              onClick={() => navigate('/vagas')}
-              type="button"
-            >
-              Abrir minhas vagas
-            </button>
-            <button
-              className="text-button text-button-plain"
-              onClick={() => navigate('/configuracoes/fontes')}
-              type="button"
-            >
-              Configurar integrações
-            </button>
-          </div>
-        </section>
+        <InsightsOverview
+          jobs={jobs}
+          analyses={jobAnalyses}
+          loading={isLoadingJobs || (isLoadingAnalyses && !jobsError)}
+          error={jobsError || storedAnalysesError}
+          onOpen={(id) => {
+            navigate('/vagas');
+            void openJobDetail(id);
+          }}
+          onJobs={() => navigate('/vagas')}
+          onSettings={() => navigate('/configuracoes/fontes')}
+        />
       </InsightsPage>
 
       <HomePage pathname={pathname}>
@@ -3223,29 +3080,181 @@ function WorkspacePages() {
 
       <AgendaPage pathname={pathname}>
         <section
-          className="agenda-section"
+          className="agenda-page tracking-page workspace-page"
           id="agenda"
-          aria-labelledby="agenda-title"
+          aria-label="Agenda do processo seletivo"
         >
-          <div className="agenda-intro">
-            <p className="eyebrow">PRÓXIMOS PASSOS</p>
-            <h2 id="agenda-title">Agenda do processo seletivo</h2>
-            <p>
-              Entrevistas, desafios e prazos ficam agrupados por período para
-              você saber o que exige atenção agora.
-            </p>
-          </div>
+          <PageHeader
+            eyebrow="ACOMPANHAMENTO"
+            title="Agenda do processo seletivo"
+            description="Buscas automáticas e compromissos, cada um no seu contexto."
+          />
 
-          <div className="agenda-workspace">
-            {isLoadingAgenda && (
-              <p className="agenda-feedback" role="status">
-                Carregando agenda…
+          <Card
+            aria-labelledby="scheduled-searches-title"
+            className="scheduled-search-panel"
+          >
+            <div className="tracking-section-heading">
+              <h2 id="scheduled-searches-title">Buscas automáticas</h2>
+              <span className="ui-meta-label">EXECUTA COM O APP ABERTO</span>
+            </div>
+            <p className="sources-feedback">
+              Salve filtros para consultar novas vagas depois. A agenda fica no
+              SQLite local e nunca armazena credenciais de providers.
+            </p>
+            <form
+              className="scheduled-search-form"
+              onSubmit={createScheduledSearch}
+            >
+              <Field
+                htmlFor="scheduled-query"
+                label="Cargo da busca automática"
+              >
+                <input
+                  id="scheduled-query"
+                  value={scheduledQuery}
+                  onChange={(event) => setScheduledQuery(event.target.value)}
+                  required
+                  minLength={2}
+                />
+              </Field>
+              <Field
+                htmlFor="scheduled-location"
+                label="Localização da busca automática"
+              >
+                <input
+                  id="scheduled-location"
+                  value={scheduledLocation}
+                  onChange={(event) => setScheduledLocation(event.target.value)}
+                  placeholder="Qualquer localização"
+                />
+              </Field>
+              <Field
+                htmlFor="scheduled-model"
+                label="Modalidade da busca automática"
+              >
+                <select
+                  id="scheduled-model"
+                  value={scheduledWorkModel}
+                  onChange={(event) =>
+                    setScheduledWorkModel(event.target.value)
+                  }
+                >
+                  <option value="all">Todos</option>
+                  <option value="remote">Remoto</option>
+                  <option value="hybrid">Híbrido</option>
+                  <option value="on_site">Presencial</option>
+                </select>
+              </Field>
+              <div className="form-field">
+                <label htmlFor="scheduled-search-name">Nome da agenda</label>
+                <input
+                  id="scheduled-search-name"
+                  onChange={(event) =>
+                    setScheduledSearchName(event.target.value)
+                  }
+                  placeholder="Dados em Curitiba"
+                  value={scheduledSearchName}
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="scheduled-search-frequency">Frequência</label>
+                <select
+                  id="scheduled-search-frequency"
+                  onChange={(event) =>
+                    setScheduledSearchFrequency(event.target.value)
+                  }
+                  value={scheduledSearchFrequency}
+                >
+                  <option value="60">A cada hora</option>
+                  <option value="360">A cada 6 horas</option>
+                  <option value="1440">Uma vez por dia</option>
+                  <option value="10080">Uma vez por semana</option>
+                </select>
+              </div>
+              <Button
+                loading={isSavingSchedule}
+                loadingLabel="Salvando…"
+                type="submit"
+              >
+                Salvar agenda
+              </Button>
+            </form>
+            {scheduledSearchError && (
+              <Notice tone="error">{scheduledSearchError}</Notice>
+            )}
+            {scheduledSearchMessage && (
+              <Notice tone="info">{scheduledSearchMessage}</Notice>
+            )}
+            {isLoadingScheduledSearches && (
+              <Notice tone="info">Carregando agendas…</Notice>
+            )}
+            {!isLoadingScheduledSearches && scheduledSearches.length === 0 && (
+              <p className="sources-empty">
+                Nenhuma agenda criada. Informe os filtros e salve sua primeira
+                busca automática.
               </p>
             )}
+            {scheduledSearches.length > 0 && (
+              <ul className="source-list">
+                {scheduledSearches.map((schedule) => (
+                  <li className="source-row" key={schedule.id}>
+                    <div>
+                      <span className="job-status">
+                        {schedule.enabled ? 'ATIVA' : 'PAUSADA'}
+                      </span>
+                      <h3>{schedule.name}</h3>
+                      <p>
+                        {schedule.query}
+                        {schedule.location ? ` · ${schedule.location}` : ''}
+                      </p>
+                      <p className="mono-note">
+                        {schedule.last_run_at
+                          ? `Última execução: ${formatRunDate(schedule.last_run_at)}`
+                          : 'Ainda não executada'}
+                      </p>
+                    </div>
+                    <div className="source-row-actions">
+                      <button
+                        className="ui-button ui-button--secondary ui-button--small"
+                        onClick={() => void toggleScheduledSearch(schedule)}
+                        type="button"
+                      >
+                        {schedule.enabled ? 'Pausar' : 'Ativar'}
+                      </button>
+                      <button
+                        className="ui-button ui-button--ghost ui-button--small"
+                        onClick={() => void loadScheduledJobs(schedule.id)}
+                        type="button"
+                      >
+                        Ver vagas encontradas
+                      </button>
+                    </div>
+                    {scheduledJobs[schedule.id] && (
+                      <ul className="scheduled-job-history">
+                        {scheduledJobs[schedule.id].map((item) => (
+                          <li key={item.id}>
+                            <span>
+                              <strong>{item.title}</strong> · {item.company}
+                            </span>
+                            <span className="mono-note">
+                              {item.outcome} · {item.provider} ·{' '}
+                              {formatRunDate(item.found_at)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+          <div className="agenda-workspace">
+            <h2>Compromissos</h2>
+            {isLoadingAgenda && <Notice tone="info">Carregando agenda…</Notice>}
             {!isLoadingAgenda && agendaError && (
-              <p className="agenda-feedback is-error" role="status">
-                {agendaError}
-              </p>
+              <Notice tone="error">{agendaError}</Notice>
             )}
             {!isLoadingAgenda && !agendaError && agendaEvents.length === 0 && (
               <div className="agenda-empty">
@@ -3275,7 +3284,14 @@ function WorkspacePages() {
                             </span>
                             <h4>{event.title}</h4>
                             <p>
-                              {event.kind} · candidatura #{event.application_id}
+                              {
+                                {
+                                  interview: 'Entrevista',
+                                  challenge: 'Desafio',
+                                  deadline: 'Prazo',
+                                }[event.kind]
+                              }{' '}
+                              · candidatura #{event.application_id}
                             </p>
                           </div>
                           <time dateTime={event.starts_at}>
@@ -3306,7 +3322,14 @@ function WorkspacePages() {
                             </span>
                             <h4>{event.title}</h4>
                             <p>
-                              {event.kind} · candidatura #{event.application_id}
+                              {
+                                {
+                                  interview: 'Entrevista',
+                                  challenge: 'Desafio',
+                                  deadline: 'Prazo',
+                                }[event.kind]
+                              }{' '}
+                              · candidatura #{event.application_id}
                             </p>
                           </div>
                           <time dateTime={event.starts_at}>
@@ -3400,18 +3423,15 @@ function WorkspacePages() {
 
       <DashboardPage pathname={pathname}>
         <section
-          className="dashboard-section"
+          className="dashboard-page tracking-page workspace-page"
           id="dashboard"
-          aria-labelledby="dashboard-title"
+          aria-label="O movimento da sua busca"
         >
-          <div className="dashboard-intro">
-            <p className="eyebrow">PAINEL OPERACIONAL</p>
-            <h2 id="dashboard-title">O movimento da sua busca</h2>
-            <p>
-              Métricas locais, com denominadores visíveis e crédito de fonte
-              definido.
-            </p>
-          </div>
+          <PageHeader
+            eyebrow="ACOMPANHAMENTO"
+            title="O movimento da sua busca"
+            description="Acompanhe os resultados do período e a evolução das candidaturas."
+          />
           <div className="dashboard-workspace">
             <div className="dashboard-toolbar">
               <label htmlFor="dashboard-period">Período do painel</label>
@@ -3426,14 +3446,21 @@ function WorkspacePages() {
               </select>
             </div>
             {isLoadingDashboard && (
-              <p className="dashboard-feedback" role="status">
-                Calculando métricas…
-              </p>
+              <Notice tone="info">Calculando métricas…</Notice>
             )}
             {!isLoadingDashboard && dashboardError && (
-              <p className="dashboard-feedback is-error" role="status">
-                {dashboardError}
-              </p>
+              <Notice tone="error">{dashboardError}</Notice>
+            )}
+            {!isLoadingDashboard && !dashboardError && !dashboard && (
+              <EmptyState
+                title="Sem métricas disponíveis"
+                description="Faça uma busca e acompanhe suas candidaturas para preencher o painel."
+                action={
+                  <Button onClick={() => navigate('/busca')}>
+                    Buscar vagas
+                  </Button>
+                }
+              />
             )}
             {!isLoadingDashboard && !dashboardError && dashboard && (
               <>
@@ -3455,7 +3482,7 @@ function WorkspacePages() {
                   ))}
                 </div>
                 <div className="dashboard-grid">
-                  <section
+                  <Card
                     className="dashboard-panel"
                     aria-labelledby="dashboard-funnel-title"
                   >
@@ -3483,15 +3510,15 @@ function WorkspacePages() {
                         </li>
                       ))}
                     </ol>
-                  </section>
-                  <section
+                  </Card>
+                  <Card
                     className="dashboard-panel"
                     aria-labelledby="dashboard-agenda-title"
                   >
                     <div className="dashboard-panel-heading">
                       <h3 id="dashboard-agenda-title">Agenda</h3>
                       <button
-                        className="card-link"
+                        className="ui-button ui-button--ghost ui-button--small"
                         onClick={() => navigate('/agenda')}
                         type="button"
                       >
@@ -3510,10 +3537,10 @@ function WorkspacePages() {
                       </strong>
                       <span>atrasados</span>
                     </div>
-                  </section>
+                  </Card>
                 </div>
                 <div className="dashboard-grid">
-                  <section
+                  <Card
                     className="dashboard-panel"
                     aria-labelledby="dashboard-series-title"
                   >
@@ -3548,8 +3575,8 @@ function WorkspacePages() {
                         </tbody>
                       </table>
                     </div>
-                  </section>
-                  <section
+                  </Card>
+                  <Card
                     className="dashboard-panel"
                     aria-labelledby="dashboard-sources-title"
                   >
@@ -3588,7 +3615,7 @@ function WorkspacePages() {
                         </tbody>
                       </table>
                     </div>
-                  </section>
+                  </Card>
                 </div>
               </>
             )}
@@ -3598,144 +3625,172 @@ function WorkspacePages() {
 
       <ApplicationsPage pathname={pathname}>
         <section
-          className="pipeline-section"
+          className="pipeline-page tracking-page workspace-page"
           id="pipeline"
-          aria-labelledby="pipeline-title"
+          aria-label="Pipeline de candidaturas"
         >
-          <div className="pipeline-intro">
-            <p className="eyebrow">ACOMPANHAMENTO</p>
-            <h2 id="pipeline-title">Pipeline de candidaturas</h2>
-            <p>
-              Cada movimento fica registrado no histórico local. Use o teclado
-              para escolher a próxima fase e confirmar a mudança.
-            </p>
-          </div>
+          <PageHeader
+            eyebrow="ACOMPANHAMENTO"
+            title="Pipeline de candidaturas"
+            description="Atualize a fase de cada candidatura e registre o resultado."
+          />
 
           <div className="pipeline-workspace">
+            <Field htmlFor="pipeline-stage-filter" label="Filtrar por fase">
+              <select
+                id="pipeline-stage-filter"
+                value={pipelineStageFilter}
+                onChange={(event) => setPipelineStageFilter(event.target.value)}
+              >
+                <option value="all">Todas as fases</option>
+                {pipelineStages.map((stage) => (
+                  <option key={stage.value} value={stage.value}>
+                    {stage.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
             {isLoadingApplications && (
-              <p className="pipeline-feedback" role="status">
-                Carregando candidaturas…
-              </p>
+              <Notice tone="info">Carregando candidaturas…</Notice>
             )}
             {!isLoadingApplications && applicationsError && (
-              <p className="pipeline-feedback is-error" role="status">
-                {applicationsError}
-              </p>
+              <Notice tone="error">{applicationsError}</Notice>
             )}
             {!isLoadingApplications &&
               !applicationsError &&
               pipelineEntries.length === 0 && (
-                <div className="pipeline-empty">
-                  <span className="meta-label">NENHUMA CANDIDATURA</span>
-                  <p>
-                    Crie uma candidatura a partir de uma vaga para acompanhar as
-                    fases neste quadro.
-                  </p>
-                </div>
+                <EmptyState
+                  title="Nenhuma candidatura"
+                  description="Marque uma vaga como aplicada para acompanhar as próximas fases."
+                  action={
+                    <Button onClick={() => navigate('/vagas')}>
+                      Revisar vagas
+                    </Button>
+                  }
+                />
               )}
             {!isLoadingApplications && pipelineEntries.length > 0 && (
               <div className="pipeline-board">
-                {pipelineStages.map((stage) => {
-                  const stageEntries = pipelineEntries.filter(
-                    ({ application }) =>
-                      application.current_status === stage.value,
-                  );
-                  return (
-                    <section
-                      className="pipeline-column"
-                      key={stage.value}
-                      aria-labelledby={`pipeline-${stage.value}`}
-                    >
-                      <div className="pipeline-column-heading">
-                        <h3 id={`pipeline-${stage.value}`}>{stage.label}</h3>
-                        <span>{stageEntries.length}</span>
-                      </div>
-                      <ul className="pipeline-card-list">
-                        {stageEntries.map(({ application, job }) => (
-                          <li className="pipeline-card" key={application.id}>
-                            <span className="job-status">
-                              {pipelineStatusLabel(application.current_status)}
-                            </span>
-                            <h4>{job.title}</h4>
-                            <p>{job.company}</p>
-                            <label
-                              htmlFor={`pipeline-target-${application.id}`}
-                            >
-                              Próxima fase para {job.title}
-                            </label>
-                            <select
-                              id={`pipeline-target-${application.id}`}
-                              onChange={(event) =>
-                                setPipelineTargets((current) => ({
-                                  ...current,
-                                  [application.id]: event.target
-                                    .value as ApplicationStatus,
-                                }))
-                              }
-                              value={
+                {pipelineStages
+                  .filter(
+                    (stage) =>
+                      pipelineStageFilter === 'all' ||
+                      stage.value === pipelineStageFilter,
+                  )
+                  .map((stage) => {
+                    const stageEntries = pipelineEntries.filter(
+                      ({ application }) =>
+                        application.current_status === stage.value,
+                    );
+                    return (
+                      <section
+                        className="pipeline-column"
+                        key={stage.value}
+                        aria-labelledby={`pipeline-${stage.value}`}
+                      >
+                        <div className="pipeline-column-heading">
+                          <h3 id={`pipeline-${stage.value}`}>{stage.label}</h3>
+                          <span>{stageEntries.length}</span>
+                        </div>
+                        {stageEntries.length === 0 && (
+                          <p className="pipeline-stage-empty">
+                            Nenhuma candidatura nesta fase.
+                          </p>
+                        )}
+                        <ul className="pipeline-card-list">
+                          {stageEntries.map(({ application, job }) => (
+                            <li className="pipeline-card" key={application.id}>
+                              <span className="job-status">
+                                {pipelineStatusLabel(
+                                  application.current_status,
+                                )}
+                              </span>
+                              <h4>{job.title}</h4>
+                              <p>{job.company}</p>
+                              <label
+                                htmlFor={`pipeline-target-${application.id}`}
+                              >
+                                Próxima fase para {job.title}
+                              </label>
+                              <select
+                                id={`pipeline-target-${application.id}`}
+                                onChange={(event) =>
+                                  setPipelineTargets((current) => ({
+                                    ...current,
+                                    [application.id]: event.target
+                                      .value as ApplicationStatus,
+                                  }))
+                                }
+                                value={
+                                  pipelineTargets[application.id] ??
+                                  application.current_status
+                                }
+                              >
+                                {pipelineStages.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {requiresClosureReason(
                                 pipelineTargets[application.id] ??
-                                application.current_status
-                              }
-                            >
-                              {pipelineStages.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                            {requiresClosureReason(
-                              pipelineTargets[application.id] ??
-                                application.current_status,
-                            ) && (
-                              <>
-                                <label
-                                  htmlFor={`pipeline-closure-reason-${application.id}`}
-                                >
-                                  Motivo do encerramento
-                                </label>
-                                <select
-                                  id={`pipeline-closure-reason-${application.id}`}
-                                  onChange={(event) =>
-                                    setPipelineClosureReasons((current) => ({
-                                      ...current,
-                                      [application.id]: event.target.value as
-                                        ClosingReason | '',
-                                    }))
-                                  }
-                                  value={
-                                    pipelineClosureReasons[application.id] ?? ''
-                                  }
-                                >
-                                  <option value="">Selecione um motivo</option>
-                                  {closureReasons.map((reason) => (
-                                    <option
-                                      key={reason.value}
-                                      value={reason.value}
-                                    >
-                                      {reason.label}
+                                  application.current_status,
+                              ) && (
+                                <>
+                                  <label
+                                    htmlFor={`pipeline-closure-reason-${application.id}`}
+                                  >
+                                    Motivo do encerramento
+                                  </label>
+                                  <select
+                                    id={`pipeline-closure-reason-${application.id}`}
+                                    onChange={(event) =>
+                                      setPipelineClosureReasons((current) => ({
+                                        ...current,
+                                        [application.id]: event.target.value as
+                                          ClosingReason | '',
+                                      }))
+                                    }
+                                    value={
+                                      pipelineClosureReasons[application.id] ??
+                                      ''
+                                    }
+                                  >
+                                    <option value="">
+                                      Selecione um motivo
                                     </option>
-                                  ))}
-                                </select>
-                              </>
-                            )}
-                            <button
-                              className="card-link pipeline-move-button"
-                              disabled={pipelineActionId === application.id}
-                              onClick={() =>
-                                void moveApplication(application, job)
-                              }
-                              type="button"
-                            >
-                              {pipelineActionId === application.id
-                                ? 'Movendo…'
-                                : 'Mover candidatura'}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  );
-                })}
+                                    {closureReasons.map((reason) => (
+                                      <option
+                                        key={reason.value}
+                                        value={reason.value}
+                                      >
+                                        {reason.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </>
+                              )}
+                              <button
+                                className="ui-button ui-button--secondary ui-button--default pipeline-move-button"
+                                disabled={pipelineActionId === application.id}
+                                onClick={() =>
+                                  void moveApplication(application, job)
+                                }
+                                type="button"
+                              >
+                                {pipelineActionId === application.id
+                                  ? 'Movendo…'
+                                  : 'Mover candidatura'}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -3913,6 +3968,9 @@ function WorkspacePages() {
               </form>
             )}
 
+            {storedAnalysesError && (
+              <Notice tone="warning">{storedAnalysesError}</Notice>
+            )}
             {applicationsError && (
               <Notice tone="error">{applicationsError}</Notice>
             )}
@@ -4022,8 +4080,11 @@ function WorkspacePages() {
                         />
                       ) : (
                         <p className="job-analysis-empty">
-                          Esta vaga ainda não tem análise. A análise usa o
-                          perfil ativo e só começa com sua confirmação.
+                          {isLoadingAnalyses
+                            ? 'Verificando análise salva…'
+                            : storedAnalysesError
+                              ? 'Não foi possível verificar se esta vaga já tem análise salva.'
+                              : 'Esta vaga ainda não tem análise. A análise usa o perfil ativo e só começa com sua confirmação.'}
                         </p>
                       )}
                       <div className="job-detail-grid">
@@ -4215,7 +4276,11 @@ function WorkspacePages() {
                           )}
                           {!analysis && !analyzingJobIds.includes(job.id) && (
                             <p className="job-analysis-state">
-                              Ainda não analisada
+                              {isLoadingAnalyses
+                                ? 'Verificando análise salva…'
+                                : storedAnalysesError
+                                  ? 'Não foi possível verificar a análise'
+                                  : 'Ainda não analisada'}
                             </p>
                           )}
                           {analysis && (
