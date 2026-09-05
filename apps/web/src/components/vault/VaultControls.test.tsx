@@ -44,7 +44,7 @@ describe('cofre global', () => {
     await screen.findByRole('button', { name: 'Cofre bloqueado' });
     fireEvent.click(screen.getByRole('button', { name: 'Ação protegida' }));
     const password = await screen.findByLabelText('Senha do cofre');
-    expect(password).toHaveFocus();
+    await waitFor(() => expect(password).toHaveFocus());
     fireEvent.change(password, { target: { value: 'senha local longa' } });
     fireEvent.submit(
       screen

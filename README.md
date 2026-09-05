@@ -158,7 +158,7 @@ pnpm --filter job-finder-web build
 .\.venv\Scripts\python.exe scripts\smoke_test.py
 ```
 
-## Release Windows (E7)
+## Release Windows
 
 O pacote de distribuição agora é um único `JobFinder.exe` na raiz do checkout.
 O builder é fixado em `packaging/requirements-build.txt`; em uma máquina
@@ -181,6 +181,16 @@ O script compila o frontend com pnpm, inclui as migrações e o `alembic.ini`,
 gera `release-manifest.json` com SHA-256 e não copia `.env` nem o banco local.
 O executável escuta somente em `127.0.0.1`; dados, logs e backups ficam em
 `%LOCALAPPDATA%\JobFinder`.
+
+Se o Python usado para criar a `.venv` tiver sido removido do Windows, recrie
+o ambiente virtual com um Python 3.10 ou superior antes de instalar as
+dependências. Um `python.exe` antigo dentro da pasta não funciona sem o runtime
+base correspondente.
+
+O release de 05/09/2026 foi validado com Python 3.12 e PyInstaller 6.11.0:
+health, frontend, criação do banco e uma segunda inicialização passaram em
+perfis locais isolados. O smoke encerra o processo graciosamente para não deixar
+servidor ou arquivo de log preso no Windows.
 
 ### Backup e restauração local
 

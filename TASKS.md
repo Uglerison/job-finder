@@ -1172,11 +1172,14 @@ Plano detalhado: [docs/ux-redesign-plan.md](./docs/ux-redesign-plan.md).
   - Evidência: TDD Red → Green; 108 testes frontend e 174 testes backend aprovados; lint, tipos e build web verdes. Fontes, preferências, histórico e lixeira conferidos no Edge em 375/768/1280 px, sem overflow.
   - Documentação: README atualizado com fluxo, estados e contratos dos providers; executável reservado à JF-820.
 
-- [ ] **JF-820 — Validar, documentar e empacotar o redesenho**
+- [x] **JF-820 — Validar, documentar e empacotar o redesenho**
   - Depende de: JF-811 a JF-819.
   - Teste primeiro: fluxos ponta a ponta Desbloquear → Buscar → Avaliar → Aplicar → Acompanhar e reinício do app.
   - Aceite: Vitest, lint, tipos, Prettier e build via `pnpm` verdes; matriz visual 375/768/1280 aprovada; contraste, foco, overflow e mensagens revisados.
   - Entrega: atualizar README, rebuildar `JobFinder.exe` e validar smoke do executável somente depois da aprovação visual.
+  - Implementação: teste de aceitação percorre o fluxo principal entre rotas e o Vitest usa um worker estável no Windows. Conexões SQLite de backup são fechadas explicitamente e o smoke empacotado encerra o processo de forma graciosa antes de limpar o perfil isolado.
+  - Evidência: 109 testes frontend e 174 backend aprovados; Oxlint, Prettier, TypeScript/build, Ruff e MyPy verdes. As 13 rotas passaram em 375/768/1280 px (39 casos), com um único H1, sem overflow ou erro de página.
+  - Empacotamento: `JobFinder.exe` reconstruído na raiz com Python 3.12/PyInstaller 6.11.0, SHA-256 `9b88462d6b64db0512068704266b84fd1877ceea8873982a1847fcd15502e9e7`; duas inicializações empacotadas com health, frontend, banco e encerramento aprovados. Atalho criado na Área de Trabalho.
 
 ## E9 — Beta e lançamento
 
@@ -1308,6 +1311,7 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 01/09/2026 | JF-810 | Concluída | Auditoria registrou o excesso de navegação, cofre enterrado, mistura de responsabilidades e acúmulo de CSS/componentes; plano E8.1 prioriza shell simples, cofre global, páginas independentes e validação visual/TDD. |
 | 02/09/2026 | JF-814 | Concluída | Cofre global nas 13 rotas, desbloqueio único OpenAI/providers, retomada de ações e senha apenas no diálogo; sessão protegida contra concorrência, validação sem eco de segredos e reinício testado. 55 Vitest + 168 Pytest; README e build web atualizados. |
 | 02/09/2026 | JF-815 | Concluída | Início compacto com próxima ação, estado operacional, métricas sem limite de dez e atividade recente; 72 Vitest, qualidade/build e validação responsiva aprovados. README atualizado. |
+| 05/09/2026 | JF-816–JF-820 | Concluídas | Fluxo Configurar → Buscar → Avaliar → Aplicar → Acompanhar redesenhado, 109 Vitest + 174 Pytest e matriz de 39 combinações responsivas aprovados; executável reconstruído e iniciado duas vezes em perfil isolado. |
 
 ## Bloqueios e decisões pendentes
 

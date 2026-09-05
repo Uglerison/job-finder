@@ -6,6 +6,8 @@ import argparse
 import json
 import os
 import re
+import shutil
+import signal
 import subprocess
 import tempfile
 import time
@@ -21,6 +23,19 @@ def _read_health(url: str) -> dict[str, str]:
     if response.status != 200 or not isinstance(payload, dict):
         raise RuntimeError(f"Resposta de saúde inesperada: {payload!r}")
     return payload
+
+
+def _remove_runtime_data(path: Path) -> None:
+    """Wait briefly for Windows to release packaged-process log handles."""
+    if not path.exists():
+        return
+    for _attempt in range(50):
+        try:
+            shutil.rmtree(path)
+            return
+        except PermissionError:
+            time.sleep(0.1)
+    shutil.rmtree(path)
 
 
 def main() -> int:
@@ -52,6 +67,7 @@ def main() -> int:
                 stdout=output_stream,
                 stderr=subprocess.STDOUT,
                 text=True,
+                creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
             )
             try:
                 deadline = time.monotonic() + arguments.timeout
@@ -82,20 +98,25 @@ def main() -> int:
                 print(f"Packaged smoke test passed: {url}")
                 return 0
             finally:
-                if os.name == "nt":
-                    subprocess.run(
-                        ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                        check=False,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                else:
-                    process.terminate()
+                if process.poll() is None:
+                    if os.name == "nt":
+                        process.send_signal(signal.CTRL_BREAK_EVENT)
+                    else:
+                        process.terminate()
                 try:
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
-                    process.kill()
+                    if os.name == "nt":
+                        subprocess.run(
+                            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                            check=True,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                    else:
+                        process.kill()
                     process.wait(timeout=5)
+                _remove_runtime_data(local_app_data)
 
 
 if __name__ == "__main__":
