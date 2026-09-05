@@ -202,7 +202,8 @@ o Job Finder antes de restaurar para liberar conexões SQLite no Windows.
 
 1. Abra **Perfil** e salve cargos, competências, localização, regime e filtros.
 2. Use **Configurar cofre** no cabeçalho para criar sua senha. Em
-   **Configurações → Fontes e integrações**, informe as chaves desejadas.
+   **Configurações → Fontes e integrações**, abra o card do provider desejado e
+   informe sua chave. Cada editor começa recolhido e isolado dos demais.
    Para um cofre existente, use **Cofre bloqueado**; um desbloqueio libera
    OpenAI e todos os providers, sem senhas nos formulários individuais.
 3. Em **Busca**, informe cargo e localização e execute a busca unificada.
@@ -247,7 +248,9 @@ Os contratos HTTP locais principais são:
 - `POST /api/sources/{source_key}/test` para testar uma fonte sem persistir vagas;
 - `POST /api/search-runs` para execuções legadas auditáveis (`wait=true` é útil em testes);
 - `GET /api/search-runs` e `POST /api/search-runs/{id}/cancel` para acompanhar/cancelar;
-- `GET /api/search/providers` e `PUT /api/search/providers/{provider}` para credenciais (a gravação usa a sessão desbloqueada, sem reenviar senha);
+- `GET /api/search/providers` e `PUT /api/search/providers/{provider}` para consultar e gravar credenciais (a gravação usa a sessão desbloqueada, sem reenviar senha);
+- `POST /api/search/providers/{provider}/test` para testar somente a integração escolhida, sem persistir vagas (a consulta pode consumir cota);
+- `DELETE /api/search/providers/{provider}` para remover apenas a chave local escolhida, preservando vagas e candidaturas; credenciais definidas por variável de ambiente devem ser removidas fora do aplicativo;
 - `GET /api/vault` para consultar o estado; `POST /api/vault/create|unlock|lock` para criar, desbloquear todas as credenciais ou bloquear a sessão (`create` e `unlock` recebem `vault_password`);
 - `GET /api/duplicates` e `POST /api/duplicates/{id}/confirm|dismiss` para revisão;
 - `POST /api/scheduler/tick` para disparar fontes agendadas já vencidas.

@@ -23,6 +23,7 @@ import {
 } from '../components/ui/primitives';
 import { useStoredAnalyses } from './jobs/useStoredAnalyses';
 import { InsightsOverview } from './tracking/InsightsOverview';
+import { SourcesWorkspace } from './settings/SourcesWorkspace';
 import { SearchWorkspace } from './search/SearchWorkspace';
 import type {
   AggregatedSearchResponse,
@@ -658,6 +659,7 @@ function WorkspacePages() {
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
   const [aiSettings, setAiSettings] = useState<AiSettings>(defaultAiSettings);
   const [isLoadingAiSettings, setIsLoadingAiSettings] = useState(true);
+  const [aiSettingsLoadError, setAiSettingsLoadError] = useState(false);
   const [apiKeyDraft, setApiKeyDraft] = useState('');
   const vault = useVaultSession(fetchLocalApi);
   const [isSavingApiKey, setIsSavingApiKey] = useState(false);
@@ -762,6 +764,7 @@ function WorkspacePages() {
   const [providerAppId, setProviderAppId] = useState('');
   const [providerAppKey, setProviderAppKey] = useState('');
   const [providerKey, setProviderKey] = useState<ProviderKey>('jsearch');
+  const [providerEditorOpen, setProviderEditorOpen] = useState(false);
   const [isSavingProvider, setIsSavingProvider] = useState(false);
   const [providerSettingsMessage, setProviderSettingsMessage] = useState<
     string | null
@@ -1014,6 +1017,8 @@ function WorkspacePages() {
     let isMounted = true;
 
     const loadAiSettings = async () => {
+      setIsLoadingAiSettings(true);
+      setAiSettingsLoadError(false);
       try {
         const response = await fetchLocalApi('/api/ai/settings');
         if (!response.ok) {
@@ -1025,6 +1030,7 @@ function WorkspacePages() {
         }
       } catch {
         if (isMounted) {
+          setAiSettingsLoadError(true);
           setAiSettingsError(
             'Não foi possível consultar a configuração local da IA.',
           );
@@ -1466,6 +1472,13 @@ function WorkspacePages() {
   };
 
   const handleApiKeyRemoval = async () => {
+    if (
+      !window.confirm(
+        'Remover a chave OpenAI local? As análises salvas serão mantidas.',
+      )
+    )
+      return;
+    if (!(await vault.requireUnlocked())) return;
     setIsSavingApiKey(true);
     setAiSettingsError(null);
     setAiSettingsMessage(null);
@@ -1963,6 +1976,66 @@ function WorkspacePages() {
     }
   };
 
+  const selectProviderEditor = (provider: ProviderKey | null) => {
+    if (isSavingProvider) return;
+    if (provider) setProviderKey(provider);
+    setProviderEditorOpen(provider !== null);
+    setProviderCredential('');
+    setProviderAppId('');
+    setProviderAppKey('');
+    setProviderSettingsMessage(null);
+    setProviderSettingsError(null);
+  };
+  const manageProvider = async (
+    provider: ProviderKey,
+    operation: 'test' | 'remove',
+  ): Promise<string> => {
+    const current = providerStatuses.find((item) => item.provider === provider);
+    if (
+      current?.storage === 'encrypted_database' &&
+      !(await vault.requireUnlocked())
+    )
+      throw new Error('Operação cancelada. Nenhuma alteração foi feita.');
+    let response: Response;
+    try {
+      response = await fetchLocalApi(
+        `/api/search/providers/${provider}${operation === 'test' ? '/test' : ''}`,
+        { method: operation === 'test' ? 'POST' : 'DELETE' },
+      );
+    } catch {
+      throw new Error(
+        'Não foi possível conectar ao serviço local. Tente novamente.',
+      );
+    }
+    const payload = await response.json().catch(() => null);
+    if (!response.ok)
+      throw new Error(
+        typeof payload?.detail === 'string'
+          ? payload.detail
+          : 'A operação não foi concluída. Tente novamente.',
+      );
+    if (operation === 'remove') {
+      if (
+        !payload ||
+        payload.provider !== provider ||
+        typeof payload.configured !== 'boolean'
+      )
+        throw new Error('O serviço retornou uma resposta inesperada.');
+      setProviderStatuses((current) => [
+        ...current.filter((item) => item.provider !== provider),
+        payload,
+      ]);
+      selectProviderEditor(null);
+      await vault.refresh();
+      return 'Credencial local removida. Vagas e candidaturas foram mantidas.';
+    }
+    if (payload?.status !== 'connected')
+      throw new Error('O teste não retornou uma confirmação válida.');
+    return (
+      payload.message || 'A fonte respondeu ao teste. Nenhuma vaga foi salva.'
+    );
+  };
+
   const saveProviderCredential = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -2219,210 +2292,17 @@ function WorkspacePages() {
 
       <SourceWorkspacePage pathname={pathname}>
         <section
-          className="sources-section"
+          className="settings-page workspace-page history-page"
           id="route-sources"
-          aria-labelledby="sources-title"
+          aria-label="Histórico de execuções"
         >
-          <div className="sources-intro">
-            <p className="eyebrow">
-              {pathname === '/configuracoes/fontes'
-                ? 'CONFIGURAÇÕES · FONTES'
-                : pathname === '/agenda'
-                  ? 'AUTOMAÇÕES LOCAIS'
-                  : 'HISTÓRICO TÉCNICO'}
-            </p>
-            <h2 id="sources-title">
-              {pathname === '/configuracoes/fontes'
-                ? 'Fontes e integrações'
-                : pathname === '/agenda'
-                  ? 'Buscas agendadas'
-                  : 'Histórico de execuções'}
-            </h2>
-            <p>
-              {pathname === '/configuracoes/fontes'
-                ? 'Gerencie fontes públicas, integrações opcionais e credenciais protegidas pelo cofre local.'
-                : pathname === '/agenda'
-                  ? 'Automatize consultas sem bloquear a busca manual. As agendas só executam enquanto o Job Finder estiver aberto.'
-                  : 'Consulte as execuções auditáveis e os contadores de cada fonte sem misturar manutenção técnica à busca.'}
-            </p>
-          </div>
+          <PageHeader
+            eyebrow="CONFIGURAÇÕES"
+            title="Histórico de execuções"
+            description="Consulte registros técnicos e o histórico do perfil."
+          />
 
           <div className="sources-workspace">
-            {pathname === '/configuracoes/fontes' && (
-              <section
-                aria-labelledby="provider-credentials-title"
-                className="provider-credentials"
-              >
-                <div className="vault-status-card">
-                  <div>
-                    <span className="meta-label">SEGURANÇA LOCAL</span>
-                    <h3>Cofre local</h3>
-                    <p>
-                      API keys ficam cifradas no SQLite. Informe a senha uma
-                      única vez para desbloquear todos os providers e a chave
-                      OpenAI cadastrados nesta execução.
-                    </p>
-                  </div>
-                  <button
-                    className="text-button text-button-plain"
-                    type="button"
-                    onClick={vault.open}
-                  >
-                    Gerenciar cofre
-                  </button>
-                </div>
-                <div className="source-list-heading">
-                  <span className="meta-label" id="provider-credentials-title">
-                    CREDENCIAIS OPCIONAIS
-                  </span>
-                  <span className="mono-note">CIFRADAS NO BANCO LOCAL</span>
-                </div>
-                <p className="sources-feedback">
-                  Cadastre as chaves uma vez para ampliar a busca brasileira. A
-                  senha do cofre não é armazenada.
-                </p>
-                <form
-                  className="provider-credentials-form"
-                  onSubmit={saveProviderCredential}
-                >
-                  <div className="form-field">
-                    <label htmlFor="provider-key">Provider</label>
-                    <select
-                      id="provider-key"
-                      onChange={(event) =>
-                        setProviderKey(event.target.value as ProviderKey)
-                      }
-                      value={providerKey}
-                    >
-                      <option value="jsearch">JSearch</option>
-                      <option value="adzuna">Adzuna</option>
-                      <option value="jooble">Jooble</option>
-                    </select>
-                  </div>
-                  {providerKey === 'adzuna' ? (
-                    <>
-                      <div className="form-field">
-                        <label htmlFor="provider-app-id">Adzuna app ID</label>
-                        <input
-                          id="provider-app-id"
-                          onChange={(event) =>
-                            setProviderAppId(event.target.value)
-                          }
-                          type="password"
-                          value={providerAppId}
-                        />
-                      </div>
-                      <div className="form-field">
-                        <label htmlFor="provider-app-key">Adzuna app key</label>
-                        <input
-                          id="provider-app-key"
-                          onChange={(event) =>
-                            setProviderAppKey(event.target.value)
-                          }
-                          type="password"
-                          value={providerAppKey}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="form-field">
-                      <label htmlFor="provider-credential">API key</label>
-                      <input
-                        id="provider-credential"
-                        onChange={(event) =>
-                          setProviderCredential(event.target.value)
-                        }
-                        type="password"
-                        value={providerCredential}
-                      />
-                    </div>
-                  )}
-                  <button
-                    className="primary-button"
-                    disabled={isSavingProvider}
-                    type="submit"
-                  >
-                    {isSavingProvider ? 'Salvando…' : 'Salvar credencial'}
-                  </button>
-                </form>
-                {(providerSettingsError || providerSettingsMessage) && (
-                  <p
-                    className={`form-message${providerSettingsError ? ' is-error' : ' is-success'}`}
-                    role="status"
-                  >
-                    {providerSettingsError || providerSettingsMessage}
-                  </p>
-                )}
-                {providerStatuses.length > 0 && (
-                  <ul className="provider-status-list">
-                    {providerStatuses.map((status) => (
-                      <li key={status.provider}>
-                        <span>{status.provider}</span>
-                        <span className="provider-status-action">
-                          {status.configured
-                            ? status.unlocked
-                              ? 'disponível nesta execução'
-                              : 'aguardando desbloqueio acima'
-                            : 'não configurada'}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )}
-
-            {pathname === '/configuracoes/fontes' && (
-              <>
-                <div className="source-list-heading">
-                  <span className="meta-label">FONTES PÚBLICAS</span>
-                  <span className="mono-note">SEM CREDENCIAL</span>
-                </div>
-                {isLoadingSources && (
-                  <p className="sources-feedback" role="status">
-                    Carregando fontes…
-                  </p>
-                )}
-                {!isLoadingSources && sources.length === 0 && !sourcesError && (
-                  <p className="sources-feedback" role="status">
-                    Nenhuma fonte configurada.
-                  </p>
-                )}
-                {!isLoadingSources && sources.length > 0 && (
-                  <ul className="source-list">
-                    {sources.map((source) => (
-                      <li className="source-row" key={source.source_key}>
-                        <div>
-                          <span className="job-status">
-                            {source.enabled ? 'ATIVA' : 'PAUSADA'}
-                          </span>
-                          <h3>{source.display_name}</h3>
-                          <p>
-                            {source.per_run_limit} vagas por execução · limite
-                            diário {source.daily_limit}
-                          </p>
-                          {source.last_error && (
-                            <span className="source-error-note">
-                              {source.last_error}
-                            </span>
-                          )}
-                        </div>
-                        <div className="source-row-actions">
-                          <button
-                            className="text-button text-button-plain"
-                            onClick={() => void toggleSource(source)}
-                            type="button"
-                          >
-                            {source.enabled ? 'Pausar' : 'Ativar'}
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )}
-
             {pathname === '/configuracoes/historico' && (
               <>
                 <div className="source-list-heading source-run-heading">
@@ -2476,7 +2356,7 @@ function WorkspacePages() {
                           {(run.status === 'pending' ||
                             run.status === 'running') && (
                             <button
-                              className="text-button text-button-plain danger-button"
+                              className="ui-button ui-button--danger ui-button--default"
                               onClick={() => void cancelSourceRun(run)}
                               type="button"
                             >
@@ -2500,110 +2380,231 @@ function WorkspacePages() {
       </SourceWorkspacePage>
 
       <SourcesPage pathname={pathname}>
-        <section
-          className="preferences-section ai-settings-section"
-          id="ia"
-          aria-labelledby="ai-settings-title"
-        >
-          <div className="preferences-intro">
-            <p className="eyebrow">CHAVES E COFRE LOCAL</p>
-            <h2 id="ai-settings-title">Integrações protegidas</h2>
-            <p>
-              JSearch, Adzuna, Jooble e OpenAI ficam nesta área. As chaves são
-              criptografadas no banco local; a senha do cofre não é gravada e
-              desbloqueia todas as credenciais cadastradas nesta execução do
-              app.
-            </p>
-          </div>
-
-          <form className="preferences-form" onSubmit={handleApiKeySubmit}>
-            {!aiSettings.configured && (
-              <div className="form-field form-field-wide">
-                <label htmlFor="openai-api-key">Chave da API OpenAI</label>
-                <input
-                  autoComplete="new-password"
-                  id="openai-api-key"
-                  onChange={(event) => {
-                    setApiKeyDraft(event.target.value);
-                    setAiSettingsError(null);
-                    setAiSettingsMessage(null);
-                  }}
-                  placeholder="sk-…"
-                  spellCheck={false}
-                  type="password"
-                  value={apiKeyDraft}
-                />
-                <span>
-                  Modelo preparado: {aiSettings.model}. Nenhuma análise é
-                  iniciada automaticamente.
-                </span>
-              </div>
-            )}
-
-            <div className="form-field form-field-wide">
-              <span className="meta-label">
-                {isLoadingAiSettings
-                  ? 'VERIFICANDO CONFIGURAÇÃO…'
-                  : aiSettings.configured
-                    ? aiSettings.unlocked
-                      ? 'CHAVE CONFIGURADA E DESBLOQUEADA'
-                      : 'CHAVE CONFIGURADA E BLOQUEADA'
-                    : 'CHAVE AINDA NÃO CONFIGURADA'}
-              </span>
-              {!isLoadingAiSettings && (
-                <span>
-                  Armazenamento: {aiStorageLabel(aiSettings.storage)}.
-                </span>
-              )}
-            </div>
-
-            {(aiSettingsError || aiSettingsMessage) && (
-              <p
-                className={`form-message${aiSettingsError ? ' is-error' : ' is-success'}`}
-                role="status"
+        <SourcesWorkspace
+          statuses={providerStatuses}
+          loading={isLoadingProviders}
+          error={providerLoadError}
+          vaultUnlocked={Boolean(vault.status?.unlocked)}
+          onVault={vault.open}
+          editing={providerEditorOpen ? providerKey : null}
+          onEdit={selectProviderEditor}
+          onTest={(provider) => manageProvider(provider, 'test')}
+          onRemove={(provider) => manageProvider(provider, 'remove')}
+          editor={
+            <>
+              <form
+                className="provider-credentials-form"
+                onSubmit={saveProviderCredential}
               >
-                {aiSettingsError || aiSettingsMessage}
-              </p>
-            )}
-
-            <div className="form-actions form-field-wide">
-              {!aiSettings.configured && (
+                {providerKey === 'adzuna' ? (
+                  <>
+                    <div className="form-field">
+                      <label htmlFor="provider-app-id">Adzuna app ID</label>
+                      <input
+                        id="provider-app-id"
+                        onChange={(event) =>
+                          setProviderAppId(event.target.value)
+                        }
+                        type="password"
+                        value={providerAppId}
+                      />
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor="provider-app-key">Adzuna app key</label>
+                      <input
+                        id="provider-app-key"
+                        onChange={(event) =>
+                          setProviderAppKey(event.target.value)
+                        }
+                        type="password"
+                        value={providerAppKey}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="form-field">
+                    <label htmlFor="provider-credential">API key</label>
+                    <input
+                      id="provider-credential"
+                      onChange={(event) =>
+                        setProviderCredential(event.target.value)
+                      }
+                      type="password"
+                      value={providerCredential}
+                    />
+                  </div>
+                )}
                 <button
-                  className="primary-button"
-                  disabled={
-                    isSavingApiKey || aiSettings.storage === 'environment'
-                  }
+                  className="ui-button ui-button--primary ui-button--default"
+                  disabled={isSavingProvider}
                   type="submit"
                 >
-                  {isSavingApiKey ? 'Salvando…' : 'Criptografar e salvar chave'}
+                  {isSavingProvider ? 'Salvando…' : 'Salvar credencial'}
                 </button>
+              </form>
+              {(providerSettingsError || providerSettingsMessage) && (
+                <p
+                  className={`form-message${providerSettingsError ? ' is-error' : ' is-success'}`}
+                  role="status"
+                >
+                  {providerSettingsError || providerSettingsMessage}
+                </p>
               )}
-              {aiSettings.configured &&
-                aiSettings.storage === 'encrypted_database' && (
-                  <>
-                    <button
-                      className="text-button text-button-plain"
-                      disabled={isSavingApiKey || isTestingAiConnection}
-                      onClick={() => void handleOpenAiConnectionTest()}
-                      type="button"
-                    >
-                      {isTestingAiConnection
-                        ? 'Testando conexão…'
-                        : 'Testar conexão'}
-                    </button>
-                    <button
-                      className="text-button text-button-plain danger-button"
-                      disabled={isSavingApiKey}
-                      onClick={() => void handleApiKeyRemoval()}
-                      type="button"
-                    >
-                      Remover chave local
-                    </button>
-                  </>
+            </>
+          }
+          aiState={
+            isLoadingAiSettings
+              ? 'Verificando…'
+              : aiSettingsLoadError
+                ? 'Estado indisponível'
+                : aiSettings.configured
+                  ? aiSettings.storage === 'environment' ||
+                    vault.status?.unlocked
+                    ? 'Disponível'
+                    : 'Cofre bloqueado'
+                  : 'Não configurado'
+          }
+          ai={
+            <>
+              <form className="preferences-form" onSubmit={handleApiKeySubmit}>
+                {!aiSettings.configured && (
+                  <div className="form-field form-field-wide">
+                    <label htmlFor="openai-api-key">Chave da API OpenAI</label>
+                    <input
+                      autoComplete="new-password"
+                      id="openai-api-key"
+                      onChange={(event) => {
+                        setApiKeyDraft(event.target.value);
+                        setAiSettingsError(null);
+                        setAiSettingsMessage(null);
+                      }}
+                      placeholder="sk-…"
+                      spellCheck={false}
+                      type="password"
+                      value={apiKeyDraft}
+                    />
+                    <span>
+                      Modelo preparado: {aiSettings.model}. Nenhuma análise é
+                      iniciada automaticamente.
+                    </span>
+                  </div>
                 )}
-            </div>
-          </form>
-        </section>
+
+                <div className="form-field form-field-wide">
+                  <span className="meta-label">
+                    {isLoadingAiSettings
+                      ? 'VERIFICANDO CONFIGURAÇÃO…'
+                      : aiSettings.configured
+                        ? aiSettings.unlocked
+                          ? 'CHAVE CONFIGURADA E DESBLOQUEADA'
+                          : 'CHAVE CONFIGURADA E BLOQUEADA'
+                        : 'CHAVE AINDA NÃO CONFIGURADA'}
+                  </span>
+                  {!isLoadingAiSettings && (
+                    <span>
+                      Armazenamento: {aiStorageLabel(aiSettings.storage)}.
+                    </span>
+                  )}
+                </div>
+
+                {(aiSettingsError || aiSettingsMessage) && (
+                  <p
+                    className={`form-message${aiSettingsError ? ' is-error' : ' is-success'}`}
+                    role="status"
+                  >
+                    {aiSettingsError || aiSettingsMessage}
+                  </p>
+                )}
+
+                <div className="form-actions form-field-wide">
+                  {!aiSettings.configured && (
+                    <button
+                      className="ui-button ui-button--primary ui-button--default"
+                      disabled={
+                        isSavingApiKey || aiSettings.storage === 'environment'
+                      }
+                      type="submit"
+                    >
+                      {isSavingApiKey
+                        ? 'Salvando…'
+                        : 'Criptografar e salvar chave'}
+                    </button>
+                  )}
+                  {aiSettings.configured &&
+                    aiSettings.storage === 'encrypted_database' && (
+                      <>
+                        <button
+                          className="ui-button ui-button--ghost ui-button--default"
+                          disabled={isSavingApiKey || isTestingAiConnection}
+                          onClick={() => void handleOpenAiConnectionTest()}
+                          type="button"
+                        >
+                          {isTestingAiConnection
+                            ? 'Testando conexão…'
+                            : 'Testar conexão'}
+                        </button>
+                        <button
+                          className="ui-button ui-button--danger ui-button--default"
+                          disabled={isSavingApiKey}
+                          onClick={() => void handleApiKeyRemoval()}
+                          type="button"
+                        >
+                          Remover chave local
+                        </button>
+                      </>
+                    )}
+                </div>
+              </form>
+            </>
+          }
+          publicSources={
+            <>
+              {sourcesError && <Notice tone="error">{sourcesError}</Notice>}
+              {isLoadingSources && (
+                <p className="sources-feedback" role="status">
+                  Carregando fontes…
+                </p>
+              )}
+              {!isLoadingSources && sources.length === 0 && !sourcesError && (
+                <p className="sources-feedback" role="status">
+                  Nenhuma fonte configurada.
+                </p>
+              )}
+              {!isLoadingSources && sources.length > 0 && (
+                <ul className="source-list">
+                  {sources.map((source) => (
+                    <li className="source-row" key={source.source_key}>
+                      <div>
+                        <span className="job-status">
+                          {source.enabled ? 'ATIVA' : 'PAUSADA'}
+                        </span>
+                        <h3>{source.display_name}</h3>
+                        <p>
+                          {source.per_run_limit} vagas por execução · limite
+                          diário {source.daily_limit}
+                        </p>
+                        {source.last_error && (
+                          <span className="source-error-note">
+                            {source.last_error}
+                          </span>
+                        )}
+                      </div>
+                      <div className="source-row-actions">
+                        <button
+                          className="ui-button ui-button--ghost ui-button--default"
+                          onClick={() => void toggleSource(source)}
+                          type="button"
+                        >
+                          {source.enabled ? 'Pausar' : 'Ativar'}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          }
+        />
       </SourcesPage>
 
       <InsightsPage pathname={pathname}>
@@ -3006,75 +3007,66 @@ function WorkspacePages() {
 
       <HistoryPage pathname={pathname}>
         {profile && profileHistory.length > 0 && (
-          <section
-            className="history-section"
-            id="historico"
-            aria-labelledby="history-title"
-          >
-            <div className="history-intro">
-              <p className="eyebrow">HISTÓRICO DO PERFIL</p>
-              <h2 id="history-title">
-                Cada versão preserva o contexto da busca.
-              </h2>
-              <p>
-                Editar o perfil cria uma nova versão. As anteriores continuam
-                disponíveis para entender quando seus critérios mudaram.
-              </p>
-            </div>
+          <details className="settings-history-versions">
+            <summary>Versões do perfil</summary>
+            <section
+              className="history-section"
+              id="historico"
+              aria-labelledby="history-title"
+            >
+              <div className="history-intro">
+                <p className="eyebrow">HISTÓRICO DO PERFIL</p>
+                <h2 id="history-title">
+                  Cada versão preserva o contexto da busca.
+                </h2>
+                <p>
+                  Editar o perfil cria uma nova versão. As anteriores continuam
+                  disponíveis para entender quando seus critérios mudaram.
+                </p>
+              </div>
 
-            <ol className="history-list">
-              {[...profileHistory]
-                .sort(
-                  (left, right) => right.version_number - left.version_number,
-                )
-                .map((version) => {
-                  const isActive =
-                    version.version_number === profile.version_number;
-                  return (
-                    <li
-                      className={`history-row${isActive ? ' is-active' : ''}`}
-                      key={version.version_number}
-                    >
-                      <div className="history-version">
-                        <span>Versão {version.version_number}</span>
-                        {isActive && <strong>Ativa</strong>}
-                      </div>
-                      <div className="history-content">
-                        <h3>{version.criteria.target_roles.join(' · ')}</h3>
-                        <p>
-                          {version.criteria.skills.length > 0
-                            ? version.criteria.skills.join(', ')
-                            : 'Sem competências adicionais'}
-                        </p>
-                      </div>
-                      <time dateTime={version.created_at}>
-                        {formatVersionDate(version.created_at)}
-                      </time>
-                    </li>
-                  );
-                })}
-            </ol>
-          </section>
+              <ol className="history-list">
+                {[...profileHistory]
+                  .sort(
+                    (left, right) => right.version_number - left.version_number,
+                  )
+                  .map((version) => {
+                    const isActive =
+                      version.version_number === profile.version_number;
+                    return (
+                      <li
+                        className={`history-row${isActive ? ' is-active' : ''}`}
+                        key={version.version_number}
+                      >
+                        <div className="history-version">
+                          <span>Versão {version.version_number}</span>
+                          {isActive && <strong>Ativa</strong>}
+                        </div>
+                        <div className="history-content">
+                          <h3>{version.criteria.target_roles.join(' · ')}</h3>
+                          <p>
+                            {version.criteria.skills.length > 0
+                              ? version.criteria.skills.join(', ')
+                              : 'Sem competências adicionais'}
+                          </p>
+                        </div>
+                        <time dateTime={version.created_at}>
+                          {formatVersionDate(version.created_at)}
+                        </time>
+                      </li>
+                    );
+                  })}
+              </ol>
+            </section>
+          </details>
         )}
       </HistoryPage>
 
       <HistoryPage pathname={pathname}>
         {(!profile || profileHistory.length === 0) && (
-          <section
-            className="history-section"
-            aria-labelledby="history-empty-title"
-          >
-            <div className="history-intro">
-              <p className="eyebrow">HISTÓRICO TÉCNICO</p>
-              <h2 id="history-empty-title">
-                Ainda não há versões ou execuções
-              </h2>
-              <p>
-                Quando você salvar o perfil ou fizer uma busca, os registros
-                auditáveis aparecerão aqui.
-              </p>
-            </div>
-          </section>
+          <div className="settings-history-versions">
+            <Notice>Ainda não há versões do perfil salvas.</Notice>
+          </div>
         )}
       </HistoryPage>
 
@@ -3351,19 +3343,15 @@ function WorkspacePages() {
 
       <TrashPage pathname={pathname}>
         <section
-          className="trash-section"
+          className="workspace-page settings-page trash-page"
           id="lixeira"
-          aria-labelledby="trash-title"
+          aria-label="Lixeira recuperável"
         >
-          <div className="trash-intro">
-            <p className="eyebrow">RETENÇÃO LOCAL</p>
-            <h2 id="trash-title">Lixeira recuperável</h2>
-            <p>
-              Vagas removidas ficam disponíveis até a data de retenção.
-              Restaurar mantém o histórico; excluir definitivamente exige
-              confirmação.
-            </p>
-          </div>
+          <PageHeader
+            eyebrow="CONFIGURAÇÕES"
+            title="Lixeira recuperável"
+            description="Restaure vagas removidas ou gerencie a exclusão definitiva."
+          />
 
           <div className="trash-workspace">
             {isLoadingTrash && (
@@ -3399,14 +3387,14 @@ function WorkspacePages() {
                     </div>
                     <div className="trash-actions">
                       <button
-                        className="card-link"
+                        className="ui-button ui-button--secondary ui-button--default"
                         onClick={() => void restoreTrashJob(job.id)}
                         type="button"
                       >
                         Restaurar vaga
                       </button>
                       <button
-                        className="text-button text-button-plain danger-button"
+                        className="ui-button ui-button--danger ui-button--default"
                         onClick={() => void permanentlyDeleteTrashJob(job.id)}
                         type="button"
                       >
@@ -4333,18 +4321,15 @@ function WorkspacePages() {
 
       <PreferencesPage pathname={pathname}>
         <section
-          className="preferences-section"
+          className="workspace-page settings-page preferences-page"
           id="preferencias"
-          aria-labelledby="preferences-title"
+          aria-label="Preferências gerais"
         >
-          <div className="preferences-intro">
-            <p className="eyebrow">PREFERÊNCIAS LOCAIS</p>
-            <h2 id="preferences-title">Preferências gerais</h2>
-            <p>
-              Elas orientam idioma, moeda, datas e retenção sem enviar dados
-              para a nuvem.
-            </p>
-          </div>
+          <PageHeader
+            eyebrow="CONFIGURAÇÕES"
+            title="Preferências gerais"
+            description="Ajuste idioma, moeda, fuso horário e retenção dos dados."
+          />
 
           <form className="preferences-form" onSubmit={handlePreferencesSubmit}>
             <div className="form-field">
@@ -4435,7 +4420,7 @@ function WorkspacePages() {
 
             <div className="form-actions form-field-wide">
               <button
-                className="primary-button"
+                className="ui-button ui-button--primary ui-button--default"
                 disabled={isSavingPreferences}
                 type="submit"
               >

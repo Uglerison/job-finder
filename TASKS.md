@@ -1162,11 +1162,15 @@ Plano detalhado: [docs/ux-redesign-plan.md](./docs/ux-redesign-plan.md).
   - Evidência: TDD Red → Green; 99 testes frontend aprovados, tipos/build/lint verdes. Quatro páginas conferidas no Edge em 375/768/1280 px, sem overflow da página.
   - Documentação: README atualizado; dados locais e endpoints existentes preservados.
 
-- [ ] **JF-819 — Simplificar fontes, credenciais e configurações**
+- [x] **JF-819 — Simplificar fontes, credenciais e configurações**
   - Depende de: JF-813 e JF-814.
   - Teste primeiro: provider não configurado/configurado/bloqueado/disponível, cadastro, teste, remoção e erro seguro devem ser cobertos.
   - Aceite: `/configuracoes/fontes` usa cards de provider e separa credenciais de fontes públicas; o formulário do cofre sai da página e fica apenas no diálogo global.
   - Aceite adicional: preferências, histórico e lixeira mantêm ações técnicas em segundo plano e seguem a mesma hierarquia visual.
+  - Implementação: JSearch, Adzuna e Jooble possuem cards e editores isolados; teste e remoção exigem confirmação e exibem o resultado no próprio provider. OpenAI permanece separada e recolhida, enquanto fontes públicas não se confundem com credenciais.
+  - Integridade: teste de conexão não persiste vagas; remoção apaga somente a chave escolhida e mantém vagas/candidaturas; chaves vindas do ambiente não podem ser removidas pela interface. O cofre continua global, sem senha repetida nos providers.
+  - Evidência: TDD Red → Green; 108 testes frontend e 174 testes backend aprovados; lint, tipos e build web verdes. Fontes, preferências, histórico e lixeira conferidos no Edge em 375/768/1280 px, sem overflow.
+  - Documentação: README atualizado com fluxo, estados e contratos dos providers; executável reservado à JF-820.
 
 - [ ] **JF-820 — Validar, documentar e empacotar o redesenho**
   - Depende de: JF-811 a JF-819.

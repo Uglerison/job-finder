@@ -1,5 +1,6 @@
 """Unified job-search API that keeps provider details server-side."""
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -24,7 +25,7 @@ from job_finder.aggregated_search import (
 )
 from job_finder.secret_store import EncryptedDatabaseVault, SecretStoreError
 from job_finder.settings import Settings
-from job_finder.source_adapters import SourceRegistry
+from job_finder.source_adapters import SourceHttpError, SourceRateLimitError, SourceRegistry
 from job_finder.source_dedup import find_exact_match, ingest_candidate
 from job_finder.source_models import ensure_default_sources
 
@@ -226,6 +227,74 @@ def save_provider_credential(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(error),
         ) from error
+
+
+class ProviderConnectionResponse(BaseModel):
+    provider: ProviderName
+    status: Literal["connected"]
+    message: str
+
+
+@router.delete("/providers/{provider}", response_model=ProviderCredentialStatus)
+def remove_provider_credential(
+    provider: ProviderName, request: Request
+) -> ProviderCredentialStatus:
+    """Remove only the selected local credential; never change environment settings."""
+    try:
+        current = _provider_status(request, provider)
+        if current.storage == "environment":
+            raise HTTPException(409, detail="Remova a variável de ambiente fora do aplicativo.")
+        vault = _vault(request)
+        if current.storage == "encrypted_database" and not vault.is_unlocked():
+            raise HTTPException(423, detail="Desbloqueie o cofre antes de remover a credencial.")
+        vault.delete_provider_secret(provider)
+        return _provider_status(request, provider)
+    except SecretStoreError:
+        raise HTTPException(503, detail="Não foi possível remover a credencial local.") from None
+
+
+@router.post("/providers/{provider}/test", response_model=ProviderConnectionResponse)
+async def test_provider_connection(
+    provider: ProviderName, request: Request, session: SessionDependency
+) -> ProviderConnectionResponse:
+    """Explicit bounded provider probe, without job ingestion or aggregate fallback."""
+    try:
+        current = _provider_status(request, provider)
+        if not current.configured:
+            raise HTTPException(409, detail="Cadastre uma credencial antes de testar.")
+        if not current.unlocked:
+            raise HTTPException(423, detail="Desbloqueie o cofre antes de testar.")
+        selected = next(
+            item for item in _providers(request, session) if item.provider_key == provider
+        )
+        await asyncio.wait_for(
+            selected.search(JobSearchParams(query="analista de dados", limit=1)), timeout=20
+        )
+        return ProviderConnectionResponse(
+            provider=provider,
+            status="connected",
+            message="A fonte respondeu ao teste. Nenhuma vaga foi salva.",
+        )
+    except HTTPException:
+        raise
+    except SourceRateLimitError:
+        raise HTTPException(
+            429, detail="Limite da fonte atingido. Aguarde a renovação da cota."
+        ) from None
+    except SourceHttpError as error:
+        if error.status_code in (401, 403):
+            raise HTTPException(
+                error.status_code,
+                detail="A fonte recusou o acesso. Confira a chave e a assinatura do serviço.",
+            ) from None
+        raise HTTPException(
+            502, detail="A fonte respondeu com erro. Tente novamente mais tarde."
+        ) from None
+    except (asyncio.TimeoutError, TimeoutError):
+        raise HTTPException(504, detail="A fonte não respondeu no tempo limite.") from None
+    except Exception:
+        # Exception text can contain credential material. Never echo it into the UI.
+        raise HTTPException(502, detail="Não foi possível testar esta fonte agora.") from None
 
 
 @router.post("/providers/{provider}/unlock", response_model=ProviderCredentialStatus)

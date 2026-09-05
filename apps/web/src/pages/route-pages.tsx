@@ -78,10 +78,7 @@ export function TrashPage(props: RoutePageProps) {
   return <SingleRoutePage {...props} route="/configuracoes/lixeira" />;
 }
 
-const sourceWorkspaceRoutes: readonly AppPath[] = [
-  '/configuracoes/fontes',
-  '/configuracoes/historico',
-];
+const sourceWorkspaceRoutes: readonly AppPath[] = ['/configuracoes/historico'];
 
 export function SourceWorkspacePage({ children, pathname }: RoutePageProps) {
   return (

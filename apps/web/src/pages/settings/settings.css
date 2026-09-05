@@ -1,0 +1,213 @@
+.settings-page {
+  max-width: 66rem;
+}
+.settings-vault-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  border-block: 1px solid var(--ink-faint);
+  padding: 0.75rem 0;
+}
+.settings-vault-row p {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  max-width: 60ch;
+  margin: 0;
+}
+.provider-cards {
+  display: grid;
+  gap: 1rem;
+}
+.provider-cards > h2,
+.openai-settings > h2,
+.public-source-settings > h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.provider-card {
+  gap: 0.85rem;
+}
+.provider-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.provider-card-top h3 {
+  font-size: 1.1rem;
+  margin: 0 0 0.4rem;
+}
+.provider-card-top p,
+.openai-settings > p,
+.public-source-settings > p {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  margin: 0;
+  line-height: 1.6;
+}
+.provider-card-top .ui-badge {
+  flex-shrink: 0;
+}
+.provider-card-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+.provider-card-actions > span {
+  color: var(--ink-soft);
+  padding-right: 0.5rem;
+}
+.provider-editor {
+  border-top: 1px solid var(--ink-faint);
+  padding-top: 1rem;
+}
+.provider-confirm {
+  background: var(--paper-sunken);
+  padding: 1rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.provider-confirm p {
+  margin: 0 0 0.75rem;
+}
+.provider-confirm button + button {
+  margin-left: 0.5rem;
+}
+.sources-settings .provider-credentials-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 1rem;
+}
+.sources-settings .form-field {
+  min-width: 0;
+}
+.settings-page input,
+.settings-page select {
+  min-height: 2.75rem;
+  font-size: 0.9rem;
+  max-width: 100%;
+}
+.settings-page .form-field label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.settings-page .form-field > span {
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+.settings-page .preferences-form {
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+.settings-page summary {
+  cursor: pointer;
+  padding: 0.75rem 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.settings-page .source-list {
+  margin: 0.75rem 0 0;
+}
+.settings-page .source-row {
+  padding: 1rem 0;
+  border: 0;
+  border-top: 1px solid var(--ink-faint);
+  background: transparent;
+  border-radius: 0;
+}
+.settings-page .source-row h3 {
+  font-size: 1rem;
+  margin: 0.5rem 0;
+}
+.settings-page .sources-workspace,
+.settings-page .trash-workspace {
+  padding: 0;
+  min-width: 0;
+}
+.settings-page .source-run-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 1rem;
+  padding: 1rem;
+}
+.settings-page .source-run-row h3 {
+  overflow-wrap: anywhere;
+}
+.settings-page .source-run-metrics {
+  flex-wrap: wrap;
+}
+.settings-page .trash-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--ink-faint);
+  background: transparent;
+}
+.settings-page .trash-item > div {
+  min-width: 0;
+}
+.settings-page .trash-item h3 {
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.settings-page .trash-actions {
+  flex-wrap: wrap;
+}
+.settings-history-versions {
+  margin: 0 auto 2rem;
+  max-width: 66rem;
+  padding: 0 1.5rem;
+}
+.settings-history-versions summary {
+  padding: 1rem 0;
+  cursor: pointer;
+  font-weight: 600;
+}
+.settings-history-versions .history-section {
+  padding: 0;
+  max-width: none;
+}
+@media (max-width: 44rem) {
+  .settings-vault-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .provider-card-top {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .sources-settings .provider-credentials-form,
+  .settings-page .preferences-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-page .source-row,
+  .settings-page .source-run-row {
+    grid-template-columns: minmax(0, 1fr);
+    display: grid;
+  }
+  .settings-page .source-row-actions,
+  .settings-page .trash-actions {
+    justify-content: flex-start;
+  }
+  .settings-history-versions {
+    padding: 0 1rem;
+  }
+  .settings-page button,
+  .settings-page a {
+    min-height: 2.75rem;
+  }
+}

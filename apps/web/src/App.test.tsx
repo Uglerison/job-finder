@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
@@ -89,7 +95,7 @@ describe('App', () => {
     expect(
       screen.getByRole('heading', { name: 'Fontes e integrações' }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('API key')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'JSearch' })).toBeInTheDocument();
     expect(
       screen.queryByLabelText('Cargo ou palavra-chave'),
     ).not.toBeInTheDocument();
@@ -233,6 +239,11 @@ describe('App', () => {
     expect(
       screen.queryByLabelText('Crie uma senha para o cofre local'),
     ).not.toBeInTheDocument();
+    const editProvider = within(
+      screen.getByRole('region', { name: 'JSearch' }),
+    ).getByRole('button', { name: 'Cadastrar credencial' });
+    await waitFor(() => expect(editProvider).toBeEnabled());
+    fireEvent.click(editProvider);
     fireEvent.change(screen.getByLabelText('API key'), {
       target: { value: 'jsearch-local-key' },
     });
@@ -303,7 +314,11 @@ describe('App', () => {
     fireEvent.change(await screen.findByLabelText('Senha do cofre'), {
       target: { value: 'senha local com doze' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Desbloquear cofre' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Desbloquear cofre',
+      }),
+    );
     await screen.findByRole('button', { name: 'Cofre desbloqueado' });
     expect(
       await screen.findByText('CHAVE CONFIGURADA E DESBLOQUEADA'),
@@ -848,8 +863,9 @@ describe('App', () => {
     renderAt('/configuracoes/fontes');
 
     expect(
-      await screen.findByRole('heading', { name: 'Integrações protegidas' }),
+      await screen.findByRole('heading', { name: 'OpenAI · análise de vagas' }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Configurar OpenAI'));
     const input = screen.getByLabelText('Chave da API OpenAI');
     expect(input).toHaveAttribute('type', 'password');
     fireEvent.change(input, { target: { value: apiKey } });
