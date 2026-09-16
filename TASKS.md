@@ -1,6 +1,6 @@
 # Job Finder — controle de tarefas
 
-> Versão: 1.2 — 16/08/2026
+> Versão: 1.3 — 01/09/2026
 > Fonte de escopo: [PLANEJAMENTO.md](./PLANEJAMENTO.md)
 
 Este arquivo é a fonte de verdade para acompanhar a implementação do MVP. O escopo detalhado continua no planejamento; aqui ficam a ordem, as dependências, os critérios de aceite e o progresso.
@@ -75,9 +75,11 @@ Uma tarefa só pode ser marcada como concluída quando:
 | E5 — GPT-5.6 Luna | JF-400–JF-412 | Concluída | Análise explicável e controlada |
 | E6 — Dashboard e agenda | JF-500–JF-508 | Em andamento | Métricas operacionais consistentes |
 | E7 — Segurança e empacotamento | JF-600–JF-613 | Concluído | Release candidata Windows |
-| E8 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
+| E8 — UX e arquitetura de rotas | JF-800–JF-809 | Em revisão | Fluxos separados em rotas navegáveis |
+| E8.1 — Redesenho de UX | JF-810–JF-820 | Em andamento | Jornada clara e cofre global acessível |
+| E9 — Beta e lançamento | JF-700–JF-707 | Pendente | MVP `v0.1.0` validado |
 
-**Próxima etapa:** `E8 — Beta e lançamento`, após as decisões pendentes de E0.
+**Próxima etapa:** `E8.1 — Redesenho de UX`, antes do beta e lançamento.
 
 ## Marcos
 
@@ -1080,6 +1082,105 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
   - Aceite: uma única senha desbloqueia todos os providers cadastrados e a chave OpenAI da sessão; formulários individuais não repetem a senha.
   - Evidência: `POST /api/search/providers/unlock-all`, ação “Desbloquear credenciais cadastradas”, estado compartilhado e teste de API com múltiplos providers.
 
+- [x] **JF-809 — Corrigir transições encerradas e paginação do pipeline**
+  - Teste primeiro: mover candidatura para fase terminal deve solicitar e enviar o motivo; candidaturas além da primeira página devem continuar visíveis no pipeline.
+  - Aceite: `rejected`, `withdrawn` e `expired` não retornam a fase silenciosamente por ausência de motivo, e a caixa carrega todas as páginas de vagas persistidas.
+  - Evidência: seletor de motivo no pipeline, `fetchAllJobs` com paginação e testes Vitest para encerramento e segunda página; o banco local foi conferido sem limite de 10 candidaturas (18 registros persistidos).
+
+## E8.1 — Redesenho de UX e acesso global ao cofre
+
+Plano detalhado: [docs/ux-redesign-plan.md](./docs/ux-redesign-plan.md).
+
+- [x] **JF-810 — Auditar a hierarquia visual e a jornada atual**
+  - Aceite: problemas de navegação, cofre, páginas, feedback, responsividade e arquitetura frontend registrados com uma proposta objetiva.
+  - Evidência: diagnóstico, arquitetura de informação, fluxo global do cofre, critérios de saída e matriz visual documentados em `docs/ux-redesign-plan.md`.
+
+- [x] **JF-811 — Consolidar tokens e componentes-base da interface**
+  - Depende de: JF-810.
+  - Teste primeiro: variantes, estados desabilitado/erro/carregando e nomes acessíveis dos componentes devem ter testes isolados.
+  - Aceite: `Button`, `Card`, `Badge`, `Field`, `PageHeader`, `Notice`, `EmptyState` e estados de carregamento substituem variações concorrentes sem alterar regras de negócio.
+  - Validação visual: papel, tinta, ocre, tipografia editorial, divisórias, raios e espaçamento comparados à referência local do Se Prepara AI.
+  - Evidência: primitives tipados e acessíveis em `apps/web/src/components/ui/`, com 5 testes isolados; format, lint, build e testes aprovados.
+
+- [x] **JF-812 — Decompor o frontend em layout, rotas e estado compartilhado**
+  - Depende de: JF-810.
+  - Teste primeiro: cada rota renderiza apenas sua página e a navegação preserva dados carregados/persistidos.
+  - Aceite: `App.tsx` deixa de renderizar todas as páginas por grandes blocos condicionais; páginas possuem componentes próprios, layout comum e acesso seguro ao estado persistido.
+  - Restrição: nenhuma mudança de rota pode apagar perfil, filtros, vagas, candidaturas, agenda ou estado do cofre em memória.
+  - Evidência: `App.tsx` reduzido à entrada; `AppLayout`, páginas nomeadas e `useBrowserNavigation` isolados; teste comprova persistência da busca entre `/busca` e `/vagas`; suíte aprovada com 36 testes.
+
+- [x] **JF-813 — Redesenhar o shell e simplificar a navegação global**
+  - Depende de: JF-811 e JF-812.
+  - Teste primeiro: item ativo, navegação por teclado, menu mobile, `aria-expanded`, fechamento externo e ausência de links duplicados.
+  - Aceite: marca leva ao início; desktop prioriza Buscar, Vagas, Candidaturas, Agenda e Painel; configurações ficam em menu utilitário; mobile usa menu compacto sem rolagem horizontal.
+  - Validação visual: 375, 768 e 1280 px sem colisão, quebra acidental ou conteúdo colado nas bordas.
+  - Evidência: AppNavigation simplificada, menu móvel com Escape/clique externo/fechamento após navegação e menu utilitário; testes adicionados e suíte aprovada (32 testes).
+
+- [x] **JF-814 — Tornar o cofre acessível globalmente**
+  - Depende de: JF-811 a JF-813.
+  - Teste primeiro: o botão do cofre existe em todas as rotas; criação, desbloqueio único, erro, bloqueio, Enter, Escape, foco inicial e retorno de foco são reproduzidos antes da implementação.
+  - Aceite: cabeçalho mostra `Cofre bloqueado`/`Cofre desbloqueado`; um diálogo global desbloqueia OpenAI e todos os providers; formulários individuais não repetem a senha.
+  - Aceite adicional: ações que exigem credenciais bloqueadas abrem o diálogo correto e permitem retomar o fluxo depois do sucesso.
+  - Implementação: sessão global via `/api/vault`, criação sem exigir uma primeira chave, desbloqueio atômico de credenciais existentes, gravação usando a sessão e limpeza no bloqueio/encerramento do serviço. Validação inválida não devolve senhas; operações concorrentes são serializadas.
+  - Evidência: TDD Red → Green; 55 testes Vitest e 168 Pytest aprovados; lint, tipos, Prettier, formatação Python dos arquivos alterados e build web aprovados.
+  - Navegador: Edge headless com dados fictícios em 375/768/1280 px e 375×667; cabeçalho sem overflow, diálogo com margem, Enter/Escape, Tab/Shift+Tab, foco inicial/retorno e navegação mobile verificados.
+  - Observação: teste de concorrência de candidaturas falhou na primeira execução geral (200/409), passou isoladamente e na repetição completa; pipeline não foi alterado nesta tarefa.
+  - Documentação: README atualizado. Build web atualizado; rebuild de `JobFinder.exe` permanece na JF-820. JF-815 não iniciada.
+
+- [x] **JF-815 — Redesenhar o início como central de próxima ação**
+  - Depende de: JF-813 e JF-814.
+  - Teste primeiro: estados novo usuário, cofre bloqueado, sem fonte, com vagas e com candidaturas produzem CTA e resumo corretos.
+  - Aceite: página inicial compacta mostra próxima ação, estado operacional, métricas essenciais e atividade recente sem hero excessivo ou explicações técnicas longas.
+  - Implementação: página própria `HomeOverview` com lógica de prioridade testável, reaproveitando o estado compartilhado; removidos hero, percentuais artificiais e CTAs repetidos. Contagens completas, fases terminais excluídas das candidaturas ativas e até cinco atividades persistidas.
+  - Evidência: TDD Red → Green; 72 testes Vitest, lint, tipos, Prettier e build aprovados. Edge headless em 375/768/1280 px e cenários novo/vazio/bloqueado/erro em 375×667; ação primária no primeiro viewport, sem overflow e cofre global acessível.
+  - Documentação: README atualizado; somente frontend alterado, sem nova persistência ou chamadas externas. Executável permanece para JF-820.
+
+- [x] **JF-816 — Redesenhar a busca como uma tarefa única**
+  - Depende de: JF-813 e JF-814.
+  - Teste primeiro: busca pronta, cofre bloqueado, provider ausente, limite, vazio, parcial, erro e sucesso devem ter estados distintos.
+  - Aceite: formulário e CTA ficam no primeiro viewport; diagnóstico técnico permanece recolhido; resultado indica claramente o que aconteceu e conduz para `/vagas`.
+  - Implementação: `SearchWorkspace` próprio em `/busca`, removido do workspace de configurações. Formulário compacto, fontes/cofre visíveis, seis resultados distintos e diagnóstico recolhido; avaliação e candidaturas ficam em `/vagas`.
+  - Integridade: filtros e consulta enviada preservados na navegação; nova busca remove resposta antiga; aviso independente para falha ao atualizar a caixa; IDs persistidos únicos separados de resultados sem vínculo. Link externo do Se Prepara AI mantido.
+  - Evidência: TDD Red → Green, 18 testes específicos de busca e 90 testes frontend aprovados; lint, tipos, Prettier e build verdes. Edge headless em 375/768/1280 px, CTA no primeiro viewport sem overflow. Estados bloqueado/sem fonte/vazio/parcial/limite/falha/sucesso conferidos em 375×667; conclusão leva foco ao resultado.
+  - Documentação: README atualizado. Sem alteração do backend, de dados reais ou de credenciais; validação com fontes simuladas. Executável permanece para JF-820.
+
+- [x] **JF-817 — Redesenhar a caixa de vagas e tornar a análise evidente**
+  - Depende de: JF-811 a JF-814.
+  - Teste primeiro: filtros, seleção, detalhe, análise pendente/concluída, marcar aplicada e paginação completa têm testes de regressão.
+  - Aceite: lista e detalhe possuem hierarquia estável; a análise pertence visualmente à vaga analisada; ações principais não competem entre si.
+  - Implementação: lista/detalhe em áreas próprias, seleção destacada, filtros salvos recolhidos, contagem completa e análise pendente por vaga. Detalhe apresenta resumo, aderência, forças, lacunas e evidências.
+  - Integridade: resposta atrasada de uma vaga não substitui a seleção mais recente; aplicação continua explícita e falhas aparecem na caixa. Persistência e paginação preservadas.
+  - Evidência: TDD Red → Green, 94 testes frontend aprovados, build e lint verdes; Edge em 375/768/1280 px com análise simulada, sem overflow.
+  - Documentação: README atualizado; executável reservado à JF-820.
+
+- [x] **JF-818 — Redesenhar candidaturas e áreas de acompanhamento**
+  - Depende de: JF-811 a JF-813 e JF-817.
+  - Teste primeiro: mudança de fase, motivo terminal, agenda vazia/preenchida, métricas e navegação entre acompanhamento devem permanecer funcionais.
+  - Aceite: pipeline é legível em desktop e vira lista por fase no mobile; Agenda, Insights e Painel usam os mesmos cards, filtros e feedbacks compartilhados.
+  - Implementação: filtro de fase, quadro desktop/lista mobile, próximos passos em estados vazios; Agenda com formulário próprio de busca automática e seção de compromissos; Painel e Insights com cabeçalhos e feedbacks padronizados.
+  - Integridade: Insights e Vagas recuperam análises persistidas via leitura local, em lotes limitados e sem acionar IA. Falha de leitura não aparece como ausência de análise. Agenda nasce pausada, bloqueia envio durante gravação e não depende de filtros de outra rota.
+  - Evidência: TDD Red → Green; 99 testes frontend aprovados, tipos/build/lint verdes. Quatro páginas conferidas no Edge em 375/768/1280 px, sem overflow da página.
+  - Documentação: README atualizado; dados locais e endpoints existentes preservados.
+
+- [x] **JF-819 — Simplificar fontes, credenciais e configurações**
+  - Depende de: JF-813 e JF-814.
+  - Teste primeiro: provider não configurado/configurado/bloqueado/disponível, cadastro, teste, remoção e erro seguro devem ser cobertos.
+  - Aceite: `/configuracoes/fontes` usa cards de provider e separa credenciais de fontes públicas; o formulário do cofre sai da página e fica apenas no diálogo global.
+  - Aceite adicional: preferências, histórico e lixeira mantêm ações técnicas em segundo plano e seguem a mesma hierarquia visual.
+  - Implementação: JSearch, Adzuna e Jooble possuem cards e editores isolados; teste e remoção exigem confirmação e exibem o resultado no próprio provider. OpenAI permanece separada e recolhida, enquanto fontes públicas não se confundem com credenciais.
+  - Integridade: teste de conexão não persiste vagas; remoção apaga somente a chave escolhida e mantém vagas/candidaturas; chaves vindas do ambiente não podem ser removidas pela interface. O cofre continua global, sem senha repetida nos providers.
+  - Evidência: TDD Red → Green; 108 testes frontend e 174 testes backend aprovados; lint, tipos e build web verdes. Fontes, preferências, histórico e lixeira conferidos no Edge em 375/768/1280 px, sem overflow.
+  - Documentação: README atualizado com fluxo, estados e contratos dos providers; executável reservado à JF-820.
+
+- [x] **JF-820 — Validar, documentar e empacotar o redesenho**
+  - Depende de: JF-811 a JF-819.
+  - Teste primeiro: fluxos ponta a ponta Desbloquear → Buscar → Avaliar → Aplicar → Acompanhar e reinício do app.
+  - Aceite: Vitest, lint, tipos, Prettier e build via `pnpm` verdes; matriz visual 375/768/1280 aprovada; contraste, foco, overflow e mensagens revisados.
+  - Entrega: atualizar README, rebuildar `JobFinder.exe` e validar smoke do executável somente depois da aprovação visual.
+  - Implementação: teste de aceitação percorre o fluxo principal entre rotas e o Vitest usa um worker estável no Windows. Conexões SQLite de backup são fechadas explicitamente e o smoke empacotado encerra o processo de forma graciosa antes de limpar o perfil isolado.
+  - Evidência: 109 testes frontend e 174 backend aprovados; Oxlint, Prettier, TypeScript/build, Ruff e MyPy verdes. As 13 rotas passaram em 375/768/1280 px (39 casos), com um único H1, sem overflow ou erro de página.
+  - Empacotamento: `JobFinder.exe` reconstruído na raiz com Python 3.12/PyInstaller 6.11.0, SHA-256 `9b88462d6b64db0512068704266b84fd1877ceea8873982a1847fcd15502e9e7`; duas inicializações empacotadas com health, frontend, banco e encerramento aprovados. Atalho criado na Área de Trabalho.
+
 ## E9 — Beta e lançamento
 
 - [ ] **JF-700 — Definir protocolo do beta**
@@ -1130,6 +1231,10 @@ Concluído quando o pacote Windows passar em máquina limpa, com backup, restaur
     todo o acompanhamento.
 11. JF-345 → JF-350 para agendar a busca unificada, persistir cada vaga no SQLite e consultar o
     histórico depois, inclusive após reiniciar o aplicativo.
+12. JF-810 → JF-814 para consolidar componentes, separar páginas, simplificar a navegação e tornar
+    o cofre acessível globalmente.
+13. JF-815 → JF-820 para migrar cada jornada, validar os viewports e rebuildar o executável antes
+    do beta.
 
 Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e permite validar arquitetura, experiência e custo cedo.
 
@@ -1202,6 +1307,11 @@ Esse caminho entrega a primeira fatia vertical antes de multiplicar conectores e
 | 16/08/2026 | JF-607/JF-608/JF-609 | Concluídas | Spec PyInstaller single-file, builder PowerShell com PyInstaller 6.11.0, manifest SHA-256 e smoke do executável na raiz em perfil Windows isolado. |
 | 16/08/2026 | JF-610/JF-611/JF-612/JF-613 | Concluídas | Revisão de privacidade, benchmark (979 ms startup/86,59 MB), README de instalação/uso e executável candidato na raiz validados. |
 | 16/08/2026 | JF-800–JF-808 | Concluídas | UX reorganizada em rotas reais com layout compartilhado, providers/API keys/cofre em `/configuracoes/fontes`, desbloqueio único de credenciais, agenda/histórico separados, `/insights` dedicado a IA, navegação Principal/Acompanhar refinada e 23 testes Vitest verdes. |
+| 17/08/2026 | JF-809 | Concluída | Transições para fases encerradas agora solicitam motivo e a tela do pipeline percorre todas as páginas de vagas; conferência do SQLite local confirmou 18 candidaturas persistidas e nenhum limite de 10. |
+| 01/09/2026 | JF-810 | Concluída | Auditoria registrou o excesso de navegação, cofre enterrado, mistura de responsabilidades e acúmulo de CSS/componentes; plano E8.1 prioriza shell simples, cofre global, páginas independentes e validação visual/TDD. |
+| 02/09/2026 | JF-814 | Concluída | Cofre global nas 13 rotas, desbloqueio único OpenAI/providers, retomada de ações e senha apenas no diálogo; sessão protegida contra concorrência, validação sem eco de segredos e reinício testado. 55 Vitest + 168 Pytest; README e build web atualizados. |
+| 02/09/2026 | JF-815 | Concluída | Início compacto com próxima ação, estado operacional, métricas sem limite de dez e atividade recente; 72 Vitest, qualidade/build e validação responsiva aprovados. README atualizado. |
+| 05/09/2026 | JF-816–JF-820 | Concluídas | Fluxo Configurar → Buscar → Avaliar → Aplicar → Acompanhar redesenhado, 109 Vitest + 174 Pytest e matriz de 39 combinações responsivas aprovados; executável reconstruído e iniciado duas vezes em perfil isolado. |
 
 ## Bloqueios e decisões pendentes
 

@@ -77,11 +77,51 @@ pnpm --filter job-finder-web build
 .\.venv\Scripts\python.exe scripts\run_local.py
 ```
 
-Para cadastrar credenciais, abra **Configurações → Fontes e integrações**. As
-chaves OpenAI e dos providers são gravadas apenas como ciphertext no SQLite
-local; crie e guarde uma senha de cofre com pelo menos 12 caracteres. Informe-a
-uma vez em **Desbloquear credenciais cadastradas** para liberar todas as
-integrações durante a sessão. A senha não é persistida.
+O botão do cofre fica no cabeçalho de todas as páginas, inclusive no celular.
+No primeiro uso, escolha **Configurar cofre** e confirme uma senha com pelo
+menos 12 caracteres. Para cadastrar chaves, abra **Configurações → Fontes e
+integrações**: OpenAI e providers usam a mesma sessão, sem repetir a senha.
+
+### Desbloquear e bloquear o cofre
+
+- **Cofre bloqueado** abre o diálogo para liberar todas as chaves cadastradas.
+- **Cofre desbloqueado** abre o diálogo com a opção **Bloquear cofre**.
+- Salvar uma chave, buscar com providers criptografados ou analisar com OpenAI
+  abre o diálogo quando necessário e retoma a ação após o desbloqueio.
+  Fechar ou pressionar Escape cancela a ação pendente, sem perder os filtros.
+- Enter confirma o formulário; o foco fica no diálogo e volta ao controle de
+  origem ao fechar.
+- Navegar, recarregar a página ou fechar apenas a aba não bloqueia a sessão.
+  Para bloquear, use o botão do cofre ou encerre o serviço local.
+- Perfil, vagas, candidaturas e fontes públicas continuam acessíveis sem
+  desbloquear. Chaves definidas por variável de ambiente não dependem do cofre.
+
+As chaves ficam cifradas no SQLite. A senha e as chaves decifradas permanecem
+somente na memória do processo enquanto o cofre está aberto; não são
+persistidas em disco, localStorage ou sessionStorage. Ao reiniciar o serviço,
+desbloqueie novamente. Guarde a senha: não há recuperação automática.
+
+Cofres existentes continuam funcionando, sem recadastrar chaves quando todas
+usam a mesma senha. Se credenciais antigas tiverem senhas diferentes, o
+desbloqueio global falha sem liberar parcialmente as integrações; revise essas
+credenciais antes de prosseguir. Não apague o banco para tentar resolver.
+
+## Início: sua próxima ação
+
+A página inicial prioriza configurar o perfil, revisar vagas encontradas/em
+espera e acompanhar candidaturas ativas. Quando não há pendências, ela indica
+buscar vagas ou configurar/desbloquear as fontes. O cofre bloqueado não impede
+consultar oportunidades e candidaturas já salvas.
+
+O resumo usa a coleção completa de vagas, sem limite de dez nem o filtro de
+período do Painel. Candidaturas ativas são as fases aplicada, entrevista e
+proposta; contratações e processos encerrados não entram nessa contagem.
+A agenda conta compromissos futuros ou em andamento, sem os cancelados.
+
+A atividade recente mostra até cinco registros de vagas salvas, atualizações
+de candidaturas e perfil, com datas no fuso das preferências. Contagens ainda
+carregando ou indisponíveis aparecem como `—`, e falhas geram um aviso de
+resumo parcial — não são interpretadas como zero.
 
 ## Navegação por páginas
 
@@ -91,9 +131,9 @@ preferências e histórico continuam persistidos no backend/SQLite local.
 
 | Rota | Responsabilidade |
 | --- | --- |
-| `/` | Início, progresso de configuração e próximos passos |
+| `/` | Próxima ação, estado do ambiente, contagens atuais e atividade recente |
 | `/perfil` | Perfil profissional e prévia segura para a IA |
-| `/busca` | Pesquisa manual de vagas |
+| `/busca` | Formulário de pesquisa, estado das fontes e resumo do resultado |
 | `/vagas` | Caixa de entrada, detalhes, análises e ação “Marcar como aplicada” |
 | `/candidaturas` | Pipeline de candidaturas e transições de fase |
 | `/agenda` | Buscas automáticas e vagas coletadas por cada agenda |
@@ -118,7 +158,7 @@ pnpm --filter job-finder-web build
 .\.venv\Scripts\python.exe scripts\smoke_test.py
 ```
 
-## Release Windows (E7)
+## Release Windows
 
 O pacote de distribuição agora é um único `JobFinder.exe` na raiz do checkout.
 O builder é fixado em `packaging/requirements-build.txt`; em uma máquina
@@ -142,6 +182,16 @@ gera `release-manifest.json` com SHA-256 e não copia `.env` nem o banco local.
 O executável escuta somente em `127.0.0.1`; dados, logs e backups ficam em
 `%LOCALAPPDATA%\JobFinder`.
 
+Se o Python usado para criar a `.venv` tiver sido removido do Windows, recrie
+o ambiente virtual com um Python 3.10 ou superior antes de instalar as
+dependências. Um `python.exe` antigo dentro da pasta não funciona sem o runtime
+base correspondente.
+
+O release de 05/09/2026 foi validado com Python 3.12 e PyInstaller 6.11.0:
+health, frontend, criação do banco e uma segunda inicialização passaram em
+perfis locais isolados. O smoke encerra o processo graciosamente para não deixar
+servidor ou arquivo de log preso no Windows.
+
 ### Backup e restauração local
 
 Backups são snapshots consistentes do SQLite, com manifesto, checksum SHA-256,
@@ -161,10 +211,11 @@ o Job Finder antes de restaurar para liberar conexões SQLite no Windows.
 ## Primeiro uso e configuração
 
 1. Abra **Perfil** e salve cargos, competências, localização, regime e filtros.
-2. Em **Configurações → Fontes e integrações**, crie a senha do cofre e
-   informe as chaves OpenAI/providers que desejar. Use a mesma senha no bloco
-   do cofre para desbloquear todas as credenciais cadastradas. A senha não é
-   persistida; as chaves são armazenadas somente cifradas no SQLite local.
+2. Use **Configurar cofre** no cabeçalho para criar sua senha. Em
+   **Configurações → Fontes e integrações**, abra o card do provider desejado e
+   informe sua chave. Cada editor começa recolhido e isolado dos demais.
+   Para um cofre existente, use **Cofre bloqueado**; um desbloqueio libera
+   OpenAI e todos os providers, sem senhas nos formulários individuais.
 3. Em **Busca**, informe cargo e localização e execute a busca unificada.
 4. Se usar JSearch, configure a chave RapidAPI no cofre local ou em
    `JOB_FINDER_JSEARCH_API_KEY`. O endpoint atual é `/search-v2`.
@@ -207,13 +258,49 @@ Os contratos HTTP locais principais são:
 - `POST /api/sources/{source_key}/test` para testar uma fonte sem persistir vagas;
 - `POST /api/search-runs` para execuções legadas auditáveis (`wait=true` é útil em testes);
 - `GET /api/search-runs` e `POST /api/search-runs/{id}/cancel` para acompanhar/cancelar;
-- `GET /api/search/providers`, `PUT /api/search/providers/{provider}` e `POST /api/search/providers/unlock-all` para credenciais e desbloqueio único do cofre;
+- `GET /api/search/providers` e `PUT /api/search/providers/{provider}` para consultar e gravar credenciais (a gravação usa a sessão desbloqueada, sem reenviar senha);
+- `POST /api/search/providers/{provider}/test` para testar somente a integração escolhida, sem persistir vagas (a consulta pode consumir cota);
+- `DELETE /api/search/providers/{provider}` para remover apenas a chave local escolhida, preservando vagas e candidaturas; credenciais definidas por variável de ambiente devem ser removidas fora do aplicativo;
+- `GET /api/vault` para consultar o estado; `POST /api/vault/create|unlock|lock` para criar, desbloquear todas as credenciais ou bloquear a sessão (`create` e `unlock` recebem `vault_password`);
 - `GET /api/duplicates` e `POST /api/duplicates/{id}/confirm|dismiss` para revisão;
 - `POST /api/scheduler/tick` para disparar fontes agendadas já vencidas.
 
 Cada execução registra duração, contadores, cursor, falhas e cancelamento. A
 deduplicação exata usa URL canônica, identidade externa e hash de conteúdo; uma
 semelhança de cargo/empresa/local fica pendente até confirmação explícita.
+
+### Como usar a página de busca
+
+1. Acesse **Buscar** (`/busca`) e informe cargo, localização opcional e modalidade.
+2. Confira o estado das fontes logo abaixo do formulário. Fontes públicas não
+   exigem API key; integrações criptografadas usam o **Desbloquear cofre**
+   global, sem pedir uma senha para cada provider.
+3. Clique em **Buscar vagas**. Durante a consulta, o envio fica bloqueado para
+   evitar repetições. Ao concluir, a tela leva o foco até o resumo da resposta.
+4. Use **Revisar oportunidades →** para abrir `/vagas`, avaliar as vagas e
+   registrar candidaturas. Análise por IA e marcação como aplicada não
+   acontecem na página de busca.
+
+O resumo diferencia sucesso, nenhuma vaga para os filtros, resultado parcial,
+fonte não configurada, limite atingido e falha. Limite ou falha não significam
+que não existem vagas. **Ver detalhes da busca e do log** começa recolhido e
+mostra o diagnóstico por fonte; chaves e agendamento continuam em suas páginas.
+
+A contagem da caixa de entrada considera somente IDs de vagas persistidas,
+sem contar o mesmo ID duas vezes. Resultados sem vínculo salvo aparecem em
+**Ver resultados ainda fora da caixa de entrada**, com acesso ao anúncio
+original e aviso de possível duplicata quando indicado pelo serviço. Um
+resultado reutilizado do cache é identificado explicitamente.
+
+Filtros e o resumo da última consulta permanecem ao navegar pelo aplicativo.
+O resumo identifica os filtros efetivamente enviados, mesmo se você editar o
+formulário depois. Ao iniciar outra consulta, a resposta anterior é retirada;
+se falhar a atualização da caixa após a busca, um aviso diferencia essa falha
+do resultado da pesquisa. Recarregar o aplicativo limpa esse estado temporário,
+mas não apaga vagas, candidaturas e demais dados salvos no SQLite.
+
+O treino de entrevista permanece no produto separado: o link
+**Treinar entrevista no Se Prepara AI** abre o site externo.
 
 ### Agendas da busca unificada
 
@@ -233,16 +320,45 @@ coletados. Redescobertas atualizam origens e versões do conteúdo, sem rebaixar
 uma candidatura de `applied`, entrevista ou resultado terminal.
 
 Para registrar uma confirmação humana de envio, use o botão **Marcar como
-aplicada** na caixa, no detalhe ou no cartão de busca. O backend cria a
+aplicada** na caixa de vagas ou no detalhe em `/vagas`. O backend cria a
 candidatura e o evento inicial/transição em uma única transação; repetição é
 idempotente e não envia candidatura automaticamente a nenhum site.
+
+### Acompanhar candidaturas e análises
+
+**Candidaturas** permite filtrar uma fase sem perder os demais registros. O
+quadro usa colunas no desktop e uma lista por fase no celular. Escolha a
+próxima fase e confirme em **Mover candidatura**; encerramentos continuam
+pedindo motivo, e uma transição rejeitada restaura a fase anterior.
+
+**Agenda** tem filtros próprios de cargo, localização e modalidade: você pode
+criar uma busca automática diretamente nela, sem preencher `/busca` antes.
+A agenda é salva pausada e exige ativação explícita. Os compromissos aparecem
+separados das buscas automáticas.
+
+**Insights** lista as análises salvas por vaga e abre o detalhe correspondente.
+Esses resultados também são recuperados em **Vagas** ao abrir o aplicativo,
+sem uma nova chamada à IA. Leituras locais são limitadas a seis por lote;
+uma falha de leitura gera aviso, não a afirmação de que não existe análise.
+**Painel** mantém métricas por período, funil e tabelas de evolução e fontes.
+
+### Revisar uma oportunidade
+
+Em `/vagas`, a lista e o detalhe têm áreas separadas. No celular, abrir uma
+vaga leva o foco ao detalhe. O filtro informa quantas vagas da coleção completa
+estão visíveis; **Filtros salvos** fica recolhido até você precisar dele.
+
+Cada vaga indica se ainda não foi analisada, está em análise ou tem análise
+concluída. **Abrir análise completa** mostra a vaga pelo nome, aderência,
+confiança, pontos fortes, lacunas e evidências. A análise não marca a vaga
+como aplicada: essa confirmação continua sendo uma ação sua.
 
 ## Chave OpenAI local
 
 O modelo preparado é `gpt-5.6-luna`. A configuração local não inicia análises
 automaticamente: a análise é sempre uma ação explícita sobre uma vaga. A senha
 do cofre e a chave nunca são devolvidas pela API, mostradas novamente na
-interface ou gravadas nos logs. O botão **Desbloquear credenciais cadastradas**
+interface ou gravadas nos logs. O botão **Cofre bloqueado**, no cabeçalho,
 libera a chave OpenAI e todos os providers criptografados de uma só vez.
 
 O botão **Testar conexão** faz uma chamada mínima e sem dados de perfil ou
@@ -319,10 +435,11 @@ o status, quantidade e duração de cada provider, sem expor credenciais.
 
 As credenciais podem ser definidas como variáveis `JOB_FINDER_*` ou salvas no
 SQLite criptografado por senha local através de `/api/search/providers`. A
-senha nunca é persistida. Depois de reiniciar o app, use uma única vez
-`POST /api/search/providers/unlock-all` ou o botão **Desbloquear credenciais
-cadastradas** na seção de credenciais. A busca continua sem expor a chave no
-navegador.
+senha nunca é persistida. Depois de reiniciar o serviço, use uma única vez
+`POST /api/vault/unlock` ou o botão **Cofre bloqueado** no cabeçalho.
+Os endpoints antigos de desbloqueio individual continuam disponíveis por
+compatibilidade, mas a interface usa exclusivamente a sessão global.
+A busca continua sem expor a chave no navegador.
 
 Se o navegador informar que não conseguiu conectar ao serviço local, feche a
 aba antiga e execute novamente o comando de inicialização. O iniciador valida

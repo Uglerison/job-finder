@@ -81,3 +81,29 @@ def test_database_vault_supports_provider_credentials_without_plaintext(tmp_path
     assert secret.encode() not in database_bytes
     vault.delete_provider_secret("jsearch")
     assert vault.has_provider_secret("jsearch") is False
+
+
+def test_global_unlock_is_atomic_for_legacy_credentials(tmp_path: Path) -> None:
+    vault = create_vault(tmp_path)
+    vault.save_openai_api_key("sk-existing-key", "senha local correta")
+    vault.save_provider_secret("jooble", "provider-key", "outra senha antiga")
+    vault.lock()
+    with pytest.raises(SecretStoreError):
+        vault.unlock_all("senha local correta")
+    assert vault.get_unlocked_openai_api_key() is None
+    assert vault.get_unlocked_provider_secret("jooble") is None
+    assert vault.is_unlocked() is False
+
+
+def test_empty_vault_keeps_password_verification_across_restarts(tmp_path: Path) -> None:
+    vault = create_vault(tmp_path)
+    vault.initialize("senha para cofre vazio")
+    restarted = create_vault(tmp_path)
+    assert restarted.is_configured() is True
+    assert restarted.is_unlocked() is False
+    with pytest.raises(SecretStoreError):
+        restarted.unlock_all("outra senha invalida")
+    restarted.unlock_all("senha para cofre vazio")
+    restarted.save_provider_secret("jsearch", "new-key", None)
+    assert restarted.get_unlocked_provider_secret("jsearch") == "new-key"
+    assert b"senha para cofre vazio" not in (tmp_path / "job-finder.db").read_bytes()

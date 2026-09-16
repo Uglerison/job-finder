@@ -9,6 +9,7 @@ import shutil
 import sqlite3
 import tempfile
 import zipfile
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -153,9 +154,13 @@ def restore_backup(data_dir: Path, backup_path: Path) -> Path:
 
 def _snapshot_sqlite(source: Path, destination: Path) -> None:
     try:
-        with sqlite3.connect(source) as source_connection, sqlite3.connect(destination) as target:
-            source_connection.backup(target)
-            target.commit()
+        with (
+            closing(sqlite3.connect(source)) as source_connection,
+            closing(sqlite3.connect(destination)) as target,
+        ):
+            with source_connection, target:
+                source_connection.backup(target)
+                target.commit()
     except sqlite3.Error as error:
         raise BackupError("Não foi possível criar um snapshot consistente do banco.") from error
     _fsync_file(destination)
@@ -164,9 +169,12 @@ def _snapshot_sqlite(source: Path, destination: Path) -> None:
 def _build_manifest(snapshot: Path) -> BackupManifest:
     revision: str | None = None
     try:
-        with sqlite3.connect(snapshot) as connection:
-            row = connection.execute("SELECT version_num FROM alembic_version LIMIT 1").fetchone()
-            revision = str(row[0]) if row else None
+        with closing(sqlite3.connect(snapshot)) as connection:
+            with connection:
+                row = connection.execute(
+                    "SELECT version_num FROM alembic_version LIMIT 1"
+                ).fetchone()
+                revision = str(row[0]) if row else None
     except sqlite3.Error as error:
         raise BackupError("Banco local inválido para backup.") from error
     return BackupManifest(
@@ -181,10 +189,11 @@ def _build_manifest(snapshot: Path) -> BackupManifest:
 
 def _check_sqlite(path: Path) -> None:
     try:
-        with sqlite3.connect(path) as connection:
-            result = connection.execute("PRAGMA integrity_check").fetchone()
-            if result != ("ok",):
-                raise BackupError("O banco do backup falhou na verificação de integridade.")
+        with closing(sqlite3.connect(path)) as connection:
+            with connection:
+                result = connection.execute("PRAGMA integrity_check").fetchone()
+                if result != ("ok",):
+                    raise BackupError("O banco do backup falhou na verificação de integridade.")
     except sqlite3.Error as error:
         raise BackupError("O arquivo do backup não é um banco SQLite válido.") from error
 

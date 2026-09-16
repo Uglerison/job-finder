@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
@@ -50,12 +56,12 @@ describe('App', () => {
     fetchMock.mockReset();
   });
 
-  it('apresenta a promessa principal do espaço local de vagas', () => {
+  it('apresenta a central de acompanhamento local', () => {
     renderAt();
 
     expect(
       screen.getByRole('heading', {
-        name: 'Encontre oportunidades. Prepare-se para avançar.',
+        name: 'Seu espaço de busca',
       }),
     ).toBeInTheDocument();
     expect(screen.getByText('Job Finder')).toBeInTheDocument();
@@ -65,7 +71,7 @@ describe('App', () => {
     renderAt();
 
     expect(screen.getByRole('banner')).toHaveTextContent('Job Finder');
-    expect(screen.getByText('PLATAFORMA LOCAL DE VAGAS')).toBeInTheDocument();
+    expect(screen.getByText('VISÃO GERAL')).toBeInTheDocument();
     expect(
       screen.getByText('Dados ficam neste computador.'),
     ).toBeInTheDocument();
@@ -75,20 +81,21 @@ describe('App', () => {
   it('navega entre páginas reais sem misturar configurações à busca', () => {
     renderAt();
 
-    fireEvent.click(screen.getByRole('link', { name: 'Buscar vagas' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Buscar' }));
     expect(window.location.pathname).toBe('/busca');
     expect(
-      screen.getByRole('heading', { name: 'Encontre uma vaga para treinar' }),
+      screen.getByRole('heading', { name: 'Buscar vagas' }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText('API key')).not.toBeInTheDocument();
     expect(screen.queryByText('AGENDADOR LOCAL')).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Configurações' }));
     fireEvent.click(screen.getByRole('link', { name: 'Fontes e integrações' }));
     expect(window.location.pathname).toBe('/configuracoes/fontes');
     expect(
       screen.getByRole('heading', { name: 'Fontes e integrações' }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('API key')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'JSearch' })).toBeInTheDocument();
     expect(
       screen.queryByLabelText('Cargo ou palavra-chave'),
     ).not.toBeInTheDocument();
@@ -99,16 +106,37 @@ describe('App', () => {
       screen.getByRole('heading', { name: 'Pipeline de candidaturas' }),
     ).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Configurações' }));
     fireEvent.click(screen.getByRole('link', { name: 'Insights' }));
     expect(window.location.pathname).toBe('/insights');
     expect(
       screen.getByRole('heading', {
-        name: 'Decisões com contexto, não no escuro.',
+        name: 'Insights das suas vagas',
       }),
     ).toBeInTheDocument();
     expect(
       screen.queryByLabelText('Chave da API OpenAI'),
     ).not.toBeInTheDocument();
+  });
+
+  it('preserva o estado da busca ao navegar entre páginas', () => {
+    renderAt('/busca');
+
+    fireEvent.change(screen.getByLabelText('Cargo ou palavra-chave'), {
+      target: { value: 'Engenheiro de dados' },
+    });
+    fireEvent.change(screen.getByLabelText('Localização'), {
+      target: { value: 'Curitiba, PR' },
+    });
+
+    fireEvent.click(screen.getByRole('link', { name: 'Vagas' }));
+    expect(window.location.pathname).toBe('/vagas');
+    fireEvent.click(screen.getByRole('link', { name: 'Buscar' }));
+
+    expect(screen.getByLabelText('Cargo ou palavra-chave')).toHaveValue(
+      'Engenheiro de dados',
+    );
+    expect(screen.getByLabelText('Localização')).toHaveValue('Curitiba, PR');
   });
 
   it('oferece busca única e link externo para treino de entrevista', async () => {
@@ -133,6 +161,8 @@ describe('App', () => {
                 {
                   company: 'Dados Brasil',
                   description: 'Python e SQL',
+                  job_id: 1,
+                  review_required: false,
                   location: 'Curitiba, PR',
                   published_at: null,
                   salary: null,
@@ -165,7 +195,9 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Buscar vagas' }));
 
     await waitFor(() =>
-      expect(screen.getByText('Analista de Dados')).toBeInTheDocument(),
+      expect(
+        screen.getByText('Encontramos 1 vaga para estes filtros.'),
+      ).toBeInTheDocument(),
     );
     expect(screen.queryByLabelText('Fonte da busca')).not.toBeInTheDocument();
     expect(
@@ -173,23 +205,19 @@ describe('App', () => {
     ).toHaveAttribute('href', 'https://sepreparai.com.br/');
   });
 
-  it('permite cadastrar uma chave de provider no cofre local', async () => {
+  it('cria o cofre e retoma o cadastro de provider sem repetir a senha', async () => {
+    let unlocked = false;
     fetchMock.mockImplementation(
       (input: RequestInfo | URL, init?: RequestInit) => {
-        if (input === '/api/ai/settings') {
+        if (input === '/api/vault/create') unlocked = true;
+        if (input === '/api/vault' || input === '/api/vault/create') {
           return Promise.resolve({
-            json: async () => ({
-              configured: false,
-              unlocked: false,
-              model: 'gpt-5.6-luna',
-              storage: 'not_configured',
-            }),
+            json: async () => ({ configured: unlocked, unlocked }),
             ok: true,
           });
         }
-        if (input === '/api/search/providers' && !init?.method) {
+        if (input === '/api/search/providers')
           return Promise.resolve({ json: async () => [], ok: true });
-        }
         if (
           input === '/api/search/providers/jsearch' &&
           init?.method === 'PUT'
@@ -208,114 +236,114 @@ describe('App', () => {
       },
     );
     renderAt('/configuracoes/fontes');
-
+    expect(
+      screen.queryByLabelText('Crie uma senha para o cofre local'),
+    ).not.toBeInTheDocument();
+    const editProvider = within(
+      screen.getByRole('region', { name: 'JSearch' }),
+    ).getByRole('button', { name: 'Cadastrar credencial' });
+    await waitFor(() => expect(editProvider).toBeEnabled());
+    fireEvent.click(editProvider);
     fireEvent.change(screen.getByLabelText('API key'), {
       target: { value: 'jsearch-local-key' },
     });
-    fireEvent.change(
-      screen.getByLabelText('Crie uma senha para o cofre local'),
-      {
-        target: { value: 'senha local com doze' },
-      },
-    );
     fireEvent.click(screen.getByRole('button', { name: 'Salvar credencial' }));
-
-    await waitFor(() =>
-      expect(
-        screen.getByText('Credencial criptografada no banco local.'),
-      ).toBeInTheDocument(),
+    fireEvent.change(
+      await screen.findByLabelText('Crie uma senha para o cofre local'),
+      { target: { value: 'senha local com doze' } },
     );
+    fireEvent.change(screen.getByLabelText('Confirme a senha do cofre local'), {
+      target: { value: 'senha local com doze' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Criar cofre' }));
+    expect(
+      await screen.findByText('Credencial criptografada no banco local.'),
+    ).toBeInTheDocument();
     const [, options] = fetchMock.mock.calls.find(
       ([input, init]) =>
         input === '/api/search/providers/jsearch' && init?.method === 'PUT',
     ) as [string, RequestInit];
-    expect(JSON.parse(options.body as string)).toMatchObject({
+    expect(JSON.parse(options.body as string)).toEqual({
       api_key: 'jsearch-local-key',
-      vault_password: 'senha local com doze',
     });
+    expect(
+      screen.queryByDisplayValue('senha local com doze'),
+    ).not.toBeInTheDocument();
   });
 
-  it('desbloqueia uma credencial de provider já cifrada', async () => {
-    fetchMock.mockImplementation(
-      (input: RequestInfo | URL, init?: RequestInit) => {
-        if (input === '/api/ai/settings') {
-          return Promise.resolve({
-            json: async () => ({
-              configured: false,
-              unlocked: false,
-              model: 'gpt-5.6-luna',
-              storage: 'not_configured',
-            }),
-            ok: true,
-          });
-        }
-        if (input === '/api/search/providers' && !init?.method) {
-          return Promise.resolve({
-            json: async () => [
-              {
-                configured: true,
-                provider: 'jsearch',
-                storage: 'encrypted_database',
-                unlocked: false,
-              },
-            ],
-            ok: true,
-          });
-        }
-        if (
-          input === '/api/search/providers/unlock-all' &&
-          init?.method === 'POST'
-        ) {
-          return Promise.resolve({
-            json: async () => [
-              {
-                configured: true,
-                provider: 'jsearch',
-                storage: 'encrypted_database',
-                unlocked: true,
-              },
-            ],
-            ok: true,
-          });
-        }
-        return Promise.resolve({ json: async () => null, ok: true });
-      },
-    );
+  it('desbloqueia OpenAI e providers uma vez e preserva a sessão entre rotas', async () => {
+    let unlocked = false;
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (input === '/api/vault/unlock') unlocked = true;
+      if (input === '/api/vault/lock') unlocked = false;
+      if (String(input).startsWith('/api/vault')) {
+        return Promise.resolve({
+          json: async () => ({ configured: true, unlocked }),
+          ok: true,
+        });
+      }
+      if (input === '/api/ai/settings') {
+        return Promise.resolve({
+          json: async () => ({
+            configured: true,
+            unlocked,
+            model: 'gpt-5.6-luna',
+            storage: 'encrypted_database',
+          }),
+          ok: true,
+        });
+      }
+      if (input === '/api/search/providers') {
+        return Promise.resolve({
+          json: async () =>
+            ['jsearch', 'jooble'].map((provider) => ({
+              configured: true,
+              provider,
+              storage: 'encrypted_database',
+              unlocked,
+            })),
+          ok: true,
+        });
+      }
+      return Promise.resolve({ json: async () => null, ok: true });
+    });
     renderAt('/configuracoes/fontes');
-
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', {
-          name: 'Desbloquear credenciais cadastradas',
-        }),
-      ).toBeInTheDocument(),
-    );
-    fireEvent.change(
-      screen.getByLabelText('Crie uma senha para o cofre local'),
-      {
-        target: { value: 'senha local com doze' },
-      },
-    );
     fireEvent.click(
-      screen.getByRole('button', {
-        name: 'Desbloquear credenciais cadastradas',
+      await screen.findByRole('button', { name: 'Cofre bloqueado' }),
+    );
+    fireEvent.change(await screen.findByLabelText('Senha do cofre'), {
+      target: { value: 'senha local com doze' },
+    });
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Desbloquear cofre',
       }),
     );
-
-    await waitFor(() =>
-      expect(
-        screen.getByText(
-          'Cofre desbloqueado nesta execução para todas as credenciais cadastradas.',
-        ),
-      ).toBeInTheDocument(),
+    await screen.findByRole('button', { name: 'Cofre desbloqueado' });
+    expect(
+      await screen.findByText('CHAVE CONFIGURADA E DESBLOQUEADA'),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Candidaturas' }));
+    expect(window.location.pathname).toBe('/candidaturas');
+    fireEvent.click(screen.getByRole('button', { name: 'Cofre desbloqueado' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Bloquear cofre' }),
     );
-    const [, options] = fetchMock.mock.calls.find(
-      ([input, init]) =>
-        input === '/api/search/providers/unlock-all' && init?.method === 'POST',
-    ) as [string, RequestInit];
-    expect(JSON.parse(options.body as string)).toEqual({
+    await screen.findByRole('button', { name: 'Cofre bloqueado' });
+    const calls = fetchMock.mock.calls.filter(
+      ([input]) => input === '/api/vault/unlock',
+    );
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(calls[0][1].body)).toEqual({
       vault_password: 'senha local com doze',
     });
+    expect(
+      fetchMock.mock.calls.some(
+        ([input]) =>
+          input === '/api/search/providers/unlock-all' ||
+          input === '/api/ai/unlock',
+      ),
+    ).toBe(false);
   });
 
   it('explica quando a busca termina sem vagas e mostra o log dos providers', async () => {
@@ -418,7 +446,7 @@ describe('App', () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/profile'));
     fireEvent.click(
-      screen.getByRole('button', { name: 'Configurar meu perfil' }),
+      await screen.findByRole('link', { name: 'Configurar meu perfil' }),
     );
 
     expect(
@@ -536,7 +564,7 @@ describe('App', () => {
 
     renderAt();
     fireEvent.click(
-      screen.getByRole('button', { name: 'Configurar meu perfil' }),
+      await screen.findByRole('link', { name: 'Configurar meu perfil' }),
     );
     fireEvent.change(screen.getByLabelText('Texto para análise da IA'), {
       target: { value: 'Contato: ana@example.com.' },
@@ -788,20 +816,30 @@ describe('App', () => {
   it('envia a chave somente ao backend local e nunca a exibe novamente', async () => {
     const apiKey = 'sk-test-only-12345678901234567890';
     const vaultPassword = 'uma senha local longa';
+    let unlocked = false;
+    let configured = false;
     fetchMock.mockImplementation(
       (input: RequestInfo | URL, init?: RequestInit) => {
+        if (input === '/api/vault/create') unlocked = true;
+        if (input === '/api/vault' || input === '/api/vault/create') {
+          return Promise.resolve({
+            json: async () => ({ configured: unlocked, unlocked }),
+            ok: true,
+          });
+        }
         if (input === '/api/ai/settings') {
           return Promise.resolve({
             json: async () => ({
-              configured: false,
-              unlocked: false,
+              configured,
+              unlocked,
               model: 'gpt-5.6-luna',
-              storage: 'not_configured',
+              storage: configured ? 'encrypted_database' : 'not_configured',
             }),
             ok: true,
           });
         }
         if (input === '/api/ai/api-key' && init?.method === 'PUT') {
+          configured = true;
           return Promise.resolve({
             json: async () => ({
               configured: true,
@@ -825,13 +863,17 @@ describe('App', () => {
     renderAt('/configuracoes/fontes');
 
     expect(
-      await screen.findByRole('heading', { name: 'Integrações protegidas' }),
+      await screen.findByRole('heading', { name: 'OpenAI · análise de vagas' }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Configurar OpenAI'));
     const input = screen.getByLabelText('Chave da API OpenAI');
     expect(input).toHaveAttribute('type', 'password');
     fireEvent.change(input, { target: { value: apiKey } });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Criptografar e salvar chave' }),
+    );
     fireEvent.change(
-      screen.getByLabelText('Crie uma senha para o cofre local'),
+      await screen.findByLabelText('Crie uma senha para o cofre local'),
       {
         target: { value: vaultPassword },
       },
@@ -839,9 +881,7 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText('Confirme a senha do cofre local'), {
       target: { value: vaultPassword },
     });
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Criptografar e salvar chave' }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Criar cofre' }));
 
     expect(
       await screen.findByText('Chave criptografada e salva no banco local.'),
@@ -864,7 +904,6 @@ describe('App', () => {
     ) as [string, RequestInit];
     expect(JSON.parse(options.body as string)).toEqual({
       api_key: apiKey,
-      vault_password: vaultPassword,
     });
     expect(
       fetchMock.mock.calls.some(
@@ -996,6 +1035,8 @@ describe('App', () => {
                 {
                   company: 'Example Labs',
                   description: 'Backend Engineer com Python',
+                  job_id: 1,
+                  review_required: false,
                   location: 'Remote',
                   published_at: '2026-08-15T10:00:00Z',
                   salary: null,
@@ -1025,7 +1066,7 @@ describe('App', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: 'Encontre uma vaga para treinar',
+        name: 'Buscar vagas',
       }),
     ).toBeInTheDocument();
     expect(
@@ -1036,7 +1077,9 @@ describe('App', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Buscar vagas' }));
 
-    expect(await screen.findByText('Backend Engineer')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Encontramos 1 vaga para estes filtros.'),
+    ).toBeInTheDocument();
     const [, options] = fetchMock.mock.calls.find(
       ([input, init]) => input === '/api/search' && init?.method === 'POST',
     ) as [string, RequestInit];
@@ -1269,6 +1312,133 @@ describe('App', () => {
           init?.method === 'POST',
       ),
     ).toBe(true);
+  });
+
+  it('solicita motivo ao mover uma candidatura para uma fase encerrada', async () => {
+    const job = {
+      canonical_url: 'https://jobs.example.com/rejected-1',
+      company: 'Example Labs',
+      created_at: '2026-08-15T10:00:00Z',
+      id: 1,
+      location: 'São Paulo',
+      origin_count: 1,
+      status: 'found',
+      status_label: 'ENCONTRADA',
+      title: 'Analista de Inteligência de Dados Pl.',
+    };
+    const application = {
+      created_at: '2026-08-15T10:05:00Z',
+      current_status: 'applied',
+      events: [],
+      id: 7,
+      job_id: 1,
+      updated_at: '2026-08-15T10:05:00Z',
+    };
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (input === '/api/jobs') {
+        return Promise.resolve({
+          json: async () => ({ items: [job] }),
+          ok: true,
+        });
+      }
+      if (input === '/api/jobs/1/application') {
+        return Promise.resolve({ json: async () => application, ok: true });
+      }
+      if (input === '/api/applications/7/transition') {
+        return Promise.resolve({
+          json: async () => ({
+            ...application,
+            closing_reason: 'not_fit',
+            current_status: 'rejected',
+            updated_at: '2026-08-15T10:06:00Z',
+          }),
+          ok: true,
+        });
+      }
+      return Promise.resolve({ json: async () => null, ok: true });
+    });
+
+    renderAt('/candidaturas');
+    await screen.findByText('Analista de Inteligência de Dados Pl.');
+    fireEvent.change(
+      await screen.findByLabelText(
+        'Próxima fase para Analista de Inteligência de Dados Pl.',
+      ),
+      { target: { value: 'rejected' } },
+    );
+
+    expect(screen.getByLabelText('Motivo do encerramento')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Motivo do encerramento'), {
+      target: { value: 'not_fit' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Mover candidatura' }));
+
+    await waitFor(() =>
+      expect(screen.getAllByText('NÃO APROVADO').length).toBeGreaterThanOrEqual(
+        1,
+      ),
+    );
+    const transitionCall = fetchMock.mock.calls.find(
+      ([input]) => input === '/api/applications/7/transition',
+    );
+    expect(JSON.parse(transitionCall?.[1]?.body as string)).toMatchObject({
+      closure_reason: 'not_fit',
+      to_status: 'rejected',
+    });
+  });
+
+  it('carrega todas as páginas da caixa de vagas para não ocultar candidaturas antigas', async () => {
+    const firstJob = {
+      canonical_url: null,
+      company: 'Empresa 1',
+      created_at: '2026-08-15T10:00:00Z',
+      id: 1,
+      location: null,
+      origin_count: 1,
+      status: 'found',
+      status_label: 'ENCONTRADA',
+      title: 'Vaga mais recente',
+    };
+    const secondJob = {
+      ...firstJob,
+      company: 'Empresa 2',
+      id: 2,
+      title: 'Vaga mais antiga',
+    };
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (input === '/api/jobs') {
+        return Promise.resolve({
+          json: async () => ({
+            items: [firstJob],
+            page: 1,
+            page_size: 1,
+            pages: 2,
+            total: 2,
+          }),
+          ok: true,
+        });
+      }
+      if (input === '/api/jobs?page=2&page_size=1') {
+        return Promise.resolve({
+          json: async () => ({
+            items: [secondJob],
+            page: 2,
+            page_size: 1,
+            pages: 2,
+            total: 2,
+          }),
+          ok: true,
+        });
+      }
+      return Promise.resolve({ json: async () => null, ok: true });
+    });
+
+    renderAt('/vagas');
+
+    expect(await screen.findByText('Vaga mais recente')).toBeInTheDocument();
+    expect(await screen.findByText('Vaga mais antiga')).toBeInTheDocument();
   });
 
   it('reverte a movimentação otimista quando a transição é rejeitada', async () => {

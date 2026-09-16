@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AppPath } from './routes';
 
 type InternalLinkProps = {
@@ -29,33 +29,83 @@ function InternalLink({
   );
 }
 
+const primaryRoutes: Array<{ label: string; path: AppPath }> = [
+  { label: 'Buscar', path: '/busca' },
+  { label: 'Vagas', path: '/vagas' },
+  { label: 'Candidaturas', path: '/candidaturas' },
+  { label: 'Agenda', path: '/agenda' },
+  { label: 'Painel', path: '/painel' },
+];
+
+const utilityRoutes: Array<{ label: string; path: AppPath }> = [
+  { label: 'Visão geral', path: '/configuracoes' },
+  { label: 'Perfil profissional', path: '/perfil' },
+  { label: 'Fontes e integrações', path: '/configuracoes/fontes' },
+  { label: 'Preferências', path: '/configuracoes/preferencias' },
+  { label: 'Histórico técnico', path: '/configuracoes/historico' },
+  { label: 'Lixeira', path: '/configuracoes/lixeira' },
+  { label: 'Insights', path: '/insights' },
+];
+
 type AppNavigationProps = {
   children: ReactNode;
   onNavigate: (path: AppPath) => void;
-  onOpenProfile: () => void;
   pathname: AppPath;
+  vaultAction?: ReactNode;
 };
 
 export function AppNavigation({
   children,
   onNavigate,
-  onOpenProfile,
   pathname,
+  vaultAction,
 }: AppNavigationProps) {
-  const configPath = pathname.startsWith('/configuracoes');
-  const [isConfigMenuOpen, setIsConfigMenuOpen] = useState(configPath);
+  const navigationRef = useRef<HTMLDivElement>(null);
+  const [isConfigMenuOpen, setIsConfigMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    setIsConfigMenuOpen(configPath);
-  }, [configPath]);
+    setIsConfigMenuOpen(false);
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!navigationRef.current?.contains(event.target as Node)) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMobileMenuOpen]);
+
+  const handleNavigate = (path: AppPath) => {
+    setIsConfigMenuOpen(false);
+    setIsMobileMenuOpen(false);
+    onNavigate(path);
+  };
 
   return (
     <div className="paper-app">
       <header className="site-header" role="banner">
-        <div className="header-inner">
+        <div className="header-inner" ref={navigationRef}>
           <InternalLink
             active={pathname === '/'}
-            onNavigate={onNavigate}
+            onNavigate={handleNavigate}
             path="/"
           >
             <span className="brand" aria-label="Job Finder, início">
@@ -64,125 +114,66 @@ export function AppNavigation({
             </span>
           </InternalLink>
 
-          <nav aria-label="Navegação principal" className="primary-nav">
-            <div className="nav-row">
-              <span className="nav-group-label">Principal</span>
+          <button
+            aria-controls="site-navigation"
+            aria-expanded={isMobileMenuOpen}
+            aria-label={isMobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
+            className="mobile-menu-trigger"
+            onClick={() => setIsMobileMenuOpen((isOpen) => !isOpen)}
+            type="button"
+          >
+            <span aria-hidden="true">{isMobileMenuOpen ? '×' : '☰'}</span>
+          </button>
+
+          <nav
+            aria-label="Navegação principal"
+            className={`primary-nav${isMobileMenuOpen ? ' is-open' : ''}`}
+            id="site-navigation"
+          >
+            {primaryRoutes.map((route) => (
               <InternalLink
-                active={pathname === '/'}
-                onNavigate={onNavigate}
-                path="/"
+                active={pathname === route.path}
+                key={route.path}
+                onNavigate={handleNavigate}
+                path={route.path}
               >
-                Início
+                {route.label}
               </InternalLink>
-              <InternalLink
-                active={pathname === '/busca'}
-                onNavigate={onNavigate}
-                path="/busca"
-              >
-                Buscar vagas
-              </InternalLink>
-              <InternalLink
-                active={pathname === '/vagas'}
-                onNavigate={onNavigate}
-                path="/vagas"
-              >
-                Minhas vagas
-              </InternalLink>
-              <InternalLink
-                active={pathname === '/candidaturas'}
-                onNavigate={onNavigate}
-                path="/candidaturas"
-              >
-                Candidaturas
-              </InternalLink>
-            </div>
-            <div className="nav-row">
-              <span className="nav-group-label">Acompanhar</span>
-              <InternalLink
-                active={pathname === '/agenda'}
-                onNavigate={onNavigate}
-                path="/agenda"
-              >
-                Agenda
-              </InternalLink>
-              <InternalLink
-                active={pathname === '/insights'}
-                onNavigate={onNavigate}
-                path="/insights"
-              >
-                Insights
-              </InternalLink>
-              <InternalLink
-                active={pathname === '/painel'}
-                onNavigate={onNavigate}
-                path="/painel"
-              >
-                Painel
-              </InternalLink>
-            </div>
+            ))}
           </nav>
 
-          <details
-            className="config-menu"
-            onToggle={(event) => setIsConfigMenuOpen(event.currentTarget.open)}
-            open={isConfigMenuOpen}
-          >
-            <summary aria-label="Abrir configurações">Configurações</summary>
-            <div className="config-menu-list">
-              <InternalLink
-                active={pathname === '/configuracoes'}
-                onNavigate={onNavigate}
-                path="/configuracoes"
+          <div className="header-utilities">
+            {vaultAction}
+            <div className="config-menu">
+              <button
+                aria-expanded={isConfigMenuOpen}
+                aria-haspopup="menu"
+                className="config-menu-trigger"
+                onClick={() => setIsConfigMenuOpen((isOpen) => !isOpen)}
+                type="button"
               >
-                Visão geral
-              </InternalLink>
-              <InternalLink
-                active={pathname === '/perfil'}
-                onNavigate={onNavigate}
-                path="/perfil"
-              >
-                Perfil
-              </InternalLink>
-              <InternalLink
-                active={pathname === '/configuracoes/fontes'}
-                onNavigate={onNavigate}
-                path="/configuracoes/fontes"
-              >
-                Fontes e integrações
-              </InternalLink>
-              <InternalLink
-                active={pathname === '/configuracoes/preferencias'}
-                onNavigate={onNavigate}
-                path="/configuracoes/preferencias"
-              >
-                Preferências
-              </InternalLink>
-              <InternalLink
-                active={pathname === '/configuracoes/historico'}
-                onNavigate={onNavigate}
-                path="/configuracoes/historico"
-              >
-                Histórico técnico
-              </InternalLink>
-              <InternalLink
-                active={pathname === '/configuracoes/lixeira'}
-                onNavigate={onNavigate}
-                path="/configuracoes/lixeira"
-              >
-                Lixeira
-              </InternalLink>
+                Configurações
+              </button>
+              {isConfigMenuOpen && (
+                <div
+                  aria-label="Menu de configurações"
+                  className="config-menu-list"
+                  role="menu"
+                >
+                  {utilityRoutes.map((route) => (
+                    <InternalLink
+                      active={pathname === route.path}
+                      key={route.path}
+                      onNavigate={handleNavigate}
+                      path={route.path}
+                    >
+                      {route.label}
+                    </InternalLink>
+                  ))}
+                </div>
+              )}
             </div>
-          </details>
-
-          <div className="header-meta">
             <span className="meta-label">LOCAL · PRIVADO</span>
-            <button
-              className="header-action"
-              onClick={onOpenProfile}
-              type="button"
-            >
-              Abrir perfil
-            </button>
           </div>
         </div>
       </header>

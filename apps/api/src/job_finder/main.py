@@ -6,7 +6,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from job_finder import __version__
@@ -42,6 +45,7 @@ from job_finder.settings import Settings, get_settings
 from job_finder.source_adapters import SourceRegistry
 from job_finder.sources_api import router as sources_router
 from job_finder.trash_api import router as trash_router
+from job_finder.vault_api import router as vault_router
 
 
 class HealthResponse(BaseModel):
@@ -90,6 +94,9 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
                 task.cancel()
             if scheduled_tasks:
                 await asyncio.gather(*scheduled_tasks, return_exceptions=True)
+            vault = getattr(application.state, "secret_vault", None)
+            if vault is not None:
+                vault.lock()
             logger.info("Stopping local Job Finder service.")
             if engine is not None:
                 engine.dispose()
@@ -119,6 +126,30 @@ def create_app(
         lifespan=lifespan,
         openapi_url="/api/openapi.json",
     )
+
+    @application.exception_handler(RequestValidationError)
+    async def safe_credential_validation(
+        request: Request,
+        error: RequestValidationError,
+    ) -> JSONResponse:
+        if request.url.path.startswith(
+            (
+                "/api/vault",
+                "/api/ai/api-key",
+                "/api/ai/unlock",
+                "/api/search/providers",
+            )
+        ):
+            # FastAPI normally echoes rejected input, including invalid SecretStr values.
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "detail": "Credenciais inválidas. Confira os campos e use uma senha de cofre "
+                    "com pelo menos 12 caracteres.",
+                },
+            )
+        return await request_validation_exception_handler(request, error)
+
     application.add_middleware(LocalSecurityMiddleware)
     application.state.settings = settings or get_settings()
     application.state.source_registry = SourceRegistry()
@@ -127,6 +158,7 @@ def create_app(
     application.state.analysis_prompt_cache = AnalysisPromptCache()
     application.include_router(profile_router)
     application.include_router(ai_settings_router)
+    application.include_router(vault_router)
     application.include_router(ai_analysis_router)
     application.include_router(ai_usage_router)
     application.include_router(dashboard_router)
