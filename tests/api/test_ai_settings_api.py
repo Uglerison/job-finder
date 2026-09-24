@@ -149,6 +149,33 @@ async def test_ai_settings_api_can_report_an_environment_key_without_exposing_it
 
 
 @pytest.mark.anyio
+async def test_environment_openai_key_has_priority_over_unlocked_encrypted_key(
+    tmp_path: Path,
+) -> None:
+    environment_secret = "sk-environment-12345678901234567890"
+    encrypted_secret = "sk-encrypted-12345678901234567890"
+    app = create_app(
+        Settings(data_dir=tmp_path, environment="test", openai_api_key=environment_secret),
+    )
+    vault = FakeEncryptedVault(encrypted_secret)
+    vault.unlocked_value = encrypted_secret
+    app.state.secret_vault = vault
+    app.state.openai_client = FakeOpenAiClient()
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        status = await client.get("/api/ai/settings")
+        connection = await client.post("/api/ai/connection/test")
+
+    assert status.json()["storage"] == "environment"
+    assert connection.status_code == 200
+    assert app.state.openai_client.received_key is not None
+    assert app.state.openai_client.received_key.get_secret_value() == environment_secret
+    assert environment_secret not in status.text + connection.text
+    assert encrypted_secret not in status.text + connection.text
+
+
+@pytest.mark.anyio
 async def test_ai_settings_api_returns_safe_error_when_encrypted_storage_is_unavailable(
     application,
 ) -> None:

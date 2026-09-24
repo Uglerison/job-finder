@@ -87,14 +87,14 @@ class OpenAiCredentialSettings:
         self._environment_key = environment_key
 
     def status(self) -> AiSettingsResponse:
+        if self._environment_value() is not None:
+            return AiSettingsResponse(configured=True, unlocked=True, storage="environment")
         if self._vault.has_openai_api_key():
             return AiSettingsResponse(
                 configured=True,
                 unlocked=self._vault.get_unlocked_openai_api_key() is not None,
                 storage="encrypted_database",
             )
-        if self._environment_value() is not None:
-            return AiSettingsResponse(configured=True, unlocked=True, storage="environment")
         return AiSettingsResponse(configured=False, unlocked=False, storage="not_configured")
 
     def set_api_key(
@@ -119,10 +119,12 @@ class OpenAiCredentialSettings:
         return self.status()
 
     def get_api_key(self) -> SecretStr | None:
+        if self._environment_key is not None:
+            return self._environment_key
         stored_key = self._vault.get_unlocked_openai_api_key()
         if stored_key is not None:
             return SecretStr(stored_key)
-        return self._environment_key
+        return None
 
     def _environment_value(self) -> str | None:
         return self._environment_key.get_secret_value() if self._environment_key else None

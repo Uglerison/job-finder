@@ -42,6 +42,27 @@ def test_settings_can_be_overridden_by_environment(
     assert settings.data_dir == custom_data_dir
 
 
+def test_get_settings_loads_dotenv_and_process_environment_has_priority(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("JOB_FINDER_SEARCH_CACHE_TTL_SECONDS", raising=False)
+    monkeypatch.setenv("JOB_FINDER_SEARCH_MINIMUM_RESULTS", "7")
+    (tmp_path / ".env").write_text(
+        "JOB_FINDER_SEARCH_CACHE_TTL_SECONDS=42\n"
+        "JOB_FINDER_SEARCH_MINIMUM_RESULTS=20\n"
+        "JOB_FINDER_JSEARCH_API_KEY=dotenv-test-key\n",
+        encoding="utf-8",
+    )
+
+    settings = get_settings()
+
+    assert settings.search_cache_ttl_seconds == 42
+    assert settings.search_minimum_results == 7
+    assert settings.jsearch_api_key is not None
+    assert settings.jsearch_api_key.get_secret_value() == "dotenv-test-key"
+
+
 def test_settings_reject_invalid_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("JOB_FINDER_ENVIRONMENT", "staging")
 

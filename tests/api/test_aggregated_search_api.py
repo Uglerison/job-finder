@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from pydantic import SecretStr
 
+from job_finder.aggregated_search_api import _credential
 from job_finder.database import create_database_engine, create_session_factory, run_migrations
 from job_finder.main import create_app
 from job_finder.settings import Settings
@@ -145,6 +147,32 @@ async def test_provider_credential_is_encrypted_and_can_be_unlocked(application)
     }
     assert locked.status_code == 200
     assert "jsearch-local-key" not in saved.text
+
+
+@pytest.mark.anyio
+async def test_environment_provider_credential_has_priority_over_encrypted_key(
+    application,
+) -> None:
+    application.state.settings.jsearch_api_key = None
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        await client.put(
+            "/api/search/providers/jsearch",
+            json={"api_key": "jsearch-local-key", "vault_password": "senha local com doze"},
+        )
+        application.state.settings.jsearch_api_key = SecretStr("jsearch-environment-key")
+        status = await client.get("/api/search/providers")
+
+    jsearch = next(item for item in status.json() if item["provider"] == "jsearch")
+    assert jsearch == {
+        "provider": "jsearch",
+        "configured": True,
+        "unlocked": True,
+        "storage": "environment",
+    }
+    assert _credential(application, "jsearch") == "jsearch-environment-key"
+    assert "jsearch-environment-key" not in status.text
+    assert "jsearch-local-key" not in status.text
 
 
 @pytest.mark.anyio

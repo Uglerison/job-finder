@@ -96,6 +96,11 @@ integrações**: OpenAI e providers usam a mesma sessão, sem repetir a senha.
 - Perfil, vagas, candidaturas e fontes públicas continuam acessíveis sem
   desbloquear. Chaves definidas por variável de ambiente não dependem do cofre.
 
+Ao iniciar, o aplicativo carrega o arquivo `.env` do diretório de trabalho (ou
+da pasta do executável no pacote Windows). Variáveis definidas diretamente no
+processo têm prioridade sobre o `.env`; ambas têm prioridade sobre credenciais
+cadastradas manualmente no cofre. Reinicie o aplicativo após alterar o `.env`.
+
 As chaves ficam cifradas no SQLite. A senha e as chaves decifradas permanecem
 somente na memória do processo enquanto o cofre está aberto; não são
 persistidas em disco, localStorage ou sessionStorage. Ao reiniciar o serviço,

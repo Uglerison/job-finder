@@ -1,6 +1,7 @@
 """Typed configuration for the local Job Finder backend."""
 
 import os
+import sys
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
@@ -21,6 +22,14 @@ def default_data_dir() -> Path:
         return Path(local_app_data) / "JobFinder"
 
     return Path.home() / ".local" / "share" / "JobFinder"
+
+
+def default_env_file() -> Path:
+    """Return the user-managed .env file used by the application launcher."""
+
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / ".env"
+    return Path.cwd() / ".env"
 
 
 class Settings(BaseSettings):
@@ -52,4 +61,7 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Return one immutable settings instance per process."""
 
-    return Settings()
+    return Settings(  # type: ignore[call-arg]  # pydantic-settings runtime options
+        _env_file=default_env_file(),
+        _env_file_encoding="utf-8",
+    )

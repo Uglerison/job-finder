@@ -142,16 +142,16 @@ def _provider_status(
         "jooble": settings.jooble_api_key,
     }[provider]
     encrypted = vault.has_provider_secret(provider)
+    environment_configured = environment_value is not None
     return ProviderCredentialStatus(
         provider=provider,
-        configured=encrypted or environment_value is not None,
-        unlocked=(vault.get_unlocked_provider_secret(provider) is not None)
-        or environment_value is not None,
+        configured=environment_configured or encrypted,
+        unlocked=environment_configured or vault.get_unlocked_provider_secret(provider) is not None,
         storage=(
-            "encrypted_database"
+            "environment"
+            if environment_configured
+            else "encrypted_database"
             if encrypted
-            else "environment"
-            if environment_value is not None
             else "not_configured"
         ),
     )
@@ -317,17 +317,15 @@ def unlock_provider_credential(
 
 
 def _credential(request_or_application: Request | FastAPI, provider: str) -> str | None:
-    vault = _vault(request_or_application)
-    stored = vault.get_unlocked_provider_secret(provider)
-    if stored is not None:
-        return stored
     settings: Settings = _app_state(request_or_application).settings
     value = {
         "jsearch": settings.jsearch_api_key,
         "adzuna": settings.adzuna_app_key,
         "jooble": settings.jooble_api_key,
     }[provider]
-    return value.get_secret_value() if value else None
+    if value is not None:
+        return value.get_secret_value()
+    return _vault(request_or_application).get_unlocked_provider_secret(provider)
 
 
 def _providers(request_or_application: Request | FastAPI, session: Session) -> list[JobProvider]:

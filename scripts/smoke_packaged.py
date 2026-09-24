@@ -53,6 +53,7 @@ def main() -> int:
         environment.update(
             {
                 "LOCALAPPDATA": str(local_app_data),
+                "JOB_FINDER_DATA_DIR": str(local_app_data / "JobFinder"),
                 "JOB_FINDER_ENVIRONMENT": "test",
                 "JOB_FINDER_LOG_LEVEL": "WARNING",
                 "JOB_FINDER_NO_BROWSER": "1",
